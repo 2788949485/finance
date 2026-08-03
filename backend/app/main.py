@@ -202,6 +202,14 @@ def chat_sessions(user: dict[str, Any] = Depends(get_current_user)) -> list[dict
     return chat_service.list_sessions(user["id"])
 
 
+@app.delete("/api/chat/{session_id}")
+def delete_chat(session_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    ok = chat_service.delete_session(session_id, user["id"])
+    if not ok:
+        raise HTTPException(404, "会话不存在或无权限")
+    return {"deleted": session_id}
+
+
 @app.get("/api/chat/{session_id}/messages")
 def chat_messages(session_id: int, user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
     return chat_service.get_messages(session_id, user["id"])

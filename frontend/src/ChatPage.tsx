@@ -65,6 +65,20 @@ export default function ChatPage() {
     setError('')
   }
 
+  const removeSession = async (id: number) => {
+    if (!window.confirm('确定删除该对话？删除后不可恢复')) return
+    try {
+      await api.deleteChat(id)
+      setSessions((prev) => prev.filter((s) => s.id !== id))
+      if (sessionId === id) {
+        setSessionId(null)
+        setMessages([])
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '删除失败')
+    }
+  }
+
   const newSession = async () => {
     const { session_id } = await api.newChat()
     setSessionId(session_id)
@@ -100,14 +114,17 @@ export default function ChatPage() {
         <button className="new-chat-btn" onClick={newSession}>新建对话</button>
         <div className="chat-list">
           {sessions.map((s) => (
-            <button
-              key={s.id}
-              className={`chat-item ${s.id === sessionId ? 'active' : ''}`}
-              onClick={() => openSession(s.id)}
-            >
-              <span className="chat-item-title">{s.title}</span>
-              <span className="chat-item-meta">{s.msg_count} 条</span>
-            </button>
+            <div key={s.id} className={`chat-item ${s.id === sessionId ? 'active' : ''}`}>
+              <button className="chat-item-main" onClick={() => openSession(s.id)}>
+                <span className="chat-item-title">{s.title}</span>
+                <span className="chat-item-meta">{s.msg_count} 条</span>
+              </button>
+              <button
+                className="chat-item-del"
+                title="删除对话"
+                onClick={(e) => { e.stopPropagation(); removeSession(s.id) }}
+              >删除</button>
+            </div>
           ))}
         </div>
       </aside>

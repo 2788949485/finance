@@ -527,3 +527,19 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .md-body a { color: var(--up); text-decoration: none; }
 .md-body a:hover { text-decoration: underline; }
 .md-body hr { border: none; border-top: 1px dashed var(--border); margin: 10px 0; }
+
+/* ---------- 会话删除按钮 ---------- */
+.chat-item { padding: 0; overflow: hidden; }
+.chat-item-main {
+  flex: 1; display: flex; justify-content: space-between; align-items: center;
+  background: none; border: none; padding: 10px 12px;
+  cursor: pointer; text-align: left;
+  color: var(--text);
+}
+.chat-item-del {
+  background: none; border: none; color: var(--text-3);
+  font-size: 11px; padding: 4px 10px; cursor: pointer;
+  opacity: 0; transition: opacity 0.2s ease, color 0.2s ease;
+}
+.chat-item:hover .chat-item-del { opacity: 1; }
+.chat-item-del:hover { color: var(--down); background: none; }

@@ -75,6 +75,9 @@ export const api = {
 
   listChats: () => request<ChatSession[]>('/api/chat/sessions'),
 
+  deleteChat: (sessionId: number) =>
+    request<{ deleted: number }>(`/api/chat/${sessionId}`, { method: 'DELETE' }),
+
   chatMessages: (sessionId: number) => request<ChatMessage[]>(`/api/chat/${sessionId}/messages`),
 
   sendChat: (message: string, sessionId?: number) =>
