@@ -1,24 +1,60 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api } from './api'
-import type { AnalysisResult, HistoryItem, LLMConfig } from './types'
+import { api, getToken, setToken } from './api'
+import type { AnalysisResult, AuthResponse, HistoryItem, LLMConfig } from './types'
+import LoginPage from './LoginPage'
+import ChatPage from './ChatPage'
 import './App.css'
 
-type Tab = 'analyze' | 'config' | 'history'
+type Tab = 'chat' | 'analyze' | 'history' | 'config'
 
 function App() {
-  const [tab, setTab] = useState<Tab>('analyze')
+  const [tab, setTab] = useState<Tab>('chat')
+  const [auth, setAuth] = useState<AuthResponse | null>(null)
+  const [booted, setBooted] = useState(false)
+
+  // 启动时校验 token
+  useEffect(() => {
+    if (!getToken()) { setBooted(true); return }
+    api.me()
+      .then((r) => {
+        setAuth({ token: getToken()!, user: r.user, profile: r.profile })
+        setTab('chat')
+      })
+      .catch(() => setToken(null))
+      .finally(() => setBooted(true))
+  }, [])
+
+  if (!booted) return <div className="boot-screen">加载中...</div>
+
+  if (!auth) {
+    return <LoginPage onLogin={(r) => { setAuth(r); setTab('chat') }} />
+  }
+
+  const logout = () => {
+    setToken(null)
+    setAuth(null)
+  }
 
   return (
     <div className="app">
       <header className="topbar">
-        <h1>FinanceCrew 金融智能体团队</h1>
+        <div className="brand">
+          <div className="brand-mark">FC</div>
+          <h1>FinanceCrew<small>金融智能体投研团队</small></h1>
+        </div>
         <nav>
+          <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>智能对话</button>
           <button className={tab === 'analyze' ? 'active' : ''} onClick={() => setTab('analyze')}>投研分析</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
           <button className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>模型配置</button>
         </nav>
+        <div className="user-menu">
+          <span className="user-name">{auth.user.username}</span>
+          <button className="ghost" onClick={logout}>退出</button>
+        </div>
       </header>
       <main>
+        {tab === 'chat' && <ChatPage />}
         {tab === 'analyze' && <AnalyzePane />}
         {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
         {tab === 'config' && <ConfigPane />}
@@ -82,33 +118,68 @@ function ReportView({ result }: { result: AnalysisResult }) {
   const trend = score >= 3 ? '偏多' : score <= -3 ? '偏空' : '中性'
   const plan = result.trade_plan
   const risk = result.risk_review
+  // gauge 标记位置：-10 ~ +10 映射到 0% ~ 100%
+  const gaugeLeft = `${((score + 10) / 20) * 100}%`
+
+  const price = result.price
+  const changePct = result.change_pct
 
   return (
     <div className="report">
       <div className="report-head">
         <div>
           <h2>{result.name || result.ticker} <span className="ticker-code">{result.ticker}</span></h2>
-          <div className="meta">
-            现价 {result.price ?? '--'} | 共识评分 {score}（{trend}）| {result.created_at}
-          </div>
+          <div className="meta">{result.created_at}</div>
         </div>
-        <div className={`score-badge ${trend === '偏多' ? 'bull' : trend === '偏空' ? 'bear' : 'neutral'}`}>
+        <div className={`score-display ${trend === '偏多' ? 'up' : trend === '偏空' ? 'down' : 'neutral'}`}>
           {score > 0 ? '+' : ''}{score}
         </div>
       </div>
 
-      <div className="consensus">
-        <h3>共识结论</h3>
-        <p>{result.consensus_verdict || '（无）'}</p>
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-label">现价</div>
+          <div className="kpi-value">{price ?? '--'}</div>
+          <div className="kpi-sub">人民币</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">涨跌幅</div>
+          <div className={`kpi-value ${(changePct ?? 0) >= 0 ? 'up' : 'down'}`}>{changePct != null ? `${changePct > 0 ? '+' : ''}${changePct}%` : '--'}</div>
+          <div className="kpi-sub">当日</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">共识评分</div>
+          <div className={`kpi-value ${trend === '偏多' ? 'up' : trend === '偏空' ? 'down' : 'neutral'}`}>{score}</div>
+          <div className="kpi-sub">{trend}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">分析师</div>
+          <div className="kpi-value">{result.analyst_views.length}</div>
+          <div className="kpi-sub">五位角色独立研判</div>
+        </div>
       </div>
 
-      <h3>分析师观点</h3>
+      <div className="consensus">
+        <div className="consensus-head">
+          <h3>共识结论 / CONSENSUS</h3>
+          <span className={`score-display ${trend === '偏多' ? 'up' : trend === '偏空' ? 'down' : 'neutral'}`} style={{ fontSize: 22 }}>
+            {score > 0 ? '+' : ''}{score}
+          </span>
+        </div>
+        <div className="gauge-track">
+          <div className="gauge-marker" style={{ left: gaugeLeft }} />
+        </div>
+        <div className="gauge-labels"><span>-10 看空</span><span>0 中性</span><span>+10 看多</span></div>
+        <p className="consensus-text">{result.consensus_verdict || '（无）'}</p>
+      </div>
+
+      <h3 className="section-title">分析师观点</h3>
       <div className="views-grid">
         {result.analyst_views.map((v) => (
           <div className="view-card" key={v.role}>
             <div className="view-head">
               <span className="view-title">{v.title}</span>
-              <span className={`view-score ${v.score >= 3 ? 'bull' : v.score <= -3 ? 'bear' : 'neutral'}`}>
+              <span className={`view-score ${v.score >= 3 ? 'up' : v.score <= -3 ? 'down' : 'neutral'}`}>
                 {v.score > 0 ? '+' : ''}{v.score}
               </span>
             </div>
@@ -125,7 +196,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
       {result.debate.length > 0 && (
         <>
-          <h3>多空辩论</h3>
+          <h3 className="section-title">多空辩论</h3>
           <div className="debate">
             {result.debate.map((d, i) => (
               <div key={i}>
@@ -139,7 +210,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
       {risk && (
         <>
-          <h3>风控审查</h3>
+          <h3 className="section-title">风控审查</h3>
           <div className={`risk-box ${risk.approved ? 'ok' : 'blocked'}`}>
             <div className="risk-verdict">{risk.approved ? '通过' : '否决'}：{risk.verdict}</div>
             <div className="risk-detail">最大建议仓位 {risk.max_position_pct}% | 止损位 {risk.stop_loss_pct}%</div>
@@ -149,7 +220,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
 
       {plan && (
         <>
-          <h3>交易计划</h3>
+          <h3 className="section-title">交易计划</h3>
           <div className={`plan-box action-${plan.action}`}>
             <div className="plan-action">{plan.action}</div>
             <div className="plan-detail">
@@ -284,6 +355,66 @@ function ConfigPane() {
 
       <div className="config-actions">
         <button onClick={save} disabled={saving}>{saving ? '保存中...' : '保存配置'}</button>
+        {msg && <span className="ok-msg">{msg}</span>}
+        {err && <span className="err-msg">{err}</span>}
+      </div>
+
+      <div className="profile-section">
+        <h3>我的画像</h3>
+        <p className="hint">画像用于个性化投研建议（风险偏好影响仓位建议，自选股用于快速跟踪）。</p>
+        <ProfileForm />
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- 用户画像 ---------------- */
+
+function ProfileForm() {
+  const [risk, setRisk] = useState('balanced')
+  const [watchlistText, setWatchlistText] = useState('')
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api.getProfile()
+      .then((p) => {
+        setRisk(p.risk_preference)
+        setWatchlistText((p.watchlist || []).join(', '))
+      })
+      .catch(() => { /* ignore */ })
+  }, [])
+
+  const save = async () => {
+    setBusy(true)
+    setMsg('')
+    setErr('')
+    try {
+      const watchlist = watchlistText.split(/[,，\s]+/).filter(Boolean).map((s) => s.replace(/\D/g, '').slice(0, 6)).filter(Boolean)
+      await api.saveProfile({ risk_preference: risk, watchlist })
+      setMsg('画像已保存')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '保存失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="profile-form">
+      <label>风险偏好
+        <select value={risk} onChange={(e) => setRisk(e.target.value)}>
+          <option value="conservative">保守（低仓位，重止损）</option>
+          <option value="balanced">平衡（默认）</option>
+          <option value="aggressive">激进（可高仓位）</option>
+        </select>
+      </label>
+      <label>自选股（逗号分隔的股票代码）
+        <input value={watchlistText} onChange={(e) => setWatchlistText(e.target.value)} placeholder="600519, 000001, 300750" />
+      </label>
+      <div className="config-actions">
+        <button onClick={save} disabled={busy}>{busy ? '保存中...' : '保存画像'}</button>
         {msg && <span className="ok-msg">{msg}</span>}
         {err && <span className="err-msg">{err}</span>}
       </div>

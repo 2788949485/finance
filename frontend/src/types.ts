@@ -1,5 +1,22 @@
 // 与后端 API 对应的类型定义
 
+export interface User {
+  id: number
+  username: string
+}
+
+export interface UserProfile {
+  risk_preference: string
+  watchlist: string[]
+  updated_at: string | null
+}
+
+export interface AuthResponse {
+  token: string
+  user: User
+  profile: UserProfile
+}
+
 export interface AnalystView {
   role: string
   title: string
@@ -35,6 +52,7 @@ export interface AnalysisResult {
   ticker: string
   name: string
   price: number | null
+  change_pct: number | null
   created_at: string
   status: string
   consensus_score: number
@@ -60,4 +78,39 @@ export interface HistoryItem {
   ticker: string
   created_at: string
   status: string
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+  tool_calls?: { name: string; args: Record<string, unknown> }[]
+}
+
+export interface ChatSession {
+  id: number
+  title: string
+  created_at: string
+  msg_count: number
+}
+
+export interface ChatReply {
+  reply: string
+  tool_calls: { name: string; args: Record<string, unknown> }[]
+  session_id: number
+}
+
+export interface KlineBar {
+  date: string
+  open: number
+  close: number
+  high: number
+  low: number
+  volume: number
+}
+
+export interface QuoteResponse {
+  brief: Record<string, unknown>
+  kline: KlineBar[]
+  tech: Record<string, unknown>
 }
