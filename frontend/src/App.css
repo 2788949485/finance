@@ -1,0 +1,102 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  background: #0f1420;
+  color: #dde3ee;
+  line-height: 1.6;
+}
+
+.app { max-width: 980px; margin: 0 auto; padding: 20px; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #24304a; }
+.topbar h1 { font-size: 20px; color: #f0f4fa; }
+.topbar nav { display: flex; gap: 8px; }
+.topbar nav button {
+  background: #1a2338; color: #9fb0cc; border: 1px solid #2c3a5c; border-radius: 6px;
+  padding: 7px 14px; cursor: pointer; font-size: 14px;
+}
+.topbar nav button.active { background: #2b6de8; color: #fff; border-color: #2b6de8; }
+
+.pane { background: #141b2d; border: 1px solid #24304a; border-radius: 10px; padding: 20px; }
+
+.input-row { display: flex; gap: 10px; margin-bottom: 16px; }
+.ticker-input { width: 150px; }
+.topic-input { flex: 1; }
+input, select {
+  background: #0f1626; color: #e6ecf6; border: 1px solid #2c3a5c; border-radius: 6px;
+  padding: 9px 12px; font-size: 14px;
+}
+input:focus, select:focus { outline: none; border-color: #2b6de8; }
+button {
+  background: #2b6de8; color: #fff; border: none; border-radius: 6px;
+  padding: 9px 18px; font-size: 14px; cursor: pointer;
+}
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+button:hover:not(:disabled) { background: #3b7cf5; }
+
+.loading { color: #8fb0e8; padding: 14px 0; }
+.error-box { background: #3a1620; border: 1px solid #7a2a3c; color: #ff9fae; padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; }
+.empty { color: #77849e; padding: 20px 0; text-align: center; }
+
+/* 报告 */
+.report { margin-top: 18px; }
+.report-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.report-head h2 { font-size: 22px; }
+.ticker-code { color: #6f81a5; font-size: 15px; margin-left: 6px; }
+.meta { color: #77849e; font-size: 13px; }
+.score-badge { font-size: 34px; font-weight: 700; padding: 6px 18px; border-radius: 10px; }
+.bull { color: #4ade80; background: #142a1e; }
+.bear { color: #f87171; background: #33181c; }
+.neutral { color: #e2c56e; background: #2b2515; }
+
+.report h3 { font-size: 15px; color: #a9bbe0; margin: 18px 0 10px; border-left: 3px solid #2b6de8; padding-left: 8px; }
+.consensus { background: #0f1626; border-radius: 8px; padding: 14px; }
+
+.views-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.view-card { background: #0f1626; border: 1px solid #24304a; border-radius: 8px; padding: 12px; }
+.view-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.view-title { font-weight: 600; color: #dfe7f5; }
+.view-score { font-weight: 700; padding: 2px 10px; border-radius: 12px; font-size: 13px; }
+.view-summary { font-size: 13.5px; color: #b9c6de; }
+.evidence { margin: 8px 0 0 16px; font-size: 12.5px; color: #8fa1c2; }
+.risk-points { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.risk-points span { background: #33201c; color: #f3a795; font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+
+.debate { background: #0f1626; border-radius: 8px; padding: 14px; }
+.debate-topic { font-weight: 600; color: #8fb0e8; margin-bottom: 6px; }
+.debate ul { margin-left: 18px; font-size: 13.5px; color: #b9c6de; }
+
+.risk-box { border-radius: 8px; padding: 14px; }
+.risk-box.ok { background: #142a1e; border: 1px solid #1e4a30; }
+.risk-box.blocked { background: #33181c; border: 1px solid #6e2a34; }
+.risk-verdict { font-weight: 600; margin-bottom: 4px; }
+.risk-detail { font-size: 13px; color: #8fa1c2; }
+
+.plan-box { border-radius: 8px; padding: 14px; background: #0f1626; border: 1px solid #2c3a5c; }
+.plan-action { display: inline-block; font-size: 18px; font-weight: 700; padding: 3px 14px; border-radius: 8px; margin-bottom: 8px; }
+.action-买入 .plan-action { background: #142a1e; color: #4ade80; }
+.action-卖出 .plan-action { background: #33181c; color: #f87171; }
+.action-观望 .plan-action, .action-回避 .plan-action { background: #2b2515; color: #e2c56e; }
+.plan-detail { font-size: 13.5px; color: #8fa1c2; margin-bottom: 6px; }
+.plan-box p { font-size: 14px; color: #c3cfe6; }
+.plan-box ul { margin: 8px 0 0 18px; font-size: 13px; color: #f3a795; }
+
+.disclaimer { margin-top: 18px; font-size: 12px; color: #5f6f8d; text-align: center; }
+
+/* 配置页 */
+.config-pane { max-width: 560px; }
+.config-pane h3 { font-size: 16px; margin-bottom: 6px; }
+.hint { font-size: 12.5px; color: #77849e; margin-bottom: 16px; }
+.config-pane label { display: block; font-size: 13.5px; color: #a9bbe0; margin-bottom: 12px; }
+.config-pane input, .config-pane select { width: 100%; margin-top: 4px; }
+.config-actions { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.ok-msg { color: #4ade80; font-size: 13px; }
+.err-msg { color: #f87171; font-size: 13px; }
+
+/* 历史 */
+.history-table { width: 100%; border-collapse: collapse; }
+.history-table th, .history-table td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #24304a; font-size: 13.5px; }
+.history-table th { color: #77849e; font-weight: 500; }
+.history-table button { padding: 4px 12px; font-size: 12.5px; background: #1a2338; color: #9fb0cc; border: 1px solid #2c3a5c; }
+.history-table button:hover { background: #2b6de8; color: #fff; }

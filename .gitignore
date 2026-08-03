@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 运行时数据（SQLite 数据库、日志）
+backend/data/
+
+# Node
+node_modules/
+dist/
+
+# 环境变量与密钥
+.env
+.env.*
+*.local
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
