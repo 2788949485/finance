@@ -279,7 +279,7 @@ function ConfigPane() {
       </label>
 
       <label>温度 (temperature)
-        <input type="number" step="0.1" min="0" max="2" value={cfg.temperature} onChange={(e) => set({ temperature: Number(e.target.value) })} />
+        <input type="number" step="0.1" min="0" max="2" value={Math.round(cfg.temperature * 100) / 100} onChange={(e) => set({ temperature: Number(e.target.value) })} />
       </label>
 
       <div className="config-actions">

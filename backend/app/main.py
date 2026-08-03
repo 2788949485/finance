@@ -52,7 +52,7 @@ def health() -> dict[str, str]:
 
 @app.get("/api/providers")
 def providers() -> dict[str, Any]:
-    return {"providers": PROVIDER_PRESETS}
+    return PROVIDER_PRESETS
 
 
 @app.get("/api/config")
