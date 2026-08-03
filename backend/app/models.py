@@ -24,7 +24,7 @@ class AnalystView(BaseModel):
     """单个角色的分析结论。"""
     role: str
     title: str
-    summary: str
+    summary: str = ""  # 部分模型会省略该字段，空时由 Agent 层兜底填充
     score: float = Field(..., description="看多评分 -10~+10")
     evidence: list[str] = Field(default_factory=list)
     risk_points: list[str] = Field(default_factory=list)

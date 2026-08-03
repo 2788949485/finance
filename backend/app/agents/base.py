@@ -57,11 +57,16 @@ class Agent:
         except (TypeError, ValueError):
             score = 0.0
         score = max(-10.0, min(10.0, score))
+        evidence = [str(e) for e in data.get("evidence", [])][:6]
+        summary = str(data.get("summary", "")).strip()
+        # 兜底：模型省略 summary 时用首条证据或提示语填充
+        if not summary:
+            summary = "核心依据：" + evidence[0] if evidence else "（该角色未给出摘要）"
         return AnalystView(
             role=role,
             title=title,
-            summary=str(data.get("summary", "")),
+            summary=summary,
             score=score,
-            evidence=[str(e) for e in data.get("evidence", [])][:6],
+            evidence=evidence,
             risk_points=[str(r) for r in data.get("risk_points", [])][:4],
         )
