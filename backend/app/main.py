@@ -4,21 +4,20 @@
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import memory
-from .config import PROVIDER_PRESETS, apply_preset, get_config, save_config
+from . import auth, chat as chat_service, memory
+from .config import PROVIDER_PRESETS, get_config, save_config
+from .data import fetcher as datalayer
 from .models import AnalysisRequest, LLMConfig
 from .pipeline import run_analysis
 
-app = FastAPI(title="FinanceCrew API", version="0.1.0")
+app = FastAPI(title="FinanceCrew API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,6 +28,22 @@ app.add_middleware(
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
+
+# ---------- 认证依赖 ----------
+
+def get_current_user(authorization: str = Header(default="")) -> dict[str, Any]:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="未登录")
+    payload = auth.decode_token(authorization[7:].strip())
+    if not payload:
+        raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
+    user = auth.get_user(int(payload["sub"]))
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    return user
+
+
+# ---------- 基础 ----------
 
 def _mask_key(key: str) -> str:
     if not key:
@@ -62,9 +77,60 @@ def read_config() -> dict[str, Any]:
 
 @app.put("/api/config")
 def write_config(cfg: LLMConfig) -> dict[str, Any]:
-    saved = save_config(cfg.model_dump())
+    save_config(cfg.model_dump())
     return _public_config()
 
+
+# ---------- 认证与用户画像 ----------
+
+@app.post("/api/auth/register")
+def register(body: dict[str, str]) -> dict[str, Any]:
+    username = (body.get("username") or "").strip()
+    password = body.get("password") or ""
+    if len(username) < 2 or len(username) > 20:
+        raise HTTPException(400, "用户名需 2-20 个字符")
+    if len(password) < 6:
+        raise HTTPException(400, "密码至少 6 位")
+    try:
+        user = auth.create_user(username, password)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    token = auth.create_token(user["id"], user["username"])
+    return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
+
+
+@app.post("/api/auth/login")
+def login(body: dict[str, str]) -> dict[str, Any]:
+    user = auth.authenticate((body.get("username") or "").strip(), body.get("password") or "")
+    if not user:
+        raise HTTPException(401, "用户名或密码错误")
+    token = auth.create_token(user["id"], user["username"])
+    return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
+
+
+@app.get("/api/auth/me")
+def me(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    return {"user": user, "profile": auth.get_profile(user["id"])}
+
+
+@app.get("/api/auth/profile")
+def get_profile(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    return auth.get_profile(user["id"])
+
+
+@app.put("/api/auth/profile")
+def put_profile(body: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    try:
+        return auth.update_profile(
+            user["id"],
+            risk_preference=body.get("risk_preference"),
+            watchlist=body.get("watchlist"),
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ---------- 投研分析 ----------
 
 @app.post("/api/analysis")
 def create_analysis(req: AnalysisRequest) -> dict[str, Any]:
@@ -72,8 +138,7 @@ def create_analysis(req: AnalysisRequest) -> dict[str, Any]:
     if not ticker or not ticker.isdigit() or len(ticker) > 6:
         raise HTTPException(status_code=400, detail="请输入有效的A股代码（如 600519）")
     try:
-        result = run_analysis(ticker.zfill(6), req.topic)
-        return result  # 已是 dict 结构
+        return run_analysis(ticker.zfill(6), req.topic)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分析失败: {e}")
 
@@ -89,6 +154,72 @@ def get_one(analysis_id: int) -> dict[str, Any]:
 @app.get("/api/history")
 def history(limit: int = 20) -> list[dict[str, Any]]:
     return memory.list_analyses(limit=min(limit, 100))
+
+
+# ---------- 行情 K 线 ----------
+
+@app.get("/api/quote/{symbol}")
+def quote(symbol: str, days: int = 120) -> dict[str, Any]:
+    """实时行情 + 日K线（前端画图用）。"""
+    days = min(max(days, 30), 500)
+    brief = datalayer.get_stock_brief(symbol) or {}
+    hist = datalayer.get_history(symbol, days=days)
+    bars: list[dict[str, Any]] = []
+    if hist is not None and not hist.empty:
+        for _, row in hist.tail(days).iterrows():
+            bars.append({
+                "date": str(row["date"].date()),
+                "open": _num(row["open"]),
+                "close": _num(row["close"]),
+                "high": _num(row["high"]),
+                "low": _num(row["low"]),
+                "volume": _num(row["volume"]),
+            })
+    tech = datalayer.compute_tech_signals(hist) if hist is not None else {}
+    return {"brief": brief, "kline": bars, "tech": tech}
+
+
+def _num(v: Any):
+    try:
+        if v is None:
+            return None
+        f = float(v)
+        return f if f == f else None
+    except (TypeError, ValueError):
+        return None
+
+
+# ---------- 智能对话 ----------
+
+@app.post("/api/chat/session")
+def new_chat(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    sid = chat_service.create_session(user["id"])
+    return {"session_id": sid}
+
+
+@app.get("/api/chat/sessions")
+def chat_sessions(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    return chat_service.list_sessions(user["id"])
+
+
+@app.get("/api/chat/{session_id}/messages")
+def chat_messages(session_id: int, user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    return chat_service.get_messages(session_id, user["id"])
+
+
+@app.post("/api/chat")
+def chat(body: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(400, "消息不能为空")
+    session_id = body.get("session_id")
+    if not session_id:
+        session_id = chat_service.create_session(user["id"])
+    # 校验会话归属
+    sessions = {s["id"] for s in chat_service.list_sessions(user["id"], limit=100)}
+    if int(session_id) not in sessions:
+        raise HTTPException(403, "会话不存在或无权限")
+    return chat_service.chat(int(session_id), user["id"], message)
 
 
 # 前端静态托管（构建后可用）
