@@ -1,13 +1,28 @@
-"""A股数据获取层：基于 akshare（免费数据源，东方财富/同花顺/新浪）。
+"""A股数据获取层。
+
+- 实时行情：腾讯 qt.gtimg.cn（绕开东方财富 push2 对 Python 客户端的 TLS 指纹封锁）
+- 历史行情/财务/龙虎榜/新闻：akshare（东方财富 push2his / 同花顺 / 新浪）
 
 所有函数容错：网络异常或接口变动时返回 None/空值，保证流水线降级运行。
 """
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import pandas as pd
+import requests
+
+# A股数据源域名绕过代理直连（本机代理对国内数据源转发不稳定，
+# 而直连东方财富/腾讯/新浪/同花顺均可达）。
+_CN_DATA_DOMAINS = (
+    "eastmoney.com,push2his.eastmoney.com,10jqka.com.cn,ths.cn,"
+    "sina.com.cn,sse.com.cn,sseinfo.com,cninfo.com.cn,xueqiu.com,"
+    "gtimg.cn,qq.com"
+)
+os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + "," + _CN_DATA_DOMAINS
+os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
 try:
     import akshare as ak
@@ -37,61 +52,69 @@ def _norm_symbol(symbol: str) -> str:
     return s
 
 
+def _market_prefix(symbol: str) -> str:
+    """根据代码判断市场：sh/sz/bj。"""
+    if symbol[0] in "69":
+        return "sh"
+    if symbol[0] in "48":
+        return "bj"
+    return "sz"
+
+
 def get_stock_brief(symbol: str) -> Optional[dict[str, Any]]:
-    """个股概览：名称、现价、涨跌幅、市值、PE/PB、行业。"""
-    if not AK_AVAILABLE:
-        return None
+    """个股概览（腾讯实时行情）：名称、现价、涨跌幅、市值、PE/PB、换手率。
+
+    腾讯接口返回 GBK 编码的 ~ 分隔字段，实测索引：
+    p[1]=名称 p[3]=现价 p[32]=涨跌% p[38]=换手% p[39]=PE p[45]=总市值(亿) p[46]=PB
+    """
     sym = _norm_symbol(symbol)
-    spot = _safe(ak.stock_zh_a_spot_em)
-    if spot is None or spot.empty:
+    url = f"https://qt.gtimg.cn/q={_market_prefix(sym)}{sym}"
+    try:
+        r = requests.get(url, timeout=10)
+        r.encoding = "gbk"
+        body = r.text.split('"')[1] if '"' in r.text else ""
+        p = body.split("~")
+        if len(p) < 47 or not p[1]:
+            return None
+        return {
+            "symbol": sym,
+            "name": p[1],
+            "price": _to_float(p[3]),
+            "change_pct": _to_float(p[32]),
+            "market_cap": _to_float(p[45]),  # 单位：亿元
+            "pe": _to_float(p[39]),
+            "pb": _to_float(p[46]),
+            "turnover": _to_float(p[38]),
+            "industry": "",
+        }
+    except Exception:
         return None
-    row = spot[spot["代码"] == sym]
-    if row.empty:
-        return None
-    row = row.iloc[0]
-    info = _safe(ak.stock_individual_info_em, symbol=sym)
-    industry, name = "", ""
-    if info is not None and not info.empty:
-        kv = dict(zip(info["item"], info["value"]))
-        industry = str(kv.get("行业", ""))
-        name = str(kv.get("股票简称", row.get("名称", "")))
-    return {
-        "symbol": sym,
-        "name": name or str(row.get("名称", "")),
-        "price": _to_float(row.get("最新价")),
-        "change_pct": _to_float(row.get("涨跌幅")),
-        "market_cap": _to_float(row.get("总市值")),
-        "pe": _to_float(row.get("市盈率-动态")),
-        "pb": _to_float(row.get("市净率")),
-        "turnover": _to_float(row.get("换手率")),
-        "industry": industry,
-    }
 
 
 def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
-    """前复权日线行情，含基础技术指标计算。"""
-    if not AK_AVAILABLE:
-        return None
+    """前复权日线行情（腾讯 K 线接口，绕开东方财富 TLS 指纹封锁）。"""
     sym = _norm_symbol(symbol)
-    end = datetime.now()
-    start = end - timedelta(days=days * 2)
-    df = _safe(
-        ak.stock_zh_a_hist,
-        symbol=sym,
-        period="daily",
-        start_date=start.strftime("%Y%m%d"),
-        end_date=end.strftime("%Y%m%d"),
-        adjust="qfq",
-    )
-    if df is None or df.empty:
+    code = f"{_market_prefix(sym)}{sym}"
+    url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{days},qfq"
+    try:
+        r = requests.get(url, timeout=15)
+        data = r.json()
+        node = data["data"][code]
+        key = "qfqday" if "qfqday" in node else "day"
+        rows = node[key]
+        # 部分行可能多出第7个字段（成交额等），只取前6列
+        df = pd.DataFrame([r[:6] for r in rows], columns=["date", "open", "close", "high", "low", "volume"])
+        for col in ["open", "close", "high", "low", "volume"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        df = df.dropna(subset=["close"])
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").reset_index(drop=True)
+        df["ma5"] = df["close"].rolling(5).mean()
+        df["ma20"] = df["close"].rolling(20).mean()
+        df["ma60"] = df["close"].rolling(60).mean()
+        return df
+    except Exception:
         return None
-    df = df.rename(columns={"日期": "date", "开盘": "open", "收盘": "close", "最高": "high", "最低": "low", "成交量": "volume"})
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date").reset_index(drop=True)
-    df["ma5"] = df["close"].rolling(5).mean()
-    df["ma20"] = df["close"].rolling(20).mean()
-    df["ma60"] = df["close"].rolling(60).mean()
-    return df
 
 
 def compute_tech_signals(df: Optional[pd.DataFrame]) -> dict[str, Any]:
@@ -111,7 +134,6 @@ def compute_tech_signals(df: Optional[pd.DataFrame]) -> dict[str, Any]:
         "high_60d": _to_float(df["high"].tail(60).max()),
         "low_60d": _to_float(df["low"].tail(60).min()),
     }
-    # 简单 RSI(14)
     delta = df["close"].diff()
     gain = delta.clip(lower=0).rolling(14).mean()
     loss = (-delta.clip(upper=0)).rolling(14).mean()
@@ -122,33 +144,28 @@ def compute_tech_signals(df: Optional[pd.DataFrame]) -> dict[str, Any]:
 
 
 def get_financials(symbol: str) -> Optional[dict[str, Any]]:
-    """财务摘要：营收、净利润、增速、ROE、毛利率、资产负债率。"""
+    """财务摘要（同花顺）：营收、净利润、增速、ROE、毛利率、资产负债率。
+
+    注意：同花顺接口数据倒序（最新报告期在最后一行），数值带单位（亿/万/%）。
+    """
     if not AK_AVAILABLE:
         return None
     sym = _norm_symbol(symbol)
-    # 同花顺财务指标（按报告期）
     df = _safe(ak.stock_financial_abstract_ths, symbol=sym, indicator="按报告期")
     if df is None or df.empty:
-        # 备选：新浪财务摘要
-        df = _safe(ak.stock_financial_abstract, symbol=sym)
-    if df is None or df.empty:
         return None
-    # 最新一期在前，取最近两期计算增速
-    recent = df.iloc[0]
-    prev = df.iloc[1] if len(df) > 1 else None
+    recent = df.iloc[-1]
     out: dict[str, Any] = {"period": str(recent.get("报告期", ""))}
     for key, col in [
         ("revenue", "营业总收入"),
+        ("revenue_yoy", "营业总收入同比增长率"),
         ("net_profit", "净利润"),
+        ("net_profit_yoy", "净利润同比增长率"),
         ("roe", "净资产收益率"),
         ("gross_margin", "销售毛利率"),
         ("debt_ratio", "资产负债率"),
     ]:
-        out[key] = _to_float(recent.get(col))
-        if prev is not None:
-            prev_v = _to_float(prev.get(col))
-            if prev_v not in (None, 0) and out[key] is not None:
-                out[f"{key}_yoy"] = _to_float((out[key] / prev_v - 1) * 100)
+        out[key] = _parse_num(recent.get(col))
     return out
 
 
@@ -180,7 +197,7 @@ def get_lhb(symbol: str, days: int = 30) -> Optional[dict[str, Any]]:
 
 
 def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
-    """个股新闻标题列表（东方财富）。失败返回 None。"""
+    """个股新闻标题列表（东方财富）。"""
     if not AK_AVAILABLE:
         return None
     sym = _norm_symbol(symbol)
@@ -191,6 +208,27 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
     for _, row in df.head(8).iterrows():
         items.append({"title": str(row.get("新闻标题", "")), "time": str(row.get("发布时间", ""))[:16]})
     return items
+
+
+def _parse_num(v: Any) -> Optional[float]:
+    """解析带单位数值：'54.27%'->54.27, '1.47亿'->147000000, False/None->None。"""
+    if v is None or v is False:
+        return None
+    s = str(v).strip().replace("%", "")
+    if s in ("", "--", "nan", "None", "False"):
+        return None
+    mult = 1.0
+    if s.endswith("亿"):
+        mult = 1e8
+        s = s[:-1]
+    elif s.endswith("万"):
+        mult = 1e4
+        s = s[:-1]
+    try:
+        f = float(s) * mult
+        return f if f == f else None
+    except ValueError:
+        return None
 
 
 def _to_float(v: Any) -> Optional[float]:
