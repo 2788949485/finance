@@ -47,15 +47,30 @@ def data_available() -> bool:
 
 
 def _norm_symbol(symbol: str) -> str:
-    """统一为 6 位代码。"""
-    s = symbol.strip()
-    if s.isdigit() and len(s) <= 6:
+    """统一股票代码格式：A股6位 / 港股 hk+5位 / 美股 us+代码。
+
+    规则：hk/us 前缀原样保留；6位数字=A股；5位数字（如 00700）=港股；
+    更短数字=港股补零；其他按原样返回（公司名交给 resolve_symbol 处理）。
+    """
+    s = symbol.strip().lower()
+    if s.startswith(("hk", "us")):
+        code = s[2:]
+        if code.isdigit():
+            return s[:2] + code.zfill(5) if len(code) < 5 else s[:2] + code
+        return s[:2] + code.upper()  # 美股代码大写（usAAPL）
+    if s.isdigit():
+        if len(s) == 5:
+            return "hk" + s
+        if len(s) <= 4:
+            return "hk" + s.zfill(5)
         return s.zfill(6)
     return s
 
 
 def _market_prefix(symbol: str) -> str:
-    """根据代码判断市场：sh/sz/bj。"""
+    """腾讯接口的市场前缀：A股 sh/sz/bj，港股/美股无需前缀（代码自带 hk/us）。"""
+    if symbol.startswith(("hk", "us")):
+        return ""
     if symbol[0] in "69":
         return "sh"
     if symbol[0] in "48":

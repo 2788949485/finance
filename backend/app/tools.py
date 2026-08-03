@@ -12,6 +12,95 @@ from langchain_core.tools import tool
 from . import data as datalayer
 from .pipeline import run_analysis
 
+# 热门公司名 -> A 股代码映射（智能体可传公司名，工具自动转码）
+COMPANY_ALIASES: dict[str, str] = {
+    "贵州茅台": "600519", "茅台": "600519", "五粮液": "000858",
+    "平安银行": "000001", "招商银行": "600036", "招行": "600036",
+    "工商银行": "601398", "工行": "601398", "建设银行": "601939", "建行": "601939",
+    "宁德时代": "300750", "宁王": "300750", "比亚迪": "002594",
+    "隆基绿能": "601012", "隆基": "601012", "中芯国际": "688981",
+    "中国平安": "601318", "中国人寿": "601628", "美的集团": "000333", "美的": "000333",
+    "格力电器": "000651", "格力": "000651", "海尔智家": "600690", "海尔": "600690",
+    "万科": "000002", "万科A": "000002", "保利发展": "600048", "保利": "600048",
+    "中国中免": "601888", "东方财富": "300059", "东财": "300059",
+    "中信证券": "600030", "中国石油": "601857", "中石油": "601857",
+    "中国石化": "600028", "中石化": "600028", "长江电力": "600900",
+    "中国移动": "600941", "海康威视": "002415", "海康": "002415",
+    "立讯精密": "002475", "京东方": "000725", "京东方A": "000725",
+    "中兴通讯": "000063", "中兴": "000063", "用友网络": "600588", "用友": "600588",
+    "科大讯飞": "002230", "讯飞": "002230", "三一重工": "600031", "三一": "600031",
+    "恒瑞医药": "600276", "恒瑞": "600276", "药明康德": "603259", "药明": "603259",
+    "片仔癀": "600436", "云南白药": "000538", "牧原股份": "002714", "牧原": "002714",
+    "温氏股份": "300498", "顺丰控股": "002352", "顺丰": "002352",
+    "上汽集团": "600104", "上汽": "600104", "长城汽车": "601633", "长城": "601633",
+}
+
+# 港股公司映射（腾讯行情接口 hk 前缀支持港股）
+HK_ALIASES: dict[str, str] = {
+    "腾讯": "hk00700", "腾讯控股": "hk00700", "腾讯音乐": "hk01698",
+    "阿里巴巴": "hk09988", "阿里": "hk09988", "小米": "hk01810", "小米集团": "hk01810",
+    "美团": "hk03690", "京东": "hk09618", "网易": "hk09999", "百度": "hk09888",
+    "理想": "hk02015", "理想汽车": "hk02015", "蔚来": "hk09866",
+    "小鹏": "hk09868", "小鹏汽车": "hk09868", "快手": "hk01024",
+    "美团点评": "hk03690", "香港交易所": "hk00388", "港交所": "hk00388",
+    "汇丰控股": "hk00005", "汇丰": "hk00005", "友邦保险": "hk01299", "友邦": "hk01299",
+    "中国移动(港)": "hk00941", "中芯国际(港)": "hk00981",
+}
+
+# 美股公司映射（腾讯行情接口 us 前缀支持美股）
+US_ALIASES: dict[str, str] = {
+    "苹果": "usAAPL", "苹果公司": "usAAPL", "特斯拉": "usTSLA",
+    "英伟达": "usNVDA", "微软": "usMSFT", "谷歌": "usGOOGL", "Alphabet": "usGOOGL",
+    "亚马逊": "usAMZN", "Meta": "usMETA", "脸书": "usMETA", "奈飞": "usNFLX",
+    "Netflix": "usNFLX", "英特尔": "usINTC", "AMD": "usAMD", "超威半导体": "usAMD",
+    "台积电": "usTSM", "博通": "usAVGO", "甲骨文": "usORCL", "思科": "usCSCO",
+    "IBM": "usIBM", "高通": "usQCOM", "迪士尼": "usDIS", "可口可乐": "usKO",
+    "百事": "usPEP", "麦当劳": "usMCD", "星巴克": "usSBUX", "耐克": "usNKE",
+    "波音": "usBA", "通用汽车": "usGM", "福特": "usF", "摩根大通": "usJPM",
+    "高盛": "usGS", "美国银行": "usBAC", "富国银行": "usWFC", "花旗": "usC",
+    "伯克希尔": "usBRK.B", "强生": "usJNJ", "辉瑞": "usPFE", "默沙东": "usMRK",
+    "礼来": "usLLY", "联合健康": "usUNH", "宝洁": "usPG", "家得宝": "usHD",
+    "沃尔玛": "usWMT", "好市多": "usCOST", "Visa": "usV", "万事达": "usMA",
+    "PayPal": "usPYPL", "优步": "usUBER", "Lyft": "usLYFT", "爱彼迎": "usABNB",
+    "Snowflake": "usSNOW", "Palantir": "usPLTR", "Unity": "usU", "Roblox": "usRBLX",
+    "Coinbase": "usCOIN", "比特币矿机": "usMARA", "阿里巴巴(美)": "usBABA",
+    "拼多多": "usPDD", "京东(美)": "usJD", "网易(美)": "usNTES", "百度(美)": "usBIDU",
+    "蔚来(美)": "usNIO", "小鹏(美)": "usXPEV", "理想(美)": "usLI",
+    "新东方": "usEDU", "好未来": "usTAL", "哔哩哔哩": "usBILI", "B站": "usBILI",
+    "爱奇艺": "usIQ", "富途": "usFUTU", "老虎证券": "usTIGR",
+}
+
+
+def resolve_symbol(symbol: str) -> str:
+    """把公司名/代码统一解析为标准代码：A股6位 / 港股 hk+5位 / 美股 us+代码。
+
+    规则：hk/us 前缀原样；6位数字=A股；5位数字=港股（如 00700）；
+    2-5位纯字母=美股代码（如 AAPL）；公司名查映射表（A股/港股/美股）。
+    """
+    s = str(symbol).strip()
+    low = s.lower()
+    # 已带市场前缀：前缀小写 + 代码部分大写（usNVDA -> usNVDA）
+    if low.startswith(("hk", "us")):
+        return s[:2].lower() + s[2:].upper()
+    # 纯数字
+    if s.isdigit():
+        if len(s) == 6:
+            return s
+        if len(s) == 5:
+            return "hk" + s
+        return "hk" + s.zfill(5) if len(s) <= 4 else s
+    # 纯 ASCII 字母：视为美股代码（AAPL -> usAAPL；中文公司名不走此分支）
+    if s.isascii() and s.isalpha() and 1 <= len(s) <= 5:
+        return "us" + s.upper()
+    # 公司名映射（A股优先，其次港股，再美股）
+    if s in COMPANY_ALIASES:
+        return COMPANY_ALIASES[s]
+    if s in HK_ALIASES:
+        return HK_ALIASES[s]
+    if s in US_ALIASES:
+        return US_ALIASES[s]
+    return s  # 未知文本交给数据层（会失败返回 None）
+
 
 def _j(data: Any) -> str:
     """dict 转紧凑 JSON 字符串（中文不转义）。"""
@@ -20,30 +109,51 @@ def _j(data: Any) -> str:
 
 @tool
 def get_quote(symbol: str) -> str:
-    """查询A股实时行情快照：现价、涨跌幅、换手率、市盈率PE、市净率PB、总市值。
-    参数 symbol: 6位股票代码，如 600519。"""
-    brief = datalayer.get_stock_brief(symbol)
+    """查询实时行情快照：现价、涨跌幅、换手率、市盈率PE、市净率PB、总市值。
+    参数 symbol: A股6位代码（如 600519）或公司名（如 贵州茅台/腾讯），
+    也支持港股（hk00700 或 00700）与美股（usAAPL）。"""
+    resolved = resolve_symbol(symbol)
+    if not _valid_symbol(resolved):
+        return f"无法识别 {symbol}，请提供 A 股 6 位代码（如 600519）、港股（如 hk00700 或 腾讯）或美股代码"
+    brief = datalayer.get_stock_brief(resolved)
     if brief is None:
-        return "未查询到该股票行情，请确认代码正确（6位数字，如 600519）"
+        return f"未查询到 {resolved} 的行情，请确认代码正确"
     return _j(brief)
+
+
+def _valid_symbol(s: str) -> bool:
+    """判断是否为可查询的标准代码：A股6位数字 / hk+5位 / us+代码。"""
+    if s.isdigit() and len(s) == 6:
+        return True
+    if s.startswith("hk") and len(s) == 7 and s[2:].isdigit():
+        return True
+    if s.startswith("us") and len(s) > 2:
+        return True
+    return False
 
 
 @tool
 def get_kline(symbol: str, days: int = 120) -> str:
-    """查询A股日K线数据（前复权），返回最近 days 个交易日的 OHLCV（日期/开/收/高/低/量）。
-    参数 symbol: 6位股票代码；days: 返回天数，默认120，最大500。"""
-    df = datalayer.get_history(symbol, days=min(max(days, 30), 500))
+    """查询日K线数据（前复权），返回最近 days 个交易日的 OHLCV（日期/开/收/高/低/量）。
+    参数 symbol: A股6位代码或公司名，也支持港股（hk00700/00700）；days: 返回天数，默认120，最大500。"""
+    resolved = resolve_symbol(symbol)
+    if not _valid_symbol(resolved):
+        return f"无法识别 {symbol}，请提供 A 股 6 位代码或港股代码（如 hk00700）"
+    df = datalayer.get_history(resolved, days=min(max(days, 30), 500))
     if df is None or df.empty:
         return "未获取到K线数据"
     rows = df.tail(days)[["date", "open", "close", "high", "low", "volume"]].to_dict(orient="records")
-    return _j({"symbol": symbol, "bars": rows})
+    return _j({"symbol": resolved, "bars": rows})
 
 
 @tool
 def get_financials(symbol: str) -> str:
     """查询A股财务摘要：最新报告期营收、净利润及同比增速、ROE、毛利率、资产负债率。
-    参数 symbol: 6位股票代码。"""
-    fin = datalayer.get_financials(symbol)
+    参数 symbol: 6位A股代码或公司名。仅支持A股，港股美股无财务数据。"""
+    resolved = resolve_symbol(symbol)
+    if not resolved.isdigit() or len(resolved) != 6:
+        return f"{symbol} 的财务数据暂不支持（当前仅支持A股，请提供6位A股代码）"
+    fin = datalayer.get_financials(resolved)
     if fin is None:
         return "未获取到财务数据"
     return _j(fin)
@@ -52,8 +162,11 @@ def get_financials(symbol: str) -> str:
 @tool
 def get_lhb(symbol: str) -> str:
     """查询A股最近30日龙虎榜记录（上榜原因、净买额、买卖额）。
-    参数 symbol: 6位股票代码。"""
-    lhb = datalayer.get_lhb(symbol)
+    参数 symbol: 6位A股代码或公司名。仅支持A股。"""
+    resolved = resolve_symbol(symbol)
+    if not resolved.isdigit() or len(resolved) != 6:
+        return f"{symbol} 的龙虎榜数据暂不支持（当前仅支持A股）"
+    lhb = datalayer.get_lhb(resolved)
     if lhb is None:
         return "近30日无龙虎榜记录"
     return _j(lhb)
@@ -73,9 +186,12 @@ def get_news(symbol: str) -> str:
 def run_research(symbol: str, topic: str = "") -> str:
     """运行完整多智能体投研分析：5位分析师（宏观/基本面/技术面/情绪面/资金面）独立研判、
     多空辩论、共识评分、风控审查、交易计划。返回结构化报告JSON。
-    参数 symbol: 6位股票代码；topic: 可选分析主题。耗时较长（约1-2分钟）。"""
+    参数 symbol: 6位A股代码或公司名；topic: 可选分析主题。耗时较长（约1-2分钟）。仅支持A股。"""
+    resolved = resolve_symbol(symbol)
+    if not resolved.isdigit() or len(resolved) != 6:
+        return f"{symbol} 的深度投研暂不支持（当前仅支持A股，港股可查询行情/K线）"
     try:
-        result = run_analysis(symbol, topic or None)
+        result = run_analysis(resolved, topic or None)
         return _j(result)
     except Exception as e:
         return f"投研分析失败: {e}"

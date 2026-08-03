@@ -5,7 +5,8 @@ import type { QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 
 export function extractCodes(text: string): string[] {
-  const codes = text.match(/\b([036]\d{5})\b/g)
+  // A股 6 位数字 / 港股 hk+5位 / 美股 us+代码
+  const codes = text.match(/\b(hk\d{5}|us[A-Z]{2,5}|[036]\d{5})\b/g)
   return codes ? [...new Set(codes)] : []
 }
 
