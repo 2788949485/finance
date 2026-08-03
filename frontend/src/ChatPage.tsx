@@ -127,7 +127,7 @@ export default function ChatPage() {
                 onClick={(e) => {
                   e.stopPropagation()
                   if (confirmDel === s.id) removeSession(s.id)
-                  else { setConfirmDel(s.id); setTimeout(() => setConfirmDel((c) => (c === s.id ? null : c)), 3000) }
+                  else { setConfirmDel(s.id); setTimeout(() => setConfirmDel((c) => (c === s.id ? null : c)), 8000) }
                 }}
               >{confirmDel === s.id ? '确认？' : '删除'}</button>
             </div>
