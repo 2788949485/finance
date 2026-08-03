@@ -57,6 +57,7 @@ class AnalysisResult(BaseModel):
     ticker: str
     name: str = ""
     price: Optional[float] = None
+    change_pct: Optional[float] = None
     created_at: str = ""
     status: str = "completed"
     consensus_score: float = 0.0

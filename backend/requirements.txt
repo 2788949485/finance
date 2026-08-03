@@ -3,6 +3,7 @@ uvicorn[standard]>=0.30
 langchain>=0.3
 langchain-core>=0.3
 langchain-openai>=0.2
+langgraph>=0.2
 akshare>=1.14
 pandas>=2.2
 pydantic>=2.7

@@ -73,7 +73,7 @@ def create_analysis(req: AnalysisRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="请输入有效的A股代码（如 600519）")
     try:
         result = run_analysis(ticker.zfill(6), req.topic)
-        return result.model_dump()
+        return result  # 已是 dict 结构
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分析失败: {e}")
 
