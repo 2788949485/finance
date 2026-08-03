@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import type { ChatMessage, ChatSession } from './types'
 import QuoteCard, { extractCodes } from './QuoteCard'
+import Markdown from './Markdown'
 
 const TOOL_LABEL: Record<string, string> = {
   get_quote: '查询实时行情',
@@ -19,7 +20,7 @@ function MessageItem({ m }: { m: ChatMessage }) {
   return (
     <div className={`msg ${m.role}`}>
       <div className="msg-bubble">
-        <div className="msg-text">{m.content}</div>
+        <div className="msg-text"><Markdown text={m.content} /></div>
         {m.tool_calls && m.tool_calls.length > 0 && (
           <div className="msg-tools">
             {m.tool_calls.map((t, j) => (

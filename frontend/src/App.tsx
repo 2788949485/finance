@@ -3,6 +3,7 @@ import { api, getToken, setToken } from './api'
 import type { AnalysisResult, AuthResponse, HistoryItem, LLMConfig } from './types'
 import LoginPage from './LoginPage'
 import ChatPage from './ChatPage'
+import Markdown from './Markdown'
 import './App.css'
 
 type Tab = 'chat' | 'analyze' | 'history' | 'config'
@@ -170,7 +171,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
           <div className="gauge-marker" style={{ left: gaugeLeft }} />
         </div>
         <div className="gauge-labels"><span>-10 看空</span><span>0 中性</span><span>+10 看多</span></div>
-        <p className="consensus-text">{result.consensus_verdict || '（无）'}</p>
+        <div className="consensus-text"><Markdown text={result.consensus_verdict || '（无）'} /></div>
       </div>
 
       <h3 className="section-title">分析师观点</h3>
