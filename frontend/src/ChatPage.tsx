@@ -45,6 +45,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDel, setConfirmDel] = useState<number | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const loadSessions = useCallback(async () => {
@@ -66,7 +67,6 @@ export default function ChatPage() {
   }
 
   const removeSession = async (id: number) => {
-    if (!window.confirm('确定删除该对话？删除后不可恢复')) return
     try {
       await api.deleteChat(id)
       setSessions((prev) => prev.filter((s) => s.id !== id))
@@ -76,6 +76,8 @@ export default function ChatPage() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '删除失败')
+    } finally {
+      setConfirmDel(null)
     }
   }
 
@@ -120,10 +122,14 @@ export default function ChatPage() {
                 <span className="chat-item-meta">{s.msg_count} 条</span>
               </button>
               <button
-                className="chat-item-del"
+                className={`chat-item-del ${confirmDel === s.id ? 'confirming' : ''}`}
                 title="删除对话"
-                onClick={(e) => { e.stopPropagation(); removeSession(s.id) }}
-              >删除</button>
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (confirmDel === s.id) removeSession(s.id)
+                  else { setConfirmDel(s.id); setTimeout(() => setConfirmDel((c) => (c === s.id ? null : c)), 3000) }
+                }}
+              >{confirmDel === s.id ? '确认？' : '删除'}</button>
             </div>
           ))}
         </div>

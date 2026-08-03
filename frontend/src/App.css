@@ -543,3 +543,8 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 }
 .chat-item:hover .chat-item-del { opacity: 1; }
 .chat-item-del:hover { color: var(--down); background: none; }
+
+.chat-item-del.confirming {
+  color: var(--down); opacity: 1;
+  background: var(--down-bg); border-radius: 4px;
+}
