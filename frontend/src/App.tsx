@@ -5,10 +5,6 @@ import './App.css'
 
 type Tab = 'analyze' | 'config' | 'history'
 
-const PROVIDERS = [
-  'deepseek', 'openai', 'qwen', 'moonshot', 'ollama', 'custom',
-] as const
-
 function App() {
   const [tab, setTab] = useState<Tab>('analyze')
 
@@ -75,7 +71,7 @@ function AnalyzePane() {
         </button>
       </div>
       {error && <div className="error-box">{error}</div>}
-      {loading && <div className="loading">智能体团队正在工作：数据收集 -> 五位分析师独立分析 -> 多空辩论 -> 共识 -> 风控审查 -> 交易计划...</div>}
+      {loading && <div className="loading">智能体团队正在工作：数据收集 → 五位分析师独立分析 → 多空辩论 → 共识 → 风控审查 → 交易计划...</div>}
       {result && <ReportView result={result} />}
     </div>
   )
