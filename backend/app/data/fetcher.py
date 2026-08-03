@@ -112,11 +112,51 @@ def get_stock_brief(symbol: str) -> Optional[dict[str, Any]]:
     return cached(f"quote:{sym}", TTL["quote"], _fetch)
 
 
+def _fetch_us_kline(sym: str, days: int) -> Optional[dict[str, Any]]:
+    """美股日K线（新浪接口，1984年至今完整历史，国内直连）。
+
+    返回 JSONP：var _=([{"d":"1984-09-07","o":"26.50","h":"26.87","l":"26.25","c":"26.50","v":...}, ...])
+    """
+    import json as _json
+
+    ticker = sym[2:]  # usAAPL -> AAPL
+    url = (
+        "https://stock.finance.sina.com.cn/usstock/api/jsonp_v2.php/"
+        f"var%20_=/US_MinKService.getDailyK?symbol={ticker}"
+    )
+    try:
+        r = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://finance.sina.com.cn"})
+        text = r.text
+        start, end = text.find("(["), text.rfind("])")
+        if start == -1 or end == -1:
+            return None
+        data = _json.loads(text[start + 1 : end + 1])
+        bars = []
+        for row in data[-days:]:
+            try:
+                bars.append({
+                    "date": str(row["d"]),
+                    "open": float(row["o"]),
+                    "close": float(row["c"]),
+                    "high": float(row["h"]),
+                    "low": float(row["l"]),
+                    "volume": float(row.get("v", 0)),
+                })
+            except (KeyError, ValueError, TypeError):
+                continue
+        return {"bars": bars} if bars else None
+    except Exception:
+        return None
+
+
 def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
     """前复权日线行情（腾讯 K 线接口），缓存 1 小时。"""
     sym = _norm_symbol(symbol)
 
     def _fetch() -> Optional[dict[str, Any]]:
+        # 美股：腾讯接口日K只返回最近2条，改用新浪美股日K（1984年至今完整历史）
+        if sym.startswith("us"):
+            return _fetch_us_kline(sym, days)
         code = f"{_market_prefix(sym)}{sym}"
         url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,{days},qfq"
         try:
