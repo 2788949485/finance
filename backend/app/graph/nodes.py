@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.types import Send
 
 from .. import data as datalayer
@@ -30,14 +31,14 @@ ROLE_REGISTRY = {cls.role: cls for cls in ALL_ANALYSTS}
 ANALYST_ORDER = [cls.role for cls in ALL_ANALYSTS]
 
 
-def _get_llm(config: dict[str, Any]) -> LLMClient:
+def _get_llm(config: RunnableConfig) -> LLMClient:
     """从 graph config 取 LLM（测试可注入 mock），缺省用真实配置。"""
     return config.get("configurable", {}).get("llm") or LLMClient()
 
 
 # ---------- 1. 数据收集 ----------
 
-def collect_data(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
+def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     ctx: dict[str, Any] = {"ticker": state.get("ticker", "")}
     ctx["brief"] = datalayer.get_stock_brief(ctx["ticker"]) or {}
     history = datalayer.get_history(ctx["ticker"])
@@ -58,7 +59,7 @@ def fan_out_analysts(state: AgentState) -> list[Send]:
     ]
 
 
-def run_analyst(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
+def run_analyst(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """单个分析师执行，产出 {role: AnalystView} 写入 view_map。"""
     role = state["role"]
     agent_cls = ROLE_REGISTRY[role]
@@ -79,7 +80,7 @@ def aggregate_views(state: AgentState) -> dict[str, Any]:
 
 # ---------- 3. 辩论 ----------
 
-def run_debate(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
+def run_debate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     views = state["views"]
     llm = _get_llm(config)
     if len(views) < 2:
@@ -113,7 +114,7 @@ def run_debate(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
 
 # ---------- 4. 共识 ----------
 
-def run_consensus(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
+def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     views = state["views"]
     score = round(sum(v.score for v in views) / len(views), 2) if views else 0.0
     views_block = "\n".join(f"- {v.title} ({v.score}): {v.summary[:100]}" for v in views)
@@ -131,7 +132,7 @@ def run_consensus(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
 
 # ---------- 5. 风控 ----------
 
-def run_risk(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
+def run_risk(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     review = RiskManager(_get_llm(config)).review(
         state.get("context", {}), state["views"], state["consensus_score"]
     )
@@ -145,7 +146,7 @@ def route_after_risk(state: AgentState) -> str:
     return "trader" if state.get("risk_review", RiskReview(approved=True, verdict="")).approved else "abstain"
 
 
-def run_trader(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
+def run_trader(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     plan = Trader(_get_llm(config)).plan(
         state.get("context", {}),
         state["views"],
@@ -171,7 +172,7 @@ def run_abstain(state: AgentState) -> dict[str, Any]:
 
 # ---------- 7. 组装与入库 ----------
 
-def finalize(state: AgentState, config: dict[str, Any]) -> dict[str, Any]:
+def finalize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     from ..memory import save_analysis
 
     brief = state.get("context", {}).get("brief") or {}
