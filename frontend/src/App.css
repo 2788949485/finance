@@ -470,3 +470,15 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   .chat-item { min-width: 140px; }
   .msg-bubble { max-width: 92%; }
 }
+
+/* ---------- 消息内嵌行情卡片（重新设计：跟随消息流） ---------- */
+.msg { flex-direction: column; align-items: stretch; }
+.msg.user { align-items: flex-end; }
+.msg.assistant { align-items: flex-start; }
+.msg-quotes { margin-top: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 640px; }
+.quote-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.quote-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.quote-title { font-size: 14px; font-weight: 700; }
+.quote-price-row { display: flex; align-items: baseline; gap: 8px; }
+.quote-indicators { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+.quote-loading { color: var(--text-3); font-size: 12.5px; padding: 6px 0; }

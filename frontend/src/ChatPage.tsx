@@ -1,8 +1,8 @@
-// 智能对话页：ReAct 智能体聊天 + 行情卡片 + K线图
+// 智能对话页：ReAct 智能体聊天，行情卡片（K线图）跟随消息内嵌
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
-import type { ChatMessage, ChatSession, QuoteResponse } from './types'
-import KLineChart from './KLineChart'
+import type { ChatMessage, ChatSession } from './types'
+import QuoteCard, { extractCodes } from './QuoteCard'
 
 const TOOL_LABEL: Record<string, string> = {
   get_quote: '查询实时行情',
@@ -13,6 +13,30 @@ const TOOL_LABEL: Record<string, string> = {
   run_research: '运行多智能体投研',
 }
 
+// 单条消息 + 内嵌行情卡片
+function MessageItem({ m }: { m: ChatMessage }) {
+  const codes = extractCodes(m.content)
+  return (
+    <div className={`msg ${m.role}`}>
+      <div className="msg-bubble">
+        <div className="msg-text">{m.content}</div>
+        {m.tool_calls && m.tool_calls.length > 0 && (
+          <div className="msg-tools">
+            {m.tool_calls.map((t, j) => (
+              <span key={j}>{TOOL_LABEL[t.name] || t.name}</span>
+            ))}
+          </div>
+        )}
+      </div>
+      {codes.length > 0 && (
+        <div className="msg-quotes">
+          {codes.map((code) => <QuoteCard key={code} code={code} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ChatPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -20,7 +44,6 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [quotes, setQuotes] = useState<Record<string, QuoteResponse>>({})
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const loadSessions = useCallback(async () => {
@@ -33,28 +56,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  // 识别消息中的股票代码并拉行情
-  const ensureQuote = useCallback(async (text: string) => {
-    const codes = text.match(/\b([036]\d{5})\b/g)
-    if (!codes) return
-    for (const code of [...new Set(codes)]) {
-      if (!quotes[code]) {
-        try {
-          const q = await api.getQuote(code, 60)
-          setQuotes((prev) => ({ ...prev, [code]: q }))
-        } catch { /* ignore */ }
-      }
-    }
-  }, [quotes])
-
-  useEffect(() => {
-    const last = messages[messages.length - 1]
-    if (last && (last.role === 'assistant' || last.role === 'user')) {
-      ensureQuote(last.content)
-    }
-  }, [messages, ensureQuote])
+  }, [messages, busy])
 
   const openSession = async (id: number) => {
     setSessionId(id)
@@ -76,7 +78,6 @@ export default function ChatPage() {
     setInput('')
     setBusy(true)
     setError('')
-    // 本地先显示用户消息
     setMessages((prev) => [...prev, { role: 'user', content: text, created_at: new Date().toISOString() }])
     try {
       const r = await api.sendChat(text, sessionId ?? undefined)
@@ -117,43 +118,19 @@ export default function ChatPage() {
               <h3>我是 FinanceCrew 投研助理</h3>
               <p>可以问我任何 A 股问题，例如：</p>
               <ul>
-                <li>“分析一下 600519 的基本面”</li>
-                <li>“600519 最近为什么涨？”</li>
-                <li>“跑一份 000001 的完整投研报告”</li>
-                <li>“对比 300750 和 002594 的估值”</li>
+                <li>"分析一下 600519 的基本面"</li>
+                <li>"600519 最近为什么涨？"</li>
+                <li>"跑一份 000001 的完整投研报告"</li>
+                <li>"对比 300750 和 002594 的估值"</li>
               </ul>
-              <p className="chat-hint">我会自动查询实时行情、财务、龙虎榜、新闻等真实数据来回答</p>
+              <p className="chat-hint">我会自动查询实时行情、财务、龙虎榜、新闻等真实数据来回答，涉及股票的消息下方会直接展示 K 线图</p>
             </div>
           )}
-          {messages.map((m, i) => (
-            <div key={i} className={`msg ${m.role}`}>
-              <div className="msg-bubble">
-                <div className="msg-text">{m.content}</div>
-                {m.tool_calls && m.tool_calls.length > 0 && (
-                  <div className="msg-tools">
-                    {m.tool_calls.map((t, j) => (
-                      <span key={j}>{TOOL_LABEL[t.name] || t.name}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+          {messages.map((m, i) => <MessageItem key={i} m={m} />)}
           {busy && <div className="msg assistant"><div className="msg-bubble typing">智能体思考中...</div></div>}
           {error && <div className="error-box">{error}</div>}
           <div ref={bottomRef} />
         </div>
-
-        {/* 行情卡片 + K线 */}
-        {Object.keys(quotes).length > 0 && (
-          <div className="quote-area">
-            {Object.entries(quotes).map(([code, q]) => (
-              <div className="quote-card" key={code}>
-                <KLineChart bars={q.kline} symbol={`${String(q.brief.name ?? code)} ${code}`} />
-              </div>
-            ))}
-          </div>
-        )}
 
         <div className="chat-input">
           <input
