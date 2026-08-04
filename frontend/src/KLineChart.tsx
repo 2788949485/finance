@@ -1,5 +1,5 @@
 // 自绘 SVG 图表：日K蜡烛图 + 分时折线图（无第三方库）
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { KlineBar, MinutePoint } from './types'
 
 const UP = '#22c55e'
