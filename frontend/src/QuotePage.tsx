@@ -5,7 +5,7 @@ import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 import { StarButton } from './QuoteCard'
 
-const HOT = [
+const HOT_FALLBACK = [
   { code: '600519', name: '贵州茅台' },
   { code: 'hk00700', name: '腾讯控股' },
   { code: 'usAAPL', name: '苹果' },
@@ -18,6 +18,7 @@ export default function QuotePage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchItem[]>([])
   const [selected, setSelected] = useState<SearchItem>({ market: 'sh', code: '600519', name: '贵州茅台', type: 'GP' })
+  const [hotItems, setHotItems] = useState(HOT_FALLBACK)
   const [compareCode, setCompareCode] = useState('')
   const [compareData, setCompareData] = useState<QuoteResponse | null>(null)
   const [industry, setIndustry] = useState<{ peers: { code: string; name: string; pe: number; pb: number; change_pct: number; market_cap: number; is_target: boolean }[]; avg_pe: number | null; avg_pb: number | null } | null>(null)
@@ -30,6 +31,15 @@ export default function QuotePage() {
   const [allBars, setAllBars] = useState<KlineBar[]>([])
   const timerRef = useRef<number | null>(null)
   const searchTimer = useRef<number | null>(null)
+
+  // 加载每日热门股票
+  useEffect(() => {
+    api.getHotStocks().then((items) => {
+      if (items && items.length >= 3) {
+        setHotItems(items.map((i) => ({ code: i.code, name: i.name })))
+      }
+    }).catch(() => {})
+  }, [])
 
   const load = useCallback(async (code: string, m: 'day' | 'minute', fresh: number) => {
     try {
@@ -117,7 +127,7 @@ export default function QuotePage() {
 
       {/* 热门默认展示 */}
       <div className="qp-hot">
-        {HOT.map((h) => (
+        {hotItems.map((h) => (
           <button
             key={h.code}
             className={`qp-hot-item ${selected.code === h.code ? 'active' : ''}`}
