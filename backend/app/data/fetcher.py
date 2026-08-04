@@ -564,8 +564,8 @@ def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
                     })
                 except (ValueError, IndexError, TypeError, AttributeError):
                     continue
-            # 点数太少视为无效（盘前/异常）
-            if len(out) < 2:
+            # 点数太少视为无效（盘前/异常），但美股/港股盘后可能只有1-2条
+            if len(out) < 1:
                 return None
             # 判断市场：A股成交量单位=手(需*100转股)，港股/美股=股数(直接用)
             is_a_share = not (sym.startswith("hk") or sym.startswith("us"))

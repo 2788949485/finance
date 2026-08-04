@@ -27,6 +27,8 @@ from .tools import COMPANY_ALIASES, FINANCE_TOOLS, HK_ALIASES, US_ALIASES, resol
 
 SYSTEM_PROMPT = """你是 FinanceCrew 的投研助理，一位专业的投资研究智能体，覆盖 A 股、港股、美股三大市场。
 
+当前时间：{current_time}
+
 支持的标的格式：
 - A股：6位代码（600519）或公司名（贵州茅台）
 - 港股：hk+5位代码（hk00700）或公司名（腾讯）
@@ -40,7 +42,9 @@ SYSTEM_PROMPT = """你是 FinanceCrew 的投研助理，一位专业的投资研
 5. 涉及投资建议时，末尾提醒"仅供参考，不构成投资建议"
 6. 用户问题与股票无关时正常回答
 7. 查询纪律：一次只查询用户明确询问的标的，不要批量查询多个股票；用户说公司名（如"腾讯"）时直接把它作为工具参数（get_quote("腾讯") 会自动解析为 hk00700），不要猜测或尝试其他代码
-8. 回复中首次提到股票时用标准代码格式：A股6位数字（600519）、港股 hk+5位（hk00700）、美股 us+代码（usAAPL），方便前端展示行情卡片"""
+8. 回复中首次提到股票时用标准代码格式：A股6位数字（600519）、港股 hk+5位（hk00700）、美股 us+代码（usAAPL），方便前端展示行情卡片
+9. 遇到不认识的股票名称（如新上市公司），先调用 search_stock 搜索代码，或 web_search 联网查询最新信息，不要凭训练数据断言"不存在"或"未上市"
+10. 联网搜索结果中的日期可能不是最新的，请以上方"当前时间"为准判断"""
 
 MEMORY_EXTRACT_PROMPT = """从下面的对话中提取用户的持久性事实，用于长期记忆。
 只提取值得长期记住的信息，例如：关注的股票/行业、风险偏好、投资风格、持仓、投资目标。
@@ -140,7 +144,7 @@ def _make_prompt(profile: dict, memories: list[str]) -> str:
     注意：langgraph 0.2 的 create_react_agent 的 prompt 参数必须传字符串
     （callable 形式不生效，会导致模型行为异常/英文回复/批量乱查工具）。
     """
-    parts = [SYSTEM_PROMPT]
+    parts = [SYSTEM_PROMPT.replace("{current_time}", datetime.now().strftime("%Y年%m月%d日 %H:%M %A"))]
     if memories:
         # 记忆中的代码补充公司名（hk00700 -> hk00700(腾讯控股)），避免模型乱猜
         enhanced = []
