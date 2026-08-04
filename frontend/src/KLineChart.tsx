@@ -455,6 +455,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio={fullscreen ? 'none' : 'xMidYMid meet'}
         className="kline-svg"
         style={{ cursor: zoom > 1 ? (drag ? 'grabbing' : 'grab') : 'crosshair', touchAction: 'none' }}
         onMouseDown={onMouseDown}
