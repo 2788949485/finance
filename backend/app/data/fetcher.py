@@ -421,16 +421,18 @@ def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
             # 点数太少视为无效（盘前/异常）
             if len(out) < 2:
                 return None
-            # 计算分时均价（累计成交额 / (累计成交量*100)）
-            # 腾讯字段3=成交量(手)，字段4=成交额(元)，1手=100股
+            # 判断市场：A股成交量单位=手(需*100转股)，港股/美股=股数(直接用)
+            is_a_share = not (sym.startswith("hk") or sym.startswith("us"))
+            vol_factor = 100 if is_a_share else 1
+            # 计算分时均价（累计成交额 / (累计成交量 * vol_factor)）
             cum_amt = 0.0
             cum_vol = 0.0
             for pt in out:
                 amt = pt.pop("amount", 0) or 0
-                vol = pt.get("volume") or 0  # 手
+                vol = pt.get("volume") or 0
                 cum_amt += amt
                 cum_vol += vol
-                pt["avg"] = round(cum_amt / (cum_vol * 100), 2) if cum_vol > 0 else None
+                pt["avg"] = round(cum_amt / (cum_vol * vol_factor), 2) if cum_vol > 0 else None
             return {"points": out, "last_close": last_close}
         except Exception:
             return None
