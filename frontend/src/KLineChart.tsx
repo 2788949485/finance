@@ -107,15 +107,39 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const vw = W - PAD.l - PAD.r
     const yP = (v: number) => PAD.t + ((top - v) / spanM) * priceH
 
-    // 时间坐标：将交易时段(0930-1130, 1300-1500)映射到 0~vw，午休跳过
-    const totalMins = 4 * 60  // 4小时交易时间
+    // 时间坐标：按实际数据的时间范围线性映射到 0~vw（适配 A股/港股/美股不同交易时段）
+    // 将交易时段分为上午段和下午段（中间午休跳过），用分段线性映射
+    const allTimes = minute.map(m => m.time).filter(Boolean).sort()
+    // 自动检测午休分界点：找到 11xx -> 13xx 的跳变
+    let breakIdx = -1
+    for (let k = 1; k < allTimes.length; k++) {
+      const prev = parseInt(allTimes[k - 1].slice(0, 2))
+      const cur = parseInt(allTimes[k].slice(0, 2))
+      if (prev <= 12 && cur >= 13) { breakIdx = k; break }
+    }
+    const t2m = (t: string) => parseInt(t.slice(0, 2)) * 60 + parseInt(t.slice(2, 4))
+    // 上午段时间轴
+    const amTimes = breakIdx > 0 ? allTimes.slice(0, breakIdx) : allTimes
+    const pmTimes = breakIdx > 0 ? allTimes.slice(breakIdx) : []
+    const amStart = t2m(amTimes[0])
+    const amEnd = t2m(amTimes[amTimes.length - 1])
+    const pmStart = pmTimes.length > 0 ? t2m(pmTimes[0]) : 0
+    const pmEnd = pmTimes.length > 0 ? t2m(pmTimes[pmTimes.length - 1]) : 0
+    const amLen = Math.max(amEnd - amStart, 1)
+    const pmLen = Math.max(pmEnd - pmStart, 0)
+    const totalLen = amLen + pmLen
+    const amRatio = amLen / totalLen  // 上午段占图表宽度的比例
     const timeToX = (t: string) => {
-      const hh = parseInt(t.slice(0, 2))
-      const mm = parseInt(t.slice(2, 4))
-      const morning = (hh < 11 || (hh === 11 && mm <= 30)) ? (hh * 60 + mm - 570) : -1
-      const afternoon = (hh >= 13) ? (hh * 60 + mm - 780 + 120) : -1
-      const mins = morning >= 0 ? morning : (afternoon >= 0 ? afternoon : 0)
-      return PAD.l + (mins / totalMins) * vw
+      const m = t2m(t)
+      if (pmTimes.length > 0 && m >= pmStart) {
+        // 下午段：映射到 amRatio~1
+        const frac = (m - pmStart) / pmLen
+        return PAD.l + (amRatio + frac * (1 - amRatio)) * vw
+      } else {
+        // 上午段：映射到 0~amRatio
+        const frac = (m - amStart) / amLen
+        return PAD.l + frac * amRatio * vw
+      }
     }
 
     // 价格点坐标：用实际时间定位（而非按序号平铺），这样未交易时段留白
@@ -130,11 +154,15 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const fillPath = `${timeToX(minute[0].time)},${yP(base)} ${pts(prices)} ${lastX},${yP(base)}`
     const fillColor = trend === UP ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'
 
-    // 时间轴标签
-    const timeLabels = [
-      { t: '0930', label: '9:30' }, { t: '1030', label: '10:30' },
-      { t: '1130', label: '11:30/13:00' }, { t: '1400', label: '14:00' }, { t: '1500', label: '15:00' },
-    ]
+    // 时间轴标签：从实际数据均匀取样5个时间点
+    const timeLabels = []
+    const labelCount = Math.min(5, allTimes.length)
+    for (let k = 0; k < labelCount; k++) {
+      const idx = Math.min(allTimes.length - 1, Math.round(k * (allTimes.length - 1) / (labelCount - 1)))
+      const t = allTimes[idx]
+      const label = `${parseInt(t.slice(0, 2))}:${t.slice(2, 4)}`
+      timeLabels.push({ t, label })
+    }
 
     // 最大成交量
     const maxVol = Math.max(...minute.map(m => m.volume ?? 0), 1)
@@ -205,7 +233,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           {minute.map((m, i) => {
             const h = ((m.volume ?? 0) / maxVol) * volH * 0.9
             const x = timeToX(m.time)
-            const barW = Math.max(vw / totalMins * 0.7, 1)
+            const barW = Math.max(vw / minute.length * 0.7, 1)
             const barUp = m.price >= (i > 0 ? minute[i-1].price : base)
             return h > 0.5 ? (
               <rect key={i} x={x - barW / 2} y={volTop + volH - h} width={barW} height={h} fill={barUp ? UP : DOWN} opacity="0.5" />
