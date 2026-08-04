@@ -36,7 +36,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     return () => window.removeEventListener('keydown', onKey)
   }, [fullscreen])
 
-  const W = 680, H = 240, PAD = { t: 14, r: 10, b: 22, l: 56 }
+  const W = 680, H = 320, PAD = { t: 14, r: 10, b: 22, l: 56 }
 
   const resetZoom = () => { setZoom(1); setPan(0) }
 
@@ -105,7 +105,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const pct = ((lastP.price - base) / base * 100)
 
     // 图表分区：上半部分价格区(70%) + 下半部分成交量区(30%)
-    const MH = H + 80  // 分时图加高
+    const MH = 320  // 分时图固定高度（与日K一致）
     // 分时模式用更宽的左/右 padding 给 Y 轴价格+涨跌幅留空间
     const mPAD = { ...PAD, l: 72, r: 56 }
     const priceH = Math.round((MH - mPAD.t - mPAD.b) * 0.7)
