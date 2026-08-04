@@ -79,6 +79,7 @@ function HotQuoteCard({ code, brief, news, dir }: {
   const name = String(b?.name ?? code)
   const price = b?.price
   const change = b?.change_pct
+  const [showNews, setShowNews] = useState(false)
 
   return (
     <div className={`quote-card hot-slide ${dir === 1 ? 'in-right' : 'in-left'}`}>
@@ -99,12 +100,33 @@ function HotQuoteCard({ code, brief, news, dir }: {
       {news.length > 0 && (
         <div className="quote-news">
           <div className="quote-news-head">最新新闻</div>
-          {news.slice(0, 4).map((n, i) => (
+          {news.slice(0, 3).map((n, i) => (
             <div className="quote-news-item" key={i}>
               <span className="quote-news-time">{n.time.slice(5, 16)}</span>
               <span className="quote-news-title">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</span>
             </div>
           ))}
+          {news.length > 3 && (
+            <button className="quote-news-more" onClick={() => setShowNews(true)}>查看全部 {news.length} 条 ›</button>
+          )}
+        </div>
+      )}
+      {showNews && (
+        <div className="news-overlay" onClick={() => setShowNews(false)}>
+          <div className="news-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="news-modal-head">
+              <span>{name} 相关新闻</span>
+              <button onClick={() => setShowNews(false)}>✕</button>
+            </div>
+            <div className="news-modal-list">
+              {news.map((n, i) => (
+                <div className="news-modal-item" key={i}>
+                  <span className="quote-news-time">{n.time}</span>
+                  <span className="quote-news-title">{n.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
