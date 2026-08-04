@@ -529,9 +529,19 @@ def auto_generate_peers(code: str, name: str | None = None) -> list[str] | None:
         peers = [p.strip()[:6] for p in peers if isinstance(p, str) and len(p) >= 6][:5]
         if len(peers) < 3:
             return None
+        # 校验：过滤掉无法获取行情的假代码
+        from .data.fetcher import get_stock_brief
+        valid_peers = []
+        for pc in peers:
+            if get_stock_brief(pc):
+                valid_peers.append(pc)
+            if len(valid_peers) >= 5:
+                break
+        if len(valid_peers) < 3:
+            return None
         # 写入数据库
-        save_peers(code, name, peers)
-        return peers
+        save_peers(code, name, valid_peers)
+        return valid_peers
     except Exception:
         return None
 
