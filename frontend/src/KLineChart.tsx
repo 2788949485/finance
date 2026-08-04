@@ -45,9 +45,14 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   // 缩放：用 native event listener（passive: false 才能 preventDefault 阻止页面滚动）
   // 必须在所有 return 之前调用（React Hooks 规则）
   useEffect(() => {
-    if (mode === 'minute') return  // 分时模式不需要滚轮缩放
     const svg = svgRef.current
     if (!svg) return
+    // 分时模式不做缩放，但仍需阻止滚轮事件冒泡导致页面滚动
+    if (mode === 'minute') {
+      const block = (e: WheelEvent) => e.preventDefault()
+      svg.addEventListener('wheel', block, { passive: false })
+      return () => svg.removeEventListener('wheel', block)
+    }
     const rawLen = (range === 'all' ? bars : bars.slice(-range)).length
     const handler = (e: WheelEvent) => {
       e.preventDefault()
