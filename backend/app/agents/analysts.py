@@ -67,8 +67,24 @@ class FundamentalAnalyst(Agent):
             f"净利润: {fin.get('net_profit', 'N/A')}  净利同比: {fin.get('net_profit_yoy', 'N/A')}%\n"
             f"ROE: {fin.get('roe', 'N/A')}  毛利率: {fin.get('gross_margin', 'N/A')}  负债率: {fin.get('debt_ratio', 'N/A')}%\n"
         )
+        # 行业横向对比
+        ind = context.get("industry")
+        if ind and ind.get("peers"):
+            peer_lines = []
+            for p in ind["peers"][:6]:
+                mark = " (目标)" if p.get("is_target") else ""
+                peer_lines.append(f"  {p.get('name','')}: PE={p.get('pe','N/A')} PB={p.get('pb','N/A')}{mark}")
+            data_block += f"\n行业同行对比 (均PE={ind.get('avg_pe','N/A')} 均PB={ind.get('avg_pb','N/A')}):\n" + "\n".join(peer_lines) + "\n"
+        # 历史趋势
+        trend = context.get("trend")
+        if trend:
+            data_block += (
+                f"\n120日趋势: 最高={trend.get('high_120')} 最低={trend.get('low_120')}\n"
+                f"均线: MA5={trend.get('ma5')} MA20={trend.get('ma20')} MA60={trend.get('ma60','N/A')}\n"
+                f"月涨跌: {((trend.get('latest',0) - (trend.get('prev_month_close') or trend.get('latest',0))) / max(trend.get('prev_month_close') or 1, 1) * 100):.1f}%\n"
+            )
         return self._call_structured(
-            "请分析以下标的的基本面与估值：\n" + data_block,
+            "请基于以上数据（含行业横向对比和历史趋势）综合分析该标的的基本面与估值，明确指出相对同行的优势和劣势：\n" + data_block,
             context=context
         )
 
@@ -95,8 +111,14 @@ class TechnicalAnalyst(Agent):
             f"RSI14: {tech.get('rsi14', 'N/A')}  量比: {tech.get('volume_ratio', 'N/A')}\n"
             f"60日高点: {tech.get('high_60d', 'N/A')}  60日低点: {tech.get('low_60d', 'N/A')}\n"
         )
+        # 120日扩展趋势
+        trend = context.get("trend")
+        if trend:
+            data_block += (
+                f"120日高点: {trend.get('high_120')}  120日低点: {trend.get('low_120')}  20日波动: {trend.get('stdev')}\n"
+            )
         return self._call_structured(
-            "请分析以下标的的技术形态：\n" + data_block,
+            "请结合短期技术指标和中长期趋势，分析该标的的技术形态：\n" + data_block,
             context=context
         )
 

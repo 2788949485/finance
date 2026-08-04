@@ -60,6 +60,30 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         ctx["news"] = datalayer.get_news(ticker) or []
     except Exception:
         ctx["news"] = []
+    # 行业对比数据（让分析师有横向参照）
+    try:
+        ctx["industry"] = datalayer.get_industry_compare(ticker) or None
+    except Exception:
+        ctx["industry"] = None
+    # 历史趋势摘要（让分析师有纵向参照，不只是最新快照）
+    try:
+        hist = datalayer.get_history(ticker, days=120)
+        if hist is not None and len(hist) >= 20:
+            closes = [r.get("close", 0) for r in hist if r.get("close")]
+            if len(closes) >= 20:
+                import statistics
+                ctx["trend"] = {
+                    "ma5": round(sum(closes[-5:]) / 5, 2),
+                    "ma20": round(sum(closes[-20:]) / 20, 2),
+                    "ma60": round(sum(closes[-60:]) / 60, 2) if len(closes) >= 60 else None,
+                    "high_120": round(max(closes), 2),
+                    "low_120": round(min(closes), 2),
+                    "latest": closes[-1],
+                    "stdev": round(statistics.stdev(closes[-20:]) if len(closes) >= 21 else 0, 2),
+                    "prev_month_close": closes[-21] if len(closes) >= 21 else None,
+                }
+    except Exception:
+        ctx["trend"] = None
     # 注入用户长期记忆（反哺分析师：偏好影响评分方向）
     user_id = state.get("user_id")
     if user_id:

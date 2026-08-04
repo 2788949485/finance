@@ -500,9 +500,16 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 
 /* 打印 */
 @media print {
-  .topbar, .chat-side, .watch-side, .chat-input, .report-export-btn, .input-row, .research-live { display: none !important; }
+  .topbar, .chat-side, .watch-side, .chat-input, .report-export-btn, .back-to-list, .input-row, .research-live { display: none !important; }
   .app { padding: 0; max-width: 100%; }
   body { background: white !important; color: black !important; }
+  .pane { border: none !important; padding: 0 !important; }
+  .report-head { page-break-after: avoid; }
+  .view-card, .consensus, .kpi-card { page-break-inside: avoid; }
+  .kpi-grid { gap: 8px; }
+  .views-grid { gap: 8px; }
+  .section-title { page-break-after: avoid; }
+  .plan-box, .risk-box, .debate { page-break-inside: avoid; }
 }
 .report-export-btn { font-size: 12px; padding: 6px 14px; margin-left: auto; }
 

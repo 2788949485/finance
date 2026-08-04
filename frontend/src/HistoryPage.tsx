@@ -34,7 +34,7 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
   if (detail) {
     return (
       <div className="pane">
-        <button className="ghost" onClick={() => setDetail(null)} style={{ marginBottom: 12 }}>返回列表</button>
+        <button className="ghost back-to-list" onClick={() => setDetail(null)} style={{ marginBottom: 12 }}>返回列表</button>
         <ReportView result={detail} />
       </div>
     )
