@@ -35,6 +35,15 @@ function HotKLine({ code, name, lastClose }: { code: string; name: string; lastC
     return () => { cancelled = true }
   }, [code])
 
+  // 分时模式实时刷新（15秒）
+  useEffect(() => {
+    if (mode !== 'minute') return
+    const t = window.setInterval(() => {
+      api.getQuote(code, 60, 'minute', 1).then(setData).catch(() => {})
+    }, 15000)
+    return () => window.clearInterval(t)
+  }, [mode, code])
+
   const switchMode = (m: 'day' | 'minute') => {
     setMode(m)
     api.getQuote(code, 60, m, 0).then(setData).catch(() => {})

@@ -54,45 +54,108 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const all = [...prices, ...avgs, base]
     const maxV = Math.max(...all)
     const minV = Math.min(...all)
-    const span = maxV - minV || 1
-    const vw = W - PAD.l - PAD.r
-    const vh = H - PAD.t - PAD.b
-    const y = (v: number) => PAD.t + ((maxV - v) / span) * vh
-    const step = vw / minute.length
-    const pts = (arr: number[]) => arr.map((v, i) => `${PAD.l + i * step},${y(v)}`).join(' ')
+    // 以昨收为中心对称展开（专业分时图标准）
+    const dev = Math.max(maxV - base, base - minV, base * 0.001)
+    const top = base + dev * 1.05
+    const bot = base - dev * 1.05
+    const spanM = top - bot || 1
     const lastP = minute[minute.length - 1]
-    const trend = lastP.price >= (lastClose ?? lastP.price) ? UP : DOWN
+    const trend = lastP.price >= base ? UP : DOWN
+    const pct = ((lastP.price - base) / base * 100)
+
+    // 图表分区：上半部分价格区(70%) + 下半部分成交量区(30%)
+    const MH = H + 80  // 分时图加高
+    const priceH = Math.round((MH - PAD.t - PAD.b) * 0.7)
+    const volTop = PAD.t + priceH + 8
+    const volH = MH - volTop - PAD.b
+    const vw = W - PAD.l - PAD.r
+    const yP = (v: number) => PAD.t + ((top - v) / spanM) * priceH
+    const step = vw / Math.max(minute.length, 1)
+    const pts = (arr: (number | null)[]) => arr.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${yP(v)}`).join(' ')
+
+    // 涨跌填充区域路径
+    const fillPath = `${PAD.l},${yP(base)} ${pts(prices)} ${PAD.l + (minute.length - 1) * step + step / 2},${yP(base)}`
+    const fillColor = trend === UP ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'
+
+    // 时间轴标签（A股交易时段）
+    const timeLabels = [
+      { t: '0930', label: '9:30' }, { t: '1030', label: '10:30' },
+      { t: '1130', label: '11:30/13:00' }, { t: '1400', label: '14:00' }, { t: '1500', label: '15:00' },
+    ]
+    const timeX = (t: string) => {
+      const hh = parseInt(t.slice(0, 2))
+      const mm = parseInt(t.slice(2, 4))
+      // 将交易时段(0930-1500, 去掉1130-1300午休)映射到 0~vw
+      const morning = (hh < 11 || (hh === 11 && mm <= 30)) ? (hh * 60 + mm - 570) : -1  // 0930=570
+      const afternoon = (hh >= 13) ? (hh * 60 + mm - 780 + 120) : -1  // 1300=780, +120午休偏移
+      const mins = morning >= 0 ? morning : afternoon
+      const totalMins = 4 * 60  // 4小时交易时间
+      return PAD.l + (mins / totalMins) * vw
+    }
+
+    // 最大成交量
+    const maxVol = Math.max(...minute.map(m => m.volume ?? 0), 1)
+
     return (
       <div className="kline-wrap">
         <div className="kline-head">
           <span className="kline-symbol">{symbol} 分时</span>
           <span className="kline-price" style={{ color: trend }}>
-            {lastP.price} <small>{trend === UP ? '▲' : '▼'}</small>
+            {lastP.price.toFixed(2)} <small>{trend === UP ? '▲' : '▼'} {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%</small>
           </span>
           <span className="kline-range">
             {onMode && <button className="ghost" onClick={() => onMode('day')}>日K</button>}
             <button className="ghost active">分时</button>
           </span>
         </div>
-        <svg viewBox={`0 0 ${W} ${H}`} className="kline-svg">
-          {/* 昨收基准线 */}
-          <line x1={PAD.l} x2={W - PAD.r} y1={y(base)} y2={y(base)} stroke="#64748b" strokeWidth="1" strokeDasharray="4 4" />
-          <text x={PAD.l + 4} y={y(base) - 4} fontSize="10" fill="#64748b">昨收 {base.toFixed(2)}</text>
-          {/* 网格 */}
-          {[0.25, 0.5, 0.75].map((r) => (
-            <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + vh * r} y2={PAD.t + vh * r} stroke="#1e293b" strokeWidth="1" />
+        <svg viewBox={`0 0 ${W} ${MH}`} className="kline-svg">
+          {/* 价格区网格 */}
+          {[0, 0.25, 0.5, 0.75, 1].map((r) => (
+            <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + priceH * r} y2={PAD.t + priceH * r} stroke="#1e293b" strokeWidth="1" />
           ))}
+          {/* 昨收基准线 */}
+          <line x1={PAD.l} x2={W - PAD.r} y1={yP(base)} y2={yP(base)} stroke="#64748b" strokeWidth="1" strokeDasharray="4 4" />
+          {/* 涨跌填充区域 */}
+          <polygon points={fillPath} fill={fillColor} />
           {/* 价格线 */}
           <polyline points={pts(prices)} fill="none" stroke={trend} strokeWidth="1.6" />
           {/* 均价线 */}
           {avgs.length > 1 && (
-            <polyline points={pts(avgs)} fill="none" stroke="#f59e0b" strokeWidth="1.1" opacity="0.85" />
+            <polyline points={pts(minute.map(m => m.avg))} fill="none" stroke="#f59e0b" strokeWidth="1.1" opacity="0.85" />
           )}
-          {/* Y 轴刻度 */}
-          {[0, 0.5, 1].map((r) => (
-            <text key={r} x={PAD.l - 6} y={PAD.t + vh * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
-              {(maxV - span * r).toFixed(2)}
-            </text>
+          {/* Y轴价格刻度（对称：上+涨幅 下-跌幅） */}
+          {[0, 0.25, 0.5, 0.75, 1].map((r) => {
+            const v = top - spanM * r
+            const changePct = ((v - base) / base * 100)
+            return (
+              <text key={r} x={PAD.l - 6} y={PAD.t + priceH * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
+                {v.toFixed(2)}
+                <tspan fill={changePct >= 0 ? UP : DOWN} dx="2">{changePct >= 0 ? '+' : ''}{changePct.toFixed(1)}%</tspan>
+              </text>
+            )
+          })}
+          {/* 最新价格标签（右侧） */}
+          <line x1={PAD.l} x2={W - PAD.r} y1={yP(lastP.price)} y2={yP(lastP.price)} stroke={trend} strokeWidth="0.6" strokeDasharray="3 3" opacity="0.6" />
+          <rect x={W - PAD.r - 52} y={yP(lastP.price) - 8} width="50" height="16" rx="2" fill={trend} />
+          <text x={W - PAD.r - 27} y={yP(lastP.price) + 3} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">{lastP.price.toFixed(2)}</text>
+
+          {/* 分隔线 */}
+          <line x1={PAD.l} x2={W - PAD.r} y1={volTop - 4} y2={volTop - 4} stroke="#1e293b" strokeWidth="1" />
+          {/* 成交量柱状图 */}
+          {minute.map((m, i) => {
+            const h = ((m.volume ?? 0) / maxVol) * volH * 0.9
+            const x = PAD.l + i * step + step / 2
+            const barUp = m.price >= (i > 0 ? minute[i-1].price : base)
+            return h > 0.5 ? (
+              <rect key={i} x={x - Math.max(step * 0.3, 0.8)} y={volTop + volH - h} width={Math.max(step * 0.6, 1.6)} height={h} fill={barUp ? UP : DOWN} opacity="0.5" />
+            ) : null
+          })}
+          {/* 成交量标签 */}
+          <text x={PAD.l - 6} y={volTop + 10} textAnchor="end" fontSize="9" fill="#64748b">成交量</text>
+
+          {/* 时间轴标签 */}
+          {timeLabels.map(({ t, label }) => (
+            <text key={t} x={timeX(t)} y={MH - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{label}</text>
           ))}
         </svg>
       </div>
