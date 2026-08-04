@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, chat as chat_service, memory, alert, valuation, portfolio, backtest
+from . import auth, chat as chat_service, memory, alert, valuation, portfolio, backtest, llm_compare
 from .pipeline import run_analysis, _GRAPH
 from .config import PROVIDER_PRESETS, get_config, save_config
 from .data import fetcher as datalayer
@@ -430,6 +430,22 @@ def backtest_api(symbol: str, strategy: str = "ma_cross", days: int = 120) -> di
     sym = datalayer._norm_symbol(symbol)
     result = backtest.run_backtest(sym, strategy=strategy, days=days)
     return result or {"error": "回测数据不足（需要至少30个交易日）"}
+
+
+# ---------- 多LLM对比 ----------
+
+@app.post("/api/llm-compare")
+async def llm_compare_api(request: Request) -> dict[str, Any]:
+    """多LLM模型对比：同一prompt调用多个模型，对比回答。
+    body: {prompt, models: [{name, base_url, api_key, model}]}
+    """
+    body = await request.json()
+    prompt = body.get("prompt", "").strip()
+    models = body.get("models", [])
+    if not prompt or not models:
+        raise HTTPException(400, "请提供prompt和models列表")
+    results = llm_compare.compare_models(prompt, models)
+    return {"results": results}
 
 
 @app.get("/api/peers")
