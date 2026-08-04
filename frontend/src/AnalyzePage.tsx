@@ -90,31 +90,28 @@ function AnalyzePane() {
               ))}
             </div>
           )}
-          {/* 风控审查 Human-in-the-loop 确认 */}
-          {riskReview && !userConfirmed && (
-            <div className={`risk-review-card ${riskReview.approved ? 'approved' : 'blocked'}`}>
-              <div className="risk-review-head">
-                风控审查{riskReview.approved ? '通过' : '否决'}
-              </div>
-              <div className="risk-review-verdict">{riskReview.verdict}</div>
-              {riskReview.approved && (
-                <div className="risk-review-meta">
-                  建议最大仓位 {riskReview.max_position_pct}% | 止损 {riskReview.stop_loss_pct}%
-                </div>
-              )}
-              <div className="risk-review-actions">
-                <button onClick={() => setUserConfirmed(true)}>确认继续</button>
-                <button className="ghost" onClick={() => { setUserConfirmed(true); setLoading(false) }}>跳过交易计划</button>
-              </div>
+        </div>
+      )}
+      {/* 风控审查 Human-in-the-loop 确认（独立于 loading，流结束后仍显示） */}
+      {riskReview && !userConfirmed && (
+        <div className={`risk-review-card ${riskReview.approved ? 'approved' : 'blocked'}`}>
+          <div className="risk-review-head">
+            风控审查{riskReview.approved ? '通过' : '否决'}
+          </div>
+          <div className="risk-review-verdict">{riskReview.verdict}</div>
+          {riskReview.approved && (
+            <div className="risk-review-meta">
+              建议最大仓位 {riskReview.max_position_pct}% | 止损 {riskReview.stop_loss_pct}%
             </div>
           )}
+          <div className="risk-review-actions">
+            <button onClick={() => setUserConfirmed(true)}>确认继续</button>
+            <button className="ghost" onClick={() => { setUserConfirmed(true) }}>跳过交易计划</button>
+          </div>
         </div>
       )}
       {result && userConfirmed && <ReportView result={result} />}
-      {result && !userConfirmed && riskReview && (
-        <div className="risk-waiting">等待确认风控审查结果...</div>
-      )}
-      {result && !riskReview && <ReportView result={result} />}
+      {result && !userConfirmed && !riskReview && <ReportView result={result} />}
     </div>
   )
 }
