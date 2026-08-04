@@ -414,7 +414,25 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .chat-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; }
 .chat-side { display: flex; flex-direction: column; gap: 10px; }
 .new-chat-btn { width: 100%; }
-.chat-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 68vh; }
+.chat-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; min-height: 0; }
+
+/* 自选股面板 */
+.watchlist { border-top: 1px solid var(--border); padding-top: 8px; flex-shrink: 0; }
+.watchlist-head { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-3); padding: 0 4px 6px; }
+.watchlist-items { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+.watchlist-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--radius-sm); background: var(--surface); font-size: 12px; }
+.watchlist-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.watchlist-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watchlist-code { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
+.watchlist-data { display: flex; flex-direction: column; align-items: flex-end; }
+.watchlist-price { font-weight: 700; font-family: var(--mono); font-size: 12px; }
+.watchlist-chg { font-size: 10px; font-family: var(--mono); }
+.watchlist-del { color: var(--text-3); background: none; border: none; cursor: pointer; font-size: 13px; padding: 0 2px; flex-shrink: 0; }
+.watchlist-del:hover { color: var(--down); }
+.watchlist-empty { font-size: 12px; color: var(--text-3); text-align: center; padding: 12px 0; }
+.watchlist-add { display: flex; gap: 4px; margin-top: 6px; }
+.watchlist-add input { flex: 1; font-size: 12px; padding: 5px 8px; }
+.watchlist-add button { width: 28px; height: 28px; padding: 0; font-size: 16px; flex-shrink: 0; }
 .chat-item {
   display: flex; justify-content: space-between; align-items: center;
   background: var(--bg); border: 1px solid var(--border);
