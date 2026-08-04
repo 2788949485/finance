@@ -4,6 +4,32 @@ import { api } from './api'
 import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 
+// 可复用的自选星标按钮
+export function StarButton({ code }: { code: string }) {
+  const [starred, setStarred] = useState(false)
+  useEffect(() => {
+    api.getProfile().then((p) => setStarred((p.watchlist || []).includes(code))).catch(() => {})
+  }, [code])
+  const toggle = async () => {
+    try {
+      const p = await api.getProfile()
+      const list = p.watchlist || []
+      const next = starred ? list.filter((c) => c !== code) : [...new Set([...list, code])]
+      await api.saveProfile({ watchlist: next })
+      setStarred(!starred)
+    } catch { /* skip */ }
+  }
+  return (
+    <button
+      className={`star-btn ${starred ? 'on' : ''}`}
+      onClick={toggle}
+      title={starred ? '取消自选' : '加入自选'}
+    >
+      {starred ? '\u2605' : '\u2606'}
+    </button>
+  )
+}
+
 export function extractCodes(text: string): string[] {
   const codes = new Set<string>()
   // A股 6 位数字 / 港股 hk+5位 / 美股 us+代码 / 纯字母美股代码（排除常见英文停用词）

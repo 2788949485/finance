@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
+import { StarButton } from './QuoteCard'
 
 const HOT = [
   { code: '600519', name: '贵州茅台' },
@@ -136,6 +137,7 @@ export default function QuotePage() {
               {b?.price ?? '--'} <small>{change >= 0 ? '+' : ''}{change}%</small>
             </div>
             <div className="qp-actions">
+              <StarButton code={selected.code} />
               <button className={`live-btn ${live ? 'on' : ''}`} onClick={() => setLive((v) => !v)}>
                 {live ? '● 实时' : '○ 实时'}
               </button>

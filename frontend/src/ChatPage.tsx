@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import type { ChatMessage, ChatSession, KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
-import QuoteCard, { extractCodes } from './QuoteCard'
+import QuoteCard, { extractCodes, StarButton } from './QuoteCard'
 import KLineChart from './KLineChart'
 import Markdown from './Markdown'
 
@@ -89,6 +89,7 @@ function HotQuoteCard({ code, brief, news, dir }: {
         <span className={`quote-change ${(change ?? 0) >= 0 ? 'up' : 'down'}`}>
           {price ?? '--'} {change != null ? `${change >= 0 ? '+' : ''}${change}%` : ''}
         </span>
+        <StarButton code={code} />
       </div>
       <div className="quote-meta">
         {b?.pe != null && <span>PE {b.pe}</span>}
