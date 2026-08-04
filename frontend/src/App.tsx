@@ -10,9 +10,10 @@ import AlertBell from './AlertBell'
 import PortfolioPage from './PortfolioPage'
 import BacktestPage from './BacktestPage'
 import ProfilePage from './ProfilePage'
+import AdminPage from './AdminPage'
 import './App.css'
 
-type Tab = 'chat' | 'quote' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'profile'
+type Tab = 'chat' | 'quote' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'profile' | 'admin'
 
 function useTheme() {
   const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme') || 'dark')
@@ -27,6 +28,7 @@ function App() {
   const [tab, setTab] = useState<Tab>('chat')
   const [auth, setAuth] = useState<AuthResponse | null>(null)
   const [booted, setBooted] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const { theme, toggle } = useTheme()
 
   // 启动时校验 token
@@ -36,6 +38,8 @@ function App() {
       .then((r) => {
         setAuth({ token: getToken()!, user: r.user, profile: r.profile })
         setTab('chat')
+        // 检查管理员权限
+        api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
       })
       .catch(() => setToken(null))
       .finally(() => setBooted(true))
@@ -67,6 +71,7 @@ function App() {
           <button className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
           <button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>个人中心</button>
+          {isAdmin && <button className={tab === 'admin' ? 'active' : ''} onClick={() => setTab('admin')}>管理后台</button>}
         </nav>
         <div className="user-menu">
           <AlertBell />
@@ -83,6 +88,7 @@ function App() {
         {tab === 'backtest' && <BacktestPage />}
         {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
         {tab === 'profile' && <ProfilePage />}
+        {tab === 'admin' && <AdminPage />}
       </main>
     </div>
   )

@@ -228,4 +228,14 @@ export const api = {
     request<LLMConfig & { api_key: string }>('/api/auth/llm-config', {
       method: 'PUT', body: JSON.stringify(cfg),
     }),
+
+  // 管理员
+  isAdmin: () => request<{ is_admin: boolean }>('/api/auth/is-admin'),
+  adminUsers: () => request<any[]>('/api/admin/users'),
+  toggleUserActive: (id: number) => request<{ status: string }>(`/api/admin/users/${id}/toggle-active`, { method: 'POST' }),
+  setUserAdmin: (id: number, isAdmin: boolean) => request<{ status: string }>(`/api/admin/users/${id}/set-admin`, { method: 'POST', body: JSON.stringify({ is_admin: isAdmin }) }),
+  createInvite: (note: string) => request<{ code: string }>('/api/admin/invite-codes', { method: 'POST', body: JSON.stringify({ note }) }),
+  adminInvites: () => request<any[]>('/api/admin/invite-codes'),
+  adminAuditLogs: () => request<any[]>('/api/admin/audit-logs'),
+  adminStats: () => request<Record<string, any>>('/api/admin/stats'),
 }

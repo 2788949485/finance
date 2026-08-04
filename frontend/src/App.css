@@ -1044,3 +1044,26 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
     border-bottom-color: var(--accent);
   }
 }
+
+/* ==================== 管理后台 ==================== */
+.admin-page { max-width: 1000px; margin: 0 auto; }
+.admin-section { margin-bottom: 32px; }
+.admin-section h3 { font-size: 15px; margin-bottom: 12px; }
+.admin-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.admin-toggle input { cursor: pointer; }
+.admin-action-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.admin-action-btn:hover { border-color: var(--accent); color: var(--accent); }

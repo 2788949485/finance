@@ -44,7 +44,10 @@ def _init_db() -> None:
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 salt TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                is_admin INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                is_invited INTEGER DEFAULT 0
             )"""
         )
         conn.execute(
@@ -71,6 +74,47 @@ def _init_db() -> None:
                 updated_at TEXT
             )"""
         )
+        # 邀请码
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS invite_codes (
+                code TEXT PRIMARY KEY,
+                created_by INTEGER NOT NULL,
+                used_by INTEGER,
+                created_at TEXT NOT NULL,
+                used_at TEXT,
+                note TEXT DEFAULT ''
+            )"""
+        )
+        # 审计日志
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username TEXT,
+                action TEXT NOT NULL,
+                detail TEXT DEFAULT '',
+                ip TEXT DEFAULT '',
+                created_at TEXT NOT NULL
+            )"""
+        )
+        # 确保旧表升级（ALTER ADD COLUMN）
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        for col, default in [("is_admin", "0"), ("is_active", "1"), ("is_invited", "0")]:
+            if col not in cols:
+                conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT {default}")
+
+        # 首个用户自动成为管理员
+        count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+        if count == 0:
+            # 会在 create_user 里设置 is_admin
+            pass
+        else:
+            # 如果没有管理员，将第一个用户设为管理员
+            admin = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_admin=1").fetchone()["c"]
+            if admin == 0:
+                first = conn.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
+                if first:
+                    conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (first["id"],))
 
 
 # ---------- JWT secret ----------
@@ -279,24 +323,47 @@ def decode_token(token: str) -> Optional[dict[str, Any]]:
 
 # ---------- 用户 CRUD ----------
 
-def create_user(username: str, password: str) -> dict[str, Any]:
-    """注册用户，返回用户信息；用户名重复抛 ValueError。"""
+def create_user(username: str, password: str, invite_code: str = "") -> dict[str, Any]:
+    """注册用户，返回用户信息；用户名重复抛 ValueError。
+
+    invite_code: 如果系统中有邀请码表，需要提供有效邀请码（如果表非空）。
+    首个注册用户自动成为管理员。
+    """
     _init_db()
+    # 邀请码校验：如果存在邀请码记录，则必须提供有效码
+    with _connect() as conn:
+        code_count = conn.execute("SELECT COUNT(*) as c FROM invite_codes").fetchone()["c"]
+        if code_count > 0:
+            if not invite_code:
+                raise ValueError("当前需要邀请码注册")
+            row = conn.execute("SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL", (invite_code,)).fetchone()
+            if row is None:
+                raise ValueError("邀请码无效或已被使用")
+
     digest, salt = hash_password(password)
     try:
         with _connect() as conn:
+            # 第一个用户自动管理员
+            count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+            is_admin = 1 if count == 0 else 0
             cur = conn.execute(
-                "INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)",
-                (username, digest, salt, datetime.now().isoformat(timespec="seconds")),
+                "INSERT INTO users (username, password_hash, salt, created_at, is_admin, is_active, is_invited) VALUES (?, ?, ?, ?, ?, 1, ?)",
+                (username, digest, salt, datetime.now().isoformat(timespec="seconds"), is_admin, 1 if invite_code else 0),
             )
             user_id = int(cur.lastrowid)
             conn.execute(
                 "INSERT INTO user_profiles (user_id, risk_preference, watchlist) VALUES (?, 'balanced', '[]')",
                 (user_id,),
             )
+            # 消耗邀请码
+            if invite_code:
+                conn.execute(
+                    "UPDATE invite_codes SET used_by=?, used_at=? WHERE code=?",
+                    (user_id, datetime.now().isoformat(timespec="seconds"), invite_code),
+                )
     except sqlite3.IntegrityError:
         raise ValueError("用户名已存在")
-    return {"id": user_id, "username": username}
+    return {"id": user_id, "username": username, "is_admin": is_admin}
 
 
 def authenticate(username: str, password: str) -> Optional[dict[str, Any]]:
@@ -308,13 +375,118 @@ def authenticate(username: str, password: str) -> Optional[dict[str, Any]]:
         return None
     if not verify_password(password, row["salt"], row["password_hash"]):
         return None
-    return {"id": row["id"], "username": row["username"]}
+    if row["is_active"] == 0:
+        return {"_disabled": True}
+    return {"id": row["id"], "username": row["username"], "is_admin": row["is_admin"]}
 
 
 def get_user(user_id: int) -> Optional[dict[str, Any]]:
     with _connect() as conn:
-        row = conn.execute("SELECT id, username, created_at FROM users WHERE id=?", (user_id,)).fetchone()
+        row = conn.execute("SELECT id, username, created_at, is_admin, is_active FROM users WHERE id=?", (user_id,)).fetchone()
     return dict(row) if row else None
+
+
+def is_admin(user_id: int) -> bool:
+    """检查用户是否是管理员。"""
+    with _connect() as conn:
+        row = conn.execute("SELECT is_admin FROM users WHERE id=?", (user_id,)).fetchone()
+    return bool(row and row["is_admin"])
+
+
+# ---------- 管理员功能 ----------
+
+def list_all_users() -> list[dict[str, Any]]:
+    """列出所有用户（管理员功能）。"""
+    _init_db()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT u.id, u.username, u.created_at, u.is_admin, u.is_active, u.is_invited, "
+            "(SELECT COUNT(*) FROM analyses WHERE analyses.user_id = u.id) as analysis_count "
+            "FROM users u ORDER BY u.id"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def toggle_user_active(user_id: int) -> bool:
+    """启用/禁用用户。"""
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT is_active FROM users WHERE id=?", (user_id,)).fetchone()
+        if row is None:
+            return False
+        conn.execute("UPDATE users SET is_active=? WHERE id=?", (1 - row["is_active"], user_id))
+    return True
+
+
+def set_user_admin(user_id: int, is_admin_val: bool) -> bool:
+    """设置/取消管理员。"""
+    _init_db()
+    with _connect() as conn:
+        cur = conn.execute("UPDATE users SET is_admin=? WHERE id=?", (1 if is_admin_val else 0, user_id))
+        return cur.rowcount > 0
+
+
+def create_invite_code(created_by: int, note: str = "") -> dict[str, Any]:
+    """生成邀请码。"""
+    _init_db()
+    code = secrets.token_urlsafe(8).replace("-", "").replace("_", "")[:8].upper()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO invite_codes (code, created_by, created_at, note) VALUES (?, ?, ?, ?)",
+            (code, created_by, datetime.now().isoformat(timespec="seconds"), note),
+        )
+    return {"code": code, "created_by": created_by, "note": note}
+
+
+def list_invite_codes() -> list[dict[str, Any]]:
+    _init_db()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT i.*, u.username as created_by_name FROM invite_codes i "
+            "LEFT JOIN users u ON i.created_by = u.id ORDER BY i.created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def audit_log(user_id: int, username: str, action: str, detail: str = "", ip: str = "") -> None:
+    """记录审计日志。"""
+    _init_db()
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO audit_log (user_id, username, action, detail, ip, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, username, action, detail, ip, datetime.now().isoformat(timespec="seconds")),
+        )
+
+
+def list_audit_logs(limit: int = 100) -> list[dict[str, Any]]:
+    _init_db()
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_system_stats() -> dict[str, Any]:
+    """系统统计信息（管理员面板用）。"""
+    _init_db()
+    import os
+    db_size = os.path.getsize(DB_PATH) if DB_PATH.exists() else 0
+    with _connect() as conn:
+        user_count = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()["c"]
+        active_users = conn.execute("SELECT COUNT(*) as c FROM users WHERE is_active=1").fetchone()["c"]
+        analysis_count = conn.execute("SELECT COUNT(*) as c FROM analyses").fetchone()["c"]
+        session_count = conn.execute("SELECT COUNT(*) as c FROM chat_sessions").fetchone() if conn.execute("SELECT name FROM sqlite_master WHERE name='chat_sessions'").fetchone() else {"c": 0}
+        alert_count = conn.execute("SELECT COUNT(*) as c FROM alerts").fetchone()["c"] if conn.execute("SELECT name FROM sqlite_master WHERE name='alerts'").fetchone() else {"c": 0}
+        portfolio_count = conn.execute("SELECT COUNT(*) as c FROM portfolio").fetchone()["c"] if conn.execute("SELECT name FROM sqlite_master WHERE name='portfolio'").fetchone() else {"c": 0}
+    return {
+        "db_size_mb": round(db_size / 1024 / 1024, 2),
+        "users": {"total": user_count, "active": active_users},
+        "analyses": analysis_count,
+        "chat_sessions": session_count.get("c", 0) if isinstance(session_count, dict) else 0,
+        "alerts": alert_count.get("c", 0) if isinstance(alert_count, dict) else 0,
+        "portfolios": portfolio_count,
+    }
 
 
 def get_profile(user_id: int) -> dict[str, Any]:

@@ -15,6 +15,11 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, chat as chat_service, memory, alert, valuation, portfolio, backtest, llm_compare
+from .logger import setup_logging, get_logger
+
+# 初始化日志系统
+setup_logging()
+logger = get_logger("main")
 from .pipeline import run_analysis, _GRAPH
 from .config import PROVIDER_PRESETS, get_config, save_config
 from .data import fetcher as datalayer
@@ -76,6 +81,15 @@ def get_current_user(authorization: str = Header(default="")) -> dict[str, Any]:
     user = auth.get_user(int(payload["sub"]))
     if not user:
         raise HTTPException(status_code=401, detail="用户不存在")
+    if not user.get("is_active"):
+        raise HTTPException(status_code=403, detail="账号已被禁用")
+    return user
+
+
+def require_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """管理员守卫：非管理员返回403。"""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
     return user
 
 
@@ -127,16 +141,18 @@ def register(body: dict[str, str], request: Request) -> dict[str, Any]:
         raise HTTPException(429, msg)
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""
+    invite_code = body.get("invite_code", "").strip()
     if len(username) < 2 or len(username) > 20:
         raise HTTPException(400, "用户名需 2-20 个字符")
     if len(password) < 6:
         raise HTTPException(400, "密码至少 6 位")
     try:
-        user = auth.create_user(username, password)
+        user = auth.create_user(username, password, invite_code)
     except ValueError as e:
         raise HTTPException(400, str(e))
     token = auth.create_token(user["id"], user["username"])
     auth.record_login_success(f"register:{client_ip}")
+    auth.audit_log(user["id"], username, "register", f"invite_code={invite_code}", client_ip)
     return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
 
 
@@ -144,20 +160,23 @@ def register(body: dict[str, str], request: Request) -> dict[str, Any]:
 def login(body: dict[str, str], request: Request) -> dict[str, Any]:
     client_ip = request.client.host if request.client else "unknown"
     username = (body.get("username") or "").strip()
-    # 频率限制：按IP+用户名双重检查
     for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
         allowed, msg = auth.check_rate_limit(ident)
         if not allowed:
             raise HTTPException(429, msg)
 
-    user = auth.authenticate(username, body.get("password") or "")
-    if not user:
+    result = auth.authenticate(username, body.get("password") or "")
+    if not result:
         for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
             auth.record_login_fail(ident)
         raise HTTPException(401, "用户名或密码错误")
+    if result.get("_disabled"):
+        raise HTTPException(403, "账号已被禁用，请联系管理员")
+    user = result
     token = auth.create_token(user["id"], user["username"])
     for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
         auth.record_login_success(ident)
+    auth.audit_log(user["id"], username, "login", ip=client_ip)
     return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
 
 
@@ -684,6 +703,57 @@ def chat(body: dict[str, Any], user: dict[str, Any] = Depends(get_current_user))
     if int(session_id) not in sessions:
         raise HTTPException(403, "会话不存在或无权限")
     return chat_service.chat(int(session_id), user["id"], message)
+
+
+# ---------- 管理员 API ----------
+
+@app.get("/api/admin/users")
+def admin_list_users(admin: dict[str, Any] = Depends(require_admin)) -> list[dict[str, Any]]:
+    return auth.list_all_users()
+
+
+@app.post("/api/admin/users/{user_id}/toggle-active")
+def admin_toggle_user(user_id: int, admin: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
+    ok = auth.toggle_user_active(user_id)
+    auth.audit_log(admin["id"], admin["username"], "toggle_user", f"target_id={user_id}")
+    return {"status": "ok" if ok else "not_found"}
+
+
+@app.post("/api/admin/users/{user_id}/set-admin")
+async def admin_set_admin(user_id: int, request: Request, admin: dict[str, Any] = Depends(require_admin)) -> dict[str, str]:
+    body = await request.json()
+    ok = auth.set_user_admin(user_id, bool(body.get("is_admin", False)))
+    auth.audit_log(admin["id"], admin["username"], "set_admin", f"target_id={user_id} value={body.get('is_admin')}")
+    return {"status": "ok" if ok else "not_found"}
+
+
+@app.post("/api/admin/invite-codes")
+async def admin_create_invite(request: Request, admin: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    body = await request.json()
+    note = body.get("note", "")
+    code = auth.create_invite_code(admin["id"], note)
+    auth.audit_log(admin["id"], admin["username"], "create_invite", f"code={code['code']}")
+    return code
+
+
+@app.get("/api/admin/invite-codes")
+def admin_list_invites(admin: dict[str, Any] = Depends(require_admin)) -> list[dict[str, Any]]:
+    return auth.list_invite_codes()
+
+
+@app.get("/api/admin/audit-logs")
+def admin_audit_logs(admin: dict[str, Any] = Depends(require_admin), limit: int = 100) -> list[dict[str, Any]]:
+    return auth.list_audit_logs(limit)
+
+
+@app.get("/api/admin/stats")
+def admin_stats(admin: dict[str, Any] = Depends(require_admin)) -> dict[str, Any]:
+    return auth.get_system_stats()
+
+
+@app.get("/api/auth/is-admin")
+def check_is_admin(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    return {"is_admin": bool(user.get("is_admin"))}
 
 
 # 前端静态托管（构建后可用）-- index.html 不缓存确保加载最新 JS
