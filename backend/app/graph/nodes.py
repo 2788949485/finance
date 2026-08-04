@@ -39,13 +39,27 @@ def _get_llm(config: RunnableConfig) -> LLMClient:
 # ---------- 1. 数据收集 ----------
 
 def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
-    ctx: dict[str, Any] = {"ticker": state.get("ticker", "")}
-    ctx["brief"] = datalayer.get_stock_brief(ctx["ticker"]) or {}
-    history = datalayer.get_history(ctx["ticker"])
-    ctx["tech"] = datalayer.compute_tech_signals(history) if history is not None else {"error": "行情数据不可用"}
-    ctx["financials"] = datalayer.get_financials(ctx["ticker"]) or {}
-    ctx["lhb"] = datalayer.get_lhb(ctx["ticker"])
-    ctx["news"] = datalayer.get_news(ctx["ticker"]) or []
+    ticker = state.get("ticker", "")
+    ctx: dict[str, Any] = {"ticker": ticker}
+    ctx["brief"] = datalayer.get_stock_brief(ticker) or {}
+    try:
+        history = datalayer.get_history(ticker)
+        ctx["tech"] = datalayer.compute_tech_signals(history) if history is not None else {"error": "行情数据不可用"}
+    except Exception:
+        ctx["tech"] = {"error": "技术指标计算失败"}
+    # 财务/龙虎榜仅支持A股，港股美股自动跳过不报错
+    try:
+        ctx["financials"] = datalayer.get_financials(ticker) or {}
+    except Exception:
+        ctx["financials"] = {}
+    try:
+        ctx["lhb"] = datalayer.get_lhb(ticker)
+    except Exception:
+        ctx["lhb"] = None
+    try:
+        ctx["news"] = datalayer.get_news(ticker) or []
+    except Exception:
+        ctx["news"] = []
     return {"context": ctx}
 
 

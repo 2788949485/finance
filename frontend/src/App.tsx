@@ -116,8 +116,7 @@ function AnalyzePane() {
           className="ticker-input"
           value={ticker}
           onChange={(e) => setTicker(e.target.value)}
-          placeholder="A股代码，如 600519"
-          maxLength={6}
+          placeholder="股票代码/名称（如 600519 / hk00700 / usAAPL）"
         />
         <input
           className="topic-input"

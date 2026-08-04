@@ -133,13 +133,28 @@ def put_profile(body: dict[str, Any], user: dict[str, Any] = Depends(get_current
 
 # ---------- 投研分析 ----------
 
+def _resolve_ticker(ticker: str) -> str | None:
+    """把用户输入（公司名/代码）解析为标准代码，复用 tools.resolve_symbol。"""
+    from .tools import resolve_symbol
+    resolved = resolve_symbol(ticker)
+    # 校验是否合法：A股6位数字 / hk+5位 / us+代码
+    if resolved.isdigit() and len(resolved) == 6:
+        return resolved
+    if resolved.startswith(("hk", "us")):
+        return resolved
+    return None
+
+
 @app.post("/api/analysis")
 def create_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     ticker = req.ticker.strip()
-    if not ticker or not ticker.isdigit() or len(ticker) > 6:
-        raise HTTPException(status_code=400, detail="请输入有效的A股代码（如 600519）")
+    if not ticker:
+        raise HTTPException(status_code=400, detail="请输入股票代码或名称（如 600519 / hk00700 / usAAPL）")
+    resolved = _resolve_ticker(ticker)
+    if not resolved:
+        raise HTTPException(status_code=400, detail=f"无法识别 {ticker}")
     try:
-        return run_analysis(ticker.zfill(6), req.topic, user_id=user["id"])
+        return run_analysis(resolved, req.topic, user_id=user["id"])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分析失败: {e}")
 
@@ -162,9 +177,12 @@ _NODE_LABELS = {
 def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_current_user)):
     """投研分析 SSE 流式：逐节点推送进展 + 最终结果。"""
     ticker = req.ticker.strip()
-    if not ticker or not ticker.isdigit() or len(ticker) > 6:
-        raise HTTPException(status_code=400, detail="请输入有效的A股代码（如 600519）")
-    ticker = ticker.zfill(6)
+    if not ticker:
+        raise HTTPException(status_code=400, detail="请输入股票代码或名称")
+    resolved = _resolve_ticker(ticker)
+    if not resolved:
+        raise HTTPException(status_code=400, detail=f"无法识别 {ticker}")
+    ticker = resolved
 
     def _sse(obj: dict) -> str:
         import json
