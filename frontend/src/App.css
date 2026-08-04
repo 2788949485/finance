@@ -138,6 +138,21 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   padding: 14px 0;
   display: flex; align-items: center; gap: 10px;
 }
+
+/* 投研分析实时进展面板 */
+.research-live { padding: 12px 0; }
+.research-steps { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.research-step { display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 4px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); color: var(--text-3); }
+.research-step.done { color: var(--up); border-color: rgba(34,197,94,0.3); }
+.research-step.running { color: var(--accent); }
+.research-step .step-icon { font-size: 11px; }
+.research-analysts { display: flex; flex-direction: column; gap: 6px; }
+.research-analyst { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; background: var(--surface); border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 12.5px; }
+.analyst-score { font-weight: 700; font-family: var(--mono); flex-shrink: 0; min-width: 30px; text-align: right; }
+.analyst-score.up { color: var(--up); }
+.analyst-score.down { color: var(--down); }
+.analyst-title { font-weight: 600; color: var(--text-2); flex-shrink: 0; white-space: nowrap; }
+.analyst-summary { color: var(--text-3); line-height: 1.5; }
 .loading::before {
   content: '';
   width: 14px; height: 14px;

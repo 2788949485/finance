@@ -47,6 +47,33 @@ export const api = {
       body: JSON.stringify({ ticker, topic: topic || null }),
     }),
 
+  streamAnalysis: async (
+    ticker: string, topic: string | undefined,
+    onEvent: (ev: any) => void
+  ): Promise<void> => {
+    const resp = await fetch('/api/analysis/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, topic: topic || null }),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const reader = resp.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const parts = buf.split('\n\n')
+      buf = parts.pop() ?? ''
+      for (const part of parts) {
+        const line = part.trim()
+        if (!line.startsWith('data: ')) continue
+        try { onEvent(JSON.parse(line.slice(6))) } catch { /* skip */ }
+      }
+    }
+  },
+
   getAnalysis: (id: number) => request<{ result: AnalysisResult | null }>(`/api/analysis/${id}`),
 
   getHistory: () => request<HistoryItem[]>('/api/history'),

@@ -75,14 +75,33 @@ function AnalyzePane() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [steps, setSteps] = useState<{ label: string; status: 'running' | 'done' }[]>([])
+  const [analystViews, setAnalystViews] = useState<{ role: string; title: string; summary: string; score: number }[]>([])
 
   const run = async () => {
     setLoading(true)
     setError('')
     setResult(null)
+    setSteps([{ label: '数据收集', status: 'running' }])
+    setAnalystViews([])
     try {
-      const r = await api.runAnalysis(ticker, topic)
-      setResult(r)
+      await api.streamAnalysis(ticker, topic, (ev) => {
+        if (ev.type === 'step') {
+          setSteps((prev) => {
+            const idx = prev.findIndex(s => s.label === ev.label)
+            if (idx >= 0) {
+              const copy = [...prev]; copy[idx] = { label: ev.label, status: ev.status }; return copy
+            }
+            return [...prev.filter(s => s.status === 'done'), { label: ev.label, status: ev.status }]
+          })
+        } else if (ev.type === 'analyst') {
+          setAnalystViews((prev) => [...prev, { role: ev.role, title: ev.title, summary: ev.summary, score: ev.score }])
+        } else if (ev.type === 'result') {
+          setResult(ev.data)
+        } else if (ev.type === 'error') {
+          setError(ev.message)
+        }
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : '分析失败')
     } finally {
@@ -111,7 +130,29 @@ function AnalyzePane() {
         </button>
       </div>
       {error && <div className="error-box">{error}</div>}
-      {loading && <div className="loading">智能体团队正在工作：数据收集 → 五位分析师独立分析 → 多空辩论 → 共识 → 风控审查 → 交易计划...</div>}
+      {loading && (
+        <div className="research-live">
+          <div className="research-steps">
+            {steps.map((s, i) => (
+              <div key={i} className={`research-step ${s.status}`}>
+                <span className="step-icon">{s.status === 'done' ? '✓' : '◌'}</span>
+                <span>{s.label}</span>
+              </div>
+            ))}
+          </div>
+          {analystViews.length > 0 && (
+            <div className="research-analysts">
+              {analystViews.map((a, i) => (
+                <div key={i} className="research-analyst">
+                  <span className={`analyst-score ${a.score >= 0 ? 'up' : 'down'}`}>{a.score > 0 ? '+' : ''}{a.score}</span>
+                  <span className="analyst-title">{a.title}</span>
+                  <span className="analyst-summary">{a.summary.slice(0, 80)}{a.summary.length > 80 ? '...' : ''}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {result && <ReportView result={result} />}
     </div>
   )
