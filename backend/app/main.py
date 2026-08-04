@@ -376,6 +376,16 @@ def chat(body: dict[str, Any], user: dict[str, Any] = Depends(get_current_user))
     return chat_service.chat(int(session_id), user["id"], message)
 
 
-# 前端静态托管（构建后可用）
+# 前端静态托管（构建后可用）-- index.html 不缓存确保加载最新 JS
 if FRONTEND_DIST.exists():
+    from starlette.middleware.base import BaseHTTPMiddleware
+
+    class NoCacheHtmlMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            resp = await call_next(request)
+            if request.url.path == '/' or request.url.path.endswith('.html'):
+                resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            return resp
+
+    app.add_middleware(NoCacheHtmlMiddleware)
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")
