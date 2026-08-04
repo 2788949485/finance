@@ -501,6 +501,17 @@ export default function ChatPage() {
     <div className="chat-layout">
       <aside className="chat-side">
         <button className="new-chat-btn" onClick={newSession}>新建对话</button>
+        {messages.length > 0 && (
+          <button className="ghost chat-export-btn" onClick={() => {
+            const text = messages.map(m => `[${m.role === 'user' ? '我' : 'AI'}] ${m.content}`).join('\n\n')
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+            const a = document.createElement('a')
+            a.href = URL.createObjectURL(blob)
+            a.download = `对话记录_${new Date().toISOString().slice(0,10)}.txt`
+            a.click()
+            URL.revokeObjectURL(a.href)
+          }}>导出对话</button>
+        )}
         <input
           className="chat-search"
           placeholder="搜索对话内容..."

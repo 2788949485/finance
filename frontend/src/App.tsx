@@ -11,10 +11,20 @@ import './App.css'
 
 type Tab = 'chat' | 'quote' | 'analyze' | 'history' | 'config'
 
+function useTheme() {
+  const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme') || 'dark')
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('fc_theme', theme)
+  }, [theme])
+  return { theme, toggle: () => setTheme(t => t === 'dark' ? 'light' : 'dark') }
+}
+
 function App() {
   const [tab, setTab] = useState<Tab>('chat')
   const [auth, setAuth] = useState<AuthResponse | null>(null)
   const [booted, setBooted] = useState(false)
+  const { theme, toggle } = useTheme()
 
   // 启动时校验 token
   useEffect(() => {
@@ -54,6 +64,7 @@ function App() {
           <button className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>模型配置</button>
         </nav>
         <div className="user-menu">
+          <button className="ghost" onClick={toggle} title="切换主题">{theme === 'dark' ? '亮色' : '暗色'}</button>
           <span className="user-name">{auth.user.username}</span>
           <button className="ghost" onClick={logout}>退出</button>
         </div>
