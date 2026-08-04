@@ -18,6 +18,8 @@ export default function QuotePage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchItem[]>([])
   const [selected, setSelected] = useState<SearchItem>({ market: 'sh', code: '600519', name: '贵州茅台', type: 'GP' })
+  const [compareCode, setCompareCode] = useState('')
+  const [compareData, setCompareData] = useState<QuoteResponse | null>(null)
   const [data, setData] = useState<QuoteResponse | null>(null)
   const [news, setNews] = useState<NewsItem[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
@@ -138,6 +140,20 @@ export default function QuotePage() {
             </div>
             <div className="qp-actions">
               <StarButton code={selected.code} />
+              <input
+                className="compare-input"
+                placeholder="对比代码"
+                value={compareCode}
+                onChange={(e) => setCompareCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && compareCode.trim()) {
+                    api.getQuote(compareCode.trim(), 1, 'day', 0)
+                      .then((q) => setCompareData(q))
+                      .catch(() => setCompareData(null))
+                  }
+                }}
+              />
+              {compareData && <button className="mode-btn" onClick={() => { setCompareData(null); setCompareCode('') }}>清除对比</button>}
               <button className={`live-btn ${live ? 'on' : ''}`} onClick={() => setLive((v) => !v)}>
                 {live ? '● 实时' : '○ 实时'}
               </button>
@@ -152,6 +168,34 @@ export default function QuotePage() {
             {b?.turnover != null && <span>换手 {b.turnover}%</span>}
             {b?.market_cap != null && <span>市值 {b.market_cap}亿</span>}
           </div>
+
+          {/* 对比表格 */}
+          {compareData && compareData.brief && (() => {
+            const cb = compareData.brief as any
+            const rows: [string, any, any][] = [
+              ['名称', b?.name ?? selected.name, cb?.name ?? compareCode],
+              ['现价', b?.price ?? '--', cb?.price ?? '--'],
+              ['涨跌幅', `${(b?.change_pct ?? 0) >= 0 ? '+' : ''}${b?.change_pct ?? '--'}%`, `${(cb?.change_pct ?? 0) >= 0 ? '+' : ''}${cb?.change_pct ?? '--'}%`],
+              ['PE', b?.pe ?? '--', cb?.pe ?? '--'],
+              ['PB', b?.pb ?? '--', cb?.pb ?? '--'],
+              ['换手率', b?.turnover != null ? `${b.turnover}%` : '--', cb?.turnover != null ? `${cb.turnover}%` : '--'],
+              ['市值(亿)', b?.market_cap ?? '--', cb?.market_cap ?? '--'],
+            ]
+            return (
+              <table className="compare-table">
+                <thead><tr><th>指标</th><th>{b?.name ?? selected.name}</th><th>{cb?.name ?? compareCode}</th></tr></thead>
+                <tbody>
+                  {rows.map(([label, v1, v2], i) => (
+                    <tr key={i}>
+                      <td className="compare-label">{label}</td>
+                      <td>{v1}</td>
+                      <td>{v2}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          })()}
 
           <div className="qp-chart">
             <KLineChart
