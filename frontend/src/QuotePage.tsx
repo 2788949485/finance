@@ -211,6 +211,7 @@ export default function QuotePage() {
                 {industry.peers.map((p) => (
                   <div key={p.code} className={`industry-peer ${p.is_target ? 'target' : ''}`}>
                     <span className="industry-name">{p.name}</span>
+                    <span className="industry-code">{p.code}</span>
                     <span className="industry-pe">PE {p.pe?.toFixed(1) ?? '--'}</span>
                     <span className="industry-pb">PB {p.pb?.toFixed(2) ?? '--'}</span>
                     <span className={`industry-chg ${(p.change_pct ?? 0) >= 0 ? 'up' : 'down'}`}>

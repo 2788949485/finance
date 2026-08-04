@@ -452,6 +452,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .industry-peer { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); font-size: 11px; min-width: 100px; }
 .industry-peer.target { border-color: var(--accent); border-width: 2px; }
 .industry-name { font-weight: 600; color: var(--text); font-size: 12px; }
+.industry-code { font-size: 10px; color: var(--text-3); font-family: var(--mono); }
 .industry-pe, .industry-pb { color: var(--text-3); font-family: var(--mono); }
 .industry-chg { font-family: var(--mono); font-weight: 600; }
 .industry-chg.up { color: var(--up); }
