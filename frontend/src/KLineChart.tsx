@@ -26,6 +26,15 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const [drag, setDrag] = useState<{ x: number; x0: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [crosshair, setCrosshair] = useState<{ x: number; y: number } | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+
+  // ESC 退出全屏
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
 
   const W = 680, H = 240, PAD = { t: 14, r: 10, b: 22, l: 56 }
 
@@ -131,7 +140,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const maxVol = Math.max(...minute.map(m => m.volume ?? 0), 1)
 
     return (
-      <div className="kline-wrap">
+      <div className={`kline-wrap ${fullscreen ? 'kline-fullscreen' : ''}`}>
         <div className="kline-head">
           <span className="kline-symbol">{symbol} 分时</span>
           <span className="kline-price" style={{ color: trend }}>
@@ -140,6 +149,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           <span className="kline-range">
             {onMode && <button className="ghost" onClick={() => onMode('day')}>日K</button>}
             <button className="ghost active">分时</button>
+            <button className="ghost" onClick={() => setFullscreen(!fullscreen)} title="全屏">{fullscreen ? '退出全屏' : '全屏'}</button>
           </span>
         </div>
         <svg
@@ -298,7 +308,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const trend = last.close >= last.open ? UP : DOWN
 
   return (
-    <div className="kline-wrap">
+    <div className={`kline-wrap ${fullscreen ? 'kline-fullscreen' : ''}`}>
       <div className="kline-head">
         <span className="kline-symbol">{symbol}</span>
         <span className="kline-price" style={{ color: trend }}>
@@ -319,6 +329,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           {zoom <= 1 && range === 'all' && rawLen > 200 && (
             <span className="zoom-hint">滚轮缩放查看细节</span>
           )}
+          <button className="ghost" onClick={() => setFullscreen(!fullscreen)} title="全屏">{fullscreen ? '退出全屏' : '全屏'}</button>
         </span>
       </div>
       <svg
