@@ -112,6 +112,7 @@ function ReportView({ result }: { result: AnalysisResult }) {
         <div className={`score-display ${trend === '偏多' ? 'up' : trend === '偏空' ? 'down' : 'neutral'}`}>
           {score > 0 ? '+' : ''}{score}
         </div>
+        <button className="ghost report-export-btn" onClick={() => window.print()}>导出PDF</button>
       </div>
 
       <div className="kpi-grid">
