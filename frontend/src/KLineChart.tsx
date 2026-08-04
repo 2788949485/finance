@@ -25,6 +25,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const [pan, setPan] = useState(0)
   const [drag, setDrag] = useState<{ x: number; x0: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const [crosshair, setCrosshair] = useState<{ x: number; y: number } | null>(null)
 
   const W = 680, H = 240, PAD = { t: 14, r: 10, b: 22, l: 56 }
 
@@ -115,7 +116,23 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             <button className="ghost active">分时</button>
           </span>
         </div>
-        <svg viewBox={`0 0 ${W} ${MH}`} className="kline-svg">
+        <svg
+          viewBox={`0 0 ${W} ${MH}`}
+          className="kline-svg"
+          style={{ cursor: 'crosshair' }}
+          onMouseMove={(e) => {
+            const svg = e.currentTarget
+            const rect = svg.getBoundingClientRect()
+            const sx = (e.clientX - rect.left) / rect.width * W
+            const sy = (e.clientY - rect.top) / rect.height * MH
+            if (sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= PAD.t + priceH) {
+              setCrosshair({ x: sx, y: sy })
+            } else {
+              setCrosshair(null)
+            }
+          }}
+          onMouseLeave={() => setCrosshair(null)}
+        >
           {/* 价格区网格 */}
           {[0, 0.25, 0.5, 0.75, 1].map((r) => (
             <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + priceH * r} y2={PAD.t + priceH * r} stroke="#1e293b" strokeWidth="1" />
@@ -165,6 +182,20 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           {timeLabels.map(({ t, label }) => (
             <text key={t} x={timeToX(t)} y={MH - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{label}</text>
           ))}
+          {/* 十字光标 */}
+          {crosshair && (() => {
+            const cy = crosshair.y
+            const val = top - ((cy - PAD.t) / priceH) * spanM
+            const valColor = val >= base ? UP : DOWN
+            return (
+              <g pointerEvents="none">
+                <line x1={PAD.l} y1={cy} x2={W - PAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+                <line x1={crosshair.x} y1={PAD.t} x2={crosshair.x} y2={PAD.t + priceH} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+                <rect x={PAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
+                <text x={PAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill={valColor} fontWeight="bold">{val.toFixed(2)}</text>
+              </g>
+            )
+          })()}
         </svg>
       </div>
     )
@@ -213,8 +244,18 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     e.preventDefault()
   }
   const onMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!drag) return
+    // 十字光标（拖动模式以外）
     const svg = svgRef.current
+    if (svg) {
+      const rect = svg.getBoundingClientRect()
+      const sx = (e.clientX - rect.left) / rect.width * W
+      const sy = (e.clientY - rect.top) / rect.height * H
+      if (!drag && sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= PAD.t + vh) {
+        setCrosshair({ x: sx, y: sy })
+      }
+    }
+    // 拖动平移
+    if (!drag) return
     if (!svg) return
     const rect = svg.getBoundingClientRect()
     if (!rect.width) return
@@ -273,7 +314,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={endDrag}
-        onMouseLeave={() => { endDrag(); setHover(null) }}
+        onMouseLeave={() => { endDrag(); setHover(null); setCrosshair(null) }}
         onDoubleClick={resetZoom}
       >
         {[0.25, 0.5, 0.75].map((r) => (
@@ -316,6 +357,22 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </text>
           </g>
         )}
+        {crosshair && !drag && (() => {
+          const cy = crosshair.y
+          const val = maxV - ((cy - PAD.t) / vh) * span
+          const cx = crosshair.x
+          // 找最近的K线索引
+          const idx = Math.min(data.length - 1, Math.max(0, Math.round((cx - PAD.l) / step - 0.5)))
+          const barX = PAD.l + idx * step + step / 2
+          return (
+            <g pointerEvents="none">
+              <line x1={PAD.l} y1={cy} x2={W - PAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+              <line x1={barX} y1={PAD.t} x2={barX} y2={PAD.t + vh} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+              <rect x={PAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
+              <text x={PAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill="#e2e8f0" fontWeight="bold">{val.toFixed(2)}</text>
+            </g>
+          )
+        })()}
       </svg>
       {hover && (
         <div className="kline-tooltip">
