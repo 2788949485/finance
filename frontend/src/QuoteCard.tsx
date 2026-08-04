@@ -5,9 +5,14 @@ import type { QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 
 export function extractCodes(text: string): string[] {
-  // A股 6 位数字 / 港股 hk+5位 / 美股 us+代码
-  const codes = text.match(/\b(hk\d{5}|us[A-Z]{2,5}|[036]\d{5})\b/g)
-  return codes ? [...new Set(codes)] : []
+  // A股 6 位数字 / 港股 hk+5位 / 美股 us+代码 / 纯字母美股代码（排除常见英文停用词）
+  const codes = text.match(/\b(hk\d{5}|us[A-Z]{2,5}|[036]\d{5}|[A-Z]{2,5})\b/g)
+  if (!codes) return []
+  const STOP = new Set(['THE', 'AND', 'ARE', 'FOR', 'NOT', 'YOU', 'OUR', 'HOW', 'WHY',
+    'WAS', 'HAD', 'HAS', 'ITS', 'YOUR', 'USD', 'HKD', 'CNY', 'PE', 'PB', 'ROE', 'RSI',
+    'MA5', 'MA10', 'MA20', 'MA60', 'KPI', 'AI', 'OK', 'NO', 'IN', 'ON', 'AT', 'TO', 'OF',
+    'IS', 'IT', 'AS', 'BY', 'OR', 'AN', 'IF', 'BE', 'SO', 'UP', 'DOWN', 'HIGH', 'LOW'])
+  return [...new Set(codes.filter((c) => !STOP.has(c)))]
 }
 
 export default function QuoteCard({ code }: { code: string }) {

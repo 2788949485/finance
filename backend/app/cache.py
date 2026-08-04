@@ -70,12 +70,19 @@ def set_cached(cache_key: str, value: Any, ttl: int) -> None:
         )
 
 
+# 缓存版本号：数据源/解析逻辑变更时 +1，使旧缓存全部失效（避免旧数据污染）
+KEY_VERSION = "v2"
+
+
 def cached(cache_key: str, ttl: int, fetch_fn, *args, **kwargs):
-    """缓存装饰函数：命中返回缓存，未命中调用 fetch_fn 并写入。"""
-    hit = get_cached(cache_key)
+    """缓存装饰函数：命中返回缓存，未命中调用 fetch_fn 并写入。
+
+    key 带 KEY_VERSION 前缀：数据源逻辑变更时改版本号即可全局失效。
+    """
+    hit = get_cached(f"{KEY_VERSION}:{cache_key}")
     if hit is not None:
         return hit
     value = fetch_fn(*args, **kwargs)
     if value is not None:
-        set_cached(cache_key, value, ttl)
+        set_cached(f"{KEY_VERSION}:{cache_key}", value, ttl)
     return value
