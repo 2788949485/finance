@@ -78,8 +78,8 @@ def _market_prefix(symbol: str) -> str:
     return "sz"
 
 
-def get_stock_brief(symbol: str) -> Optional[dict[str, Any]]:
-    """个股概览（腾讯实时行情），缓存 60 秒。
+def get_stock_brief(symbol: str, fresh: bool = False) -> Optional[dict[str, Any]]:
+    """个股概览（腾讯实时行情），默认缓存 60 秒；fresh=True 时强制实时请求。
 
     腾讯接口返回 GBK 编码的 ~ 分隔字段，实测索引：
     p[1]=名称 p[3]=现价 p[32]=涨跌% p[38]=换手% p[39]=PE p[45]=总市值(亿) p[46]=PB
@@ -109,6 +109,8 @@ def get_stock_brief(symbol: str) -> Optional[dict[str, Any]]:
         except Exception:
             return None
 
+    if fresh:
+        return _fetch()  # fresh=True：直连腾讯，不读缓存
     return cached(f"quote:{sym}", TTL["quote"], _fetch)
 
 
@@ -282,22 +284,130 @@ def get_lhb(symbol: str, days: int = 30) -> Optional[dict[str, Any]]:
     return cached(f"lhb:{sym}", TTL["lhb"], _fetch)
 
 
-def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
-    """个股新闻标题列表（东方财富），缓存 15 分钟。"""
-    if not AK_AVAILABLE:
-        return None
-    sym = _norm_symbol(symbol)
+def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str, str]]]:
+    """实时财经快讯（新浪 7x24 全球财经直播），缓存 60 秒。
 
+    keyword 非空时按关键词过滤（如个股名称/代码）；否则返回最新快讯。
+    """
     def _fetch() -> Optional[list[dict[str, str]]]:
-        df = _safe(ak.stock_news_em, symbol=sym)
-        if df is None or df.empty:
+        url = (
+            "https://zhibo.sina.com.cn/api/zhibo/feed?"
+            "page=1&page_size=30&zhibo_id=152&tag_id=0&dire=f&dpc=1"
+        )
+        try:
+            r = requests.get(url, timeout=12, headers={
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://finance.sina.com.cn",
+            })
+            d = r.json()
+            items = d.get("result", {}).get("data", {}).get("feed", {}).get("list", [])
+            out = []
+            for it in items:
+                text = (it.get("rich_text") or "").strip()
+                if not text:
+                    continue
+                out.append({
+                    "title": text,
+                    "time": (it.get("create_time") or "")[:16],
+                })
+            return out or None
+        except Exception:
             return None
-        items = []
-        for _, row in df.head(8).iterrows():
-            items.append({"title": str(row.get("新闻标题", "")), "time": str(row.get("发布时间", ""))[:16]})
-        return items
 
-    return cached(f"news:{sym}", TTL["news"], _fetch)
+    data = cached(f"flash:{keyword or 'all'}", 60, _fetch)
+    if data is None:
+        return None
+    if keyword:
+        kw = keyword.lower()
+        hits = [n for n in data if kw in n["title"].lower() or kw in n["time"]]
+        return hits[:limit] or None
+    return data[:limit]
+
+
+def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
+    """个股新闻：新浪快讯按名称/代码过滤 + 东方财富个股新闻兜底，缓存 15 分钟。"""
+    sym = _norm_symbol(symbol)
+    brief = get_stock_brief(sym)
+    name = brief.get("name", "") if brief else ""
+    items: list[dict[str, str]] = []
+
+    # 1) 实时快讯过滤（三市场通用）
+    if name:
+        flash = get_flash_news(keyword=name, limit=5)
+        if flash:
+            items.extend(flash)
+        # 代码过滤（如 600519）
+        code_hits = get_flash_news(keyword=sym.replace("hk", "").replace("us", ""), limit=3)
+        if code_hits:
+            items.extend(code_hits)
+
+    # 2) A股专用：东方财富个股新闻（akshare，可能受限，仅作补充）
+    if AK_AVAILABLE and not sym.startswith(("hk", "us")) and len(items) < 8:
+        def _fetch() -> Optional[list[dict[str, str]]]:
+            df = _safe(ak.stock_news_em, symbol=sym)
+            if df is None or df.empty:
+                return None
+            out = []
+            for _, row in df.head(6).iterrows():
+                out.append({"title": str(row.get("新闻标题", "")), "time": str(row.get("发布时间", ""))[:16]})
+            return out or None
+
+        extra = cached(f"news:{sym}", TTL["news"], _fetch)
+        if extra:
+            items.extend(extra)
+
+    # 去重（按标题）
+    seen, uniq = set(), []
+    for n in items:
+        if n["title"] not in seen:
+            seen.add(n["title"])
+            uniq.append(n)
+    return uniq[:8] or None
+
+
+def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
+    """当日分时数据（腾讯分钟接口），缓存 30 秒。
+
+    返回 {points: [[时间, 价, 均价, 量], ...], last_close: 昨收}
+    """
+    sym = _norm_symbol(symbol)
+    code = f"{_market_prefix(sym)}{sym}"
+
+    def _fetch() -> Optional[dict[str, Any]]:
+        try:
+            url = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={code}"
+            r = requests.get(url, timeout=12)
+            d = r.json()
+            node = d.get("data", {}).get(code, {})
+            points = node.get("data", {}).get("data", [])
+            qt = node.get("qt", {})
+            last_close = None
+            # qt 里的昨收字段尝试提取
+            if isinstance(qt, dict):
+                for k in ("prec", "pre_close"):
+                    if qt.get(k):
+                        try:
+                            last_close = float(qt[k])
+                            break
+                        except (ValueError, TypeError):
+                            pass
+            out = []
+            for p in points[:500]:
+                # 格式: ["0930", "1358.00", "1358.50", "12345", ...]
+                try:
+                    out.append({
+                        "time": str(p[0]),
+                        "price": float(p[1]),
+                        "avg": float(p[2]) if len(p) > 2 else None,
+                        "volume": float(p[3]) if len(p) > 3 else None,
+                    })
+                except (ValueError, IndexError, TypeError):
+                    continue
+            return {"points": out, "last_close": last_close} if out else None
+        except Exception:
+            return None
+
+    return cached(f"minute:{sym}", 30, _fetch)
 
 
 def _parse_num(v: Any) -> Optional[float]:

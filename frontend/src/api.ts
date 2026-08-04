@@ -1,7 +1,7 @@
 // 后端 API 封装
 import type {
   AnalysisResult, AuthResponse, ChatMessage, ChatReply, ChatSession,
-  HistoryItem, LLMConfig, QuoteResponse, UserProfile,
+  HistoryItem, LLMConfig, NewsItem, QuoteResponse, UserProfile,
 } from './types'
 
 const TOKEN_KEY = 'financecrew_token'
@@ -51,8 +51,10 @@ export const api = {
 
   getHistory: () => request<HistoryItem[]>('/api/history'),
 
-  getQuote: (symbol: string, days = 120) =>
-    request<QuoteResponse>(`/api/quote/${symbol}?days=${days}`),
+  getQuote: (symbol: string, days = 60, mode = 'day', fresh = 0) =>
+    request<QuoteResponse>(`/api/quote/${symbol}?days=${days}&mode=${mode}&fresh=${fresh}`),
+
+  getNews: (symbol: string) => request<{ symbol: string; news: NewsItem[] }>(`/api/news/${symbol}`),
 
   health: () => request<{ status: string }>('/api/health'),
 
@@ -81,5 +83,37 @@ export const api = {
   chatMessages: (sessionId: number) => request<ChatMessage[]>(`/api/chat/${sessionId}/messages`),
 
   sendChat: (message: string, sessionId?: number) =>
-    request<ChatReply>('/api/chat', { method: 'POST', body: JSON.stringify({ message, session_id: sessionId }) }),
+    request<ChatReply>(`/api/chat`, { method: 'POST', body: JSON.stringify({ message, session_id: sessionId }) }),
+
+  // 流式对话（SSE）：返回解析后的完整回复
+  streamChat: async (message: string, sessionId: number | undefined, onEvent: (ev: any) => void): Promise<string> => {
+    const token = getToken()
+    const resp = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ message, session_id: sessionId }),
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const reader = resp.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    let reply = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const parts = buf.split('\n\n')
+      buf = parts.pop() ?? ''
+      for (const part of parts) {
+        const line = part.trim()
+        if (!line.startsWith('data: ')) continue
+        try {
+          const ev = JSON.parse(line.slice(6))
+          if (ev.type === 'msg') reply = ev.content
+          onEvent(ev)
+        } catch { /* 忽略坏帧 */ }
+      }
+    }
+    return reply
+  },
 }

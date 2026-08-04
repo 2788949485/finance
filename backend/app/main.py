@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, chat as chat_service, memory
@@ -159,24 +160,48 @@ def history(limit: int = 20) -> list[dict[str, Any]]:
 # ---------- 行情 K 线 ----------
 
 @app.get("/api/quote/{symbol}")
-def quote(symbol: str, days: int = 120) -> dict[str, Any]:
-    """实时行情 + 日K线（前端画图用）。"""
-    days = min(max(days, 30), 500)
-    brief = datalayer.get_stock_brief(symbol) or {}
-    hist = datalayer.get_history(symbol, days=days)
-    bars: list[dict[str, Any]] = []
-    if hist is not None and not hist.empty:
-        for _, row in hist.tail(days).iterrows():
-            bars.append({
-                "date": str(row["date"].date()),
-                "open": _num(row["open"]),
-                "close": _num(row["close"]),
-                "high": _num(row["high"]),
-                "low": _num(row["low"]),
-                "volume": _num(row["volume"]),
-            })
-    tech = datalayer.compute_tech_signals(hist) if hist is not None else {}
-    return {"brief": brief, "kline": bars, "tech": tech}
+def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0) -> dict[str, Any]:
+    """行情接口：brief(实时概览) + kline(日K/分时) + tech(技术指标)。
+
+    - mode=day 日K线；mode=minute 当日分时
+    - fresh=1 绕过行情缓存（实时刷新最新价，配合前端轮询）
+    """
+    sym = datalayer._norm_symbol(symbol)
+    brief = datalayer.get_stock_brief(sym, fresh=bool(fresh))
+    if not brief:
+        raise HTTPException(404, f"未查询到 {symbol} 行情")
+
+    out: dict[str, Any] = {"brief": brief, "kline": [], "tech": {}}
+    if mode == "minute":
+        m = datalayer.get_minute_kline(sym)
+        if m:
+            out["kline"] = m["points"]
+            out["last_close"] = m["last_close"]
+    else:
+        days = min(max(days, 30), 500)
+        hist = datalayer.get_history(sym, days=days)
+        bars: list[dict[str, Any]] = []
+        if hist is not None and not hist.empty:
+            for _, row in hist.tail(days).iterrows():
+                bars.append({
+                    "date": str(row["date"].date()),
+                    "open": _num(row["open"]),
+                    "close": _num(row["close"]),
+                    "high": _num(row["high"]),
+                    "low": _num(row["low"]),
+                    "volume": _num(row["volume"]),
+                })
+            out["tech"] = datalayer.compute_tech_signals(hist) or {}
+        out["kline"] = bars
+    return out
+
+
+@app.get("/api/news/{symbol}")
+def news(symbol: str) -> dict[str, Any]:
+    """个股新闻（实时快讯过滤 + 东财兜底）。"""
+    sym = datalayer._norm_symbol(symbol)
+    items = datalayer.get_news(sym)
+    return {"symbol": sym, "news": items or []}
 
 
 def _num(v: Any):
@@ -195,6 +220,23 @@ def _num(v: Any):
 def new_chat(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     sid = chat_service.create_session(user["id"])
     return {"session_id": sid}
+
+
+@app.post("/api/chat/stream")
+def chat_stream(body: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> StreamingResponse:
+    """流式对话（SSE）：实时推送工具调用工作流事件。"""
+    message = str(body.get("message", "")).strip()
+    if not message:
+        raise HTTPException(400, "消息不能为空")
+    session_id = body.get("session_id")
+    if session_id is None:
+        session_id = chat_service.create_session(user["id"])
+    session_id = int(session_id)
+    return StreamingResponse(
+        chat_service.stream_chat(session_id, user["id"], message),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/chat/sessions")

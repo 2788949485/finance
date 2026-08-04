@@ -109,8 +109,21 @@ export interface KlineBar {
   volume: number
 }
 
+export interface MinutePoint {
+  time: string
+  price: number
+  avg: number | null
+  volume: number | null
+}
+
 export interface QuoteResponse {
   brief: Record<string, unknown>
-  kline: KlineBar[]
+  kline: KlineBar[] | MinutePoint[]
   tech: Record<string, unknown>
+  last_close?: number | null
+}
+
+export interface NewsItem {
+  title: string
+  time: string
 }

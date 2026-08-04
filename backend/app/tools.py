@@ -183,6 +183,31 @@ def get_news(symbol: str) -> str:
 
 
 @tool
+def get_market_news(keyword: str = "") -> str:
+    """查询实时财经快讯（新浪7x24全球财经直播，秒级更新）。
+    参数 keyword: 可选关键词过滤（如 腾讯/茅台/芯片/AI），空则返回最新快讯。"""
+    news = datalayer.get_flash_news(keyword=keyword, limit=8)
+    if not news:
+        return "暂无相关快讯"
+    lines = [f"[{n['time']}] {n['title']}" for n in news]
+    return "\n".join(lines)
+
+
+@tool
+def get_stock_news(symbol: str) -> str:
+    """查询个股最新新闻（实时快讯按名称过滤 + 东财个股新闻兜底）。
+    参数 symbol: A股6位代码或公司名，也支持港股/美股公司名（腾讯/苹果）。"""
+    resolved = resolve_symbol(symbol)
+    if not _valid_symbol(resolved):
+        return f"无法识别 {symbol}，请提供股票代码或公司名"
+    news = datalayer.get_news(resolved)
+    if not news:
+        return "暂未找到该个股的相关新闻"
+    lines = [f"[{n['time']}] {n['title']}" for n in news]
+    return "\n".join(lines)
+
+
+@tool
 def run_research(symbol: str, topic: str = "") -> str:
     """运行完整多智能体投研分析：5位分析师（宏观/基本面/技术面/情绪面/资金面）独立研判、
     多空辩论、共识评分、风控审查、交易计划。返回结构化报告JSON。

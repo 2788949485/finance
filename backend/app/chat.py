@@ -297,6 +297,75 @@ def _parse_json_list(text: str) -> list[str]:
         return []
 
 
+# ---------- 流式对话（SSE） ----------
+
+def stream_chat(session_id: int, user_id: int, message: str):
+    """流式对话：agent 执行过程实时推送工具调用事件（SSE）。
+
+    事件格式（data: JSON）：
+      {"type":"tool_start","name":"get_quote","args":{...}}
+      {"type":"tool_end","name":"get_quote","preview":"..."}
+      {"type":"msg","content":"..."}        最终回复
+      {"type":"error","message":"..."}
+      {"type":"done","session_id":N}
+    """
+    _init_db()
+    save_message(session_id, "user", message)
+
+    profile = get_profile(user_id)
+    memories = get_user_memories(user_id)
+    agent = build_agent(profile=profile, memories=memories)
+
+    if agent is None:
+        reply = "还没有配置大模型 API Key。请先到「模型配置」页填写（支持 DeepSeek/OpenAI/通义/Ollama 等任意 OpenAI 兼容服务）。"
+        save_message(session_id, "assistant", reply)
+        yield _sse({"type": "msg", "content": reply})
+        yield _sse({"type": "done", "session_id": session_id})
+        return
+
+    tool_calls: list[dict] = []
+    reply = ""
+    try:
+        for event in agent.stream(
+            {"messages": [HumanMessage(content=message)]},
+            config={"configurable": {"thread_id": str(session_id)}},
+        ):
+            for _node, value in event.items():
+                msgs = value.get("messages", [])
+                if not msgs:
+                    continue
+                last = msgs[-1]
+                tcs = getattr(last, "tool_calls", None)
+                if tcs:
+                    for tc in tcs:
+                        name = tc.get("name", "")
+                        args = tc.get("args", {})
+                        tool_calls.append({"name": name, "args": args})
+                        yield _sse({"type": "tool_start", "name": name, "args": args})
+                elif isinstance(last, SystemMessage):
+                    continue
+                elif last.content and getattr(last, "type", "") == "ai":
+                    # 最终回复（无工具调用的 AIMessage）
+                    reply = str(last.content)
+                    yield _sse({"type": "msg", "content": reply})
+    except Exception as e:
+        reply = f"对话处理失败: {e}"
+        yield _sse({"type": "error", "message": str(e)})
+
+    save_message(session_id, "assistant", reply, tool_calls)
+    try:
+        extract_memories(user_id, message, reply, session_id)
+    except Exception:
+        pass
+    if len(get_messages(session_id, user_id)) <= 2:
+        rename_session(session_id, message[:12] + ("..." if len(message) > 12 else ""))
+    yield _sse({"type": "done", "session_id": session_id})
+
+
+def _sse(obj: dict) -> str:
+    return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+
 # ---------- 对话 ----------
 
 def chat(session_id: int, user_id: int, message: str) -> dict[str, Any]:

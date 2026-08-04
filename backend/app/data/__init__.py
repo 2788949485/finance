@@ -4,8 +4,10 @@ from .fetcher import (
     compute_tech_signals,
     data_available,
     get_financials,
+    get_flash_news,
     get_history,
     get_lhb,
+    get_minute_kline,
     get_news,
     get_stock_brief,
 )
@@ -15,8 +17,10 @@ __all__ = [
     "compute_tech_signals",
     "data_available",
     "get_financials",
+    "get_flash_news",
     "get_history",
     "get_lhb",
+    "get_minute_kline",
     "get_news",
     "get_stock_brief",
 ]

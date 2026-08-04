@@ -10,8 +10,46 @@ const TOOL_LABEL: Record<string, string> = {
   get_kline: '拉取K线数据',
   get_financials: '查询财务数据',
   get_lhb: '查询龙虎榜',
-  get_news: '读取新闻',
+  get_news: '读取个股新闻',
+  get_stock_news: '读取个股新闻',
+  get_market_news: '获取实时快讯',
   run_research: '运行多智能体投研',
+}
+
+interface FlowStep { name: string; args: Record<string, unknown>; status: 'running' | 'done' }
+
+// 智能体工作流面板：实时步骤 + 默认折叠
+function FlowPanel({ steps, collapsed, onToggle }: {
+  steps: FlowStep[]; collapsed: boolean; onToggle: () => void
+}) {
+  const doneCount = steps.filter((s) => s.status === 'done').length
+  return (
+    <div className="flow-panel">
+      <button className="flow-head" onClick={onToggle}>
+        <span className="flow-title">智能体工作流</span>
+        {steps.length > 0 && (
+          <span className="flow-status">
+            {doneCount === steps.length && steps.length > 0
+              ? `完成 ${steps.length} 步工具调用`
+              : `正在执行 ${doneCount}/${steps.length} 步`}
+          </span>
+        )}
+        <span className={`flow-arrow ${collapsed ? '' : 'open'}`}>▾</span>
+      </button>
+      {!collapsed && (
+        <div className="flow-body">
+          {steps.length === 0 && <div className="flow-empty">正在规划执行步骤...</div>}
+          {steps.map((s, i) => (
+            <div key={i} className={`flow-step ${s.status}`}>
+              <span className="flow-step-icon">{s.status === 'done' ? '✓' : '◌'}</span>
+              <span className="flow-step-name">{TOOL_LABEL[s.name] || s.name}</span>
+              {s.status === 'running' && <span className="flow-step-spin" />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // 单条消息 + 内嵌行情卡片
@@ -46,6 +84,8 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [confirmDel, setConfirmDel] = useState<number | null>(null)
+  const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
+  const [flowCollapsed, setFlowCollapsed] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const loadSessions = useCallback(async () => {
@@ -95,14 +135,33 @@ export default function ChatPage() {
     setInput('')
     setBusy(true)
     setError('')
+    setFlowSteps([])
+    setFlowCollapsed(false)  // 执行中展开显示实时步骤
     setMessages((prev) => [...prev, { role: 'user', content: text, created_at: new Date().toISOString() }])
     try {
-      const r = await api.sendChat(text, sessionId ?? undefined)
-      setSessionId(r.session_id)
+      let sid = sessionId
+      const reply = await api.streamChat(text, sid ?? undefined, (ev) => {
+        if (ev.type === 'tool_start') {
+          setFlowSteps((prev) => [...prev, { name: ev.name, args: ev.args, status: 'running' }])
+        } else if (ev.type === 'tool_end') {
+          // 标记最近一个同名 running 步骤为 done
+          setFlowSteps((prev) => {
+            const idx = [...prev].reverse().findIndex((s) => s.status === 'running')
+            if (idx === -1) return prev
+            const i = prev.length - 1 - idx
+            return prev.map((s, j) => (j === i ? { ...s, status: 'done' } : s))
+          })
+        } else if (ev.type === 'done') {
+          sid = ev.session_id
+        }
+      })
+      setSessionId(sid)
       setMessages((prev) => [...prev, {
-        role: 'assistant', content: r.reply, created_at: new Date().toISOString(), tool_calls: r.tool_calls,
+        role: 'assistant', content: reply, created_at: new Date().toISOString(),
       }])
       await loadSessions()
+      // 回复完成：工作流默认折叠
+      setFlowCollapsed(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : '发送失败')
     } finally {
@@ -154,6 +213,14 @@ export default function ChatPage() {
           {busy && <div className="msg assistant"><div className="msg-bubble typing">智能体思考中...</div></div>}
           {error && <div className="error-box">{error}</div>}
           <div ref={bottomRef} />
+        </div>
+
+        <div className="chat-flow">
+          <FlowPanel
+            steps={flowSteps}
+            collapsed={flowCollapsed}
+            onToggle={() => setFlowCollapsed((v) => !v)}
+          />
         </div>
 
         <div className="chat-input">

@@ -1,7 +1,7 @@
-// 行情卡片：K线图 + 实时指标，跟随对话消息内嵌展示
-import { useEffect, useState } from 'react'
+// 行情卡片：K线/分时切换 + 15秒实时轮询 + 新闻，跟随对话消息内嵌展示
+import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
-import type { QuoteResponse } from './types'
+import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 
 export function extractCodes(text: string): string[] {
@@ -17,18 +17,53 @@ export function extractCodes(text: string): string[] {
 
 export default function QuoteCard({ code }: { code: string }) {
   const [data, setData] = useState<QuoteResponse | null>(null)
-  const [failed, setFailed] = useState(false)
+  const [news, setNews] = useState<NewsItem[]>([])
+  const [mode, setMode] = useState<'day' | 'minute'>('day')
+  const [live, setLive] = useState(false)
+  const [err, setErr] = useState('')
+  const timerRef = useRef<number | null>(null)
+
+  const load = async (m: 'day' | 'minute', fresh: number) => {
+    try {
+      const q = await api.getQuote(code, 60, m, fresh)
+      setData(q)
+      setErr('')
+    } catch {
+      setErr('行情加载失败')
+    }
+  }
 
   useEffect(() => {
-    let alive = true
-    api.getQuote(code, 60)
-      .then((q) => { if (alive) setData(q) })
-      .catch(() => { if (alive) setFailed(true) })
-    return () => { alive = false }
+    let cancelled = false
+    ;(async () => {
+      await load(mode, 0)
+      if (!cancelled) {
+        const n = await api.getNews(code).catch(() => null)
+        if (n) setNews(n.news)
+      }
+    })()
+    return () => { cancelled = true }
   }, [code])
 
-  if (failed) return null
-  if (!data) return <div className="quote-loading">加载 {code} 行情...</div>
+  // 15 秒实时轮询（fresh=1 绕过缓存）；分时模式轮询分时数据
+  useEffect(() => {
+    if (!live) return
+    timerRef.current = window.setInterval(() => {
+      load(mode, 1)
+    }, 15000)
+    return () => {
+      if (timerRef.current) window.clearInterval(timerRef.current)
+    }
+  }, [live, mode])
+
+  const switchMode = (m: 'day' | 'minute') => {
+    setMode(m)
+    load(m, 0)
+  }
+
+  if (!data) {
+    return <div className="quote-loading">{err || `加载行情 ${code}...`}</div>
+  }
 
   const b = data.brief as {
     name?: string; price?: number; change_pct?: number
@@ -37,26 +72,50 @@ export default function QuoteCard({ code }: { code: string }) {
   const name = String(b.name ?? code)
   const price = b.price
   const change = b.change_pct
-  const up = (change ?? 0) >= 0
+  const bars = (data.kline as KlineBar[]).filter((k) => k.date && typeof k.close === 'number')
+  const minute = (data.kline as MinutePoint[]).filter((k) => k.time && typeof k.price === 'number')
 
   return (
     <div className="quote-card">
-      <div className="quote-meta">
-        <div className="quote-title">{name} <span className="ticker-code">{code}</span></div>
-        <div className="quote-price-row">
-          <span className={`kline-price ${up ? 'up' : 'down'}`}>{price ?? '--'}</span>
-          <span className={`kpi-value ${up ? 'up' : 'down'}`} style={{ fontSize: 13 }}>
-            {change != null ? `${change > 0 ? '+' : ''}${change}%` : ''}
-          </span>
-        </div>
-        <div className="quote-indicators">
-          <span>PE {b.pe ?? '--'}</span>
-          <span>PB {b.pb ?? '--'}</span>
-          <span>换手 {b.turnover ?? '--'}%</span>
-          <span>市值 {b.market_cap != null ? `${b.market_cap}亿` : '--'}</span>
-        </div>
+      <div className="quote-head">
+        <span className="quote-name">{name}</span>
+        <span className="quote-code">{code}</span>
+        <span className={`quote-change ${(change ?? 0) >= 0 ? 'up' : 'down'}`}>
+          {price ?? '--'} {change != null ? `${change >= 0 ? '+' : ''}${change}%` : ''}
+        </span>
+        <button
+          className={`live-btn ${live ? 'on' : ''}`}
+          onClick={() => setLive((v) => !v)}
+          title="实时刷新（15秒）"
+        >
+          {live ? '● 实时' : '○ 实时'}
+        </button>
       </div>
-      <KLineChart bars={data.kline} symbol={`${name} ${code}`} />
+      <div className="quote-meta">
+        {b.pe != null && <span>PE {b.pe}</span>}
+        {b.pb != null && <span>PB {b.pb}</span>}
+        {b.turnover != null && <span>换手 {b.turnover}%</span>}
+        {b.market_cap != null && <span>市值 {b.market_cap}亿</span>}
+      </div>
+      <KLineChart
+        bars={bars}
+        minute={minute}
+        lastClose={data.last_close ?? null}
+        symbol={name}
+        mode={mode}
+        onMode={switchMode}
+      />
+      {news.length > 0 && (
+        <div className="quote-news">
+          <div className="quote-news-head">最新新闻</div>
+          {news.slice(0, 4).map((n, i) => (
+            <div className="quote-news-item" key={i}>
+              <span className="quote-news-time">{n.time.slice(5, 16)}</span>
+              <span className="quote-news-title">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
