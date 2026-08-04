@@ -244,8 +244,8 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 
 /* ---------- 对话页 ---------- */
 .chat-layout { display: grid; grid-template-columns: 200px 1fr 200px; gap: 20px; }
-.chat-side { display: flex; flex-direction: column; gap: 12px; }
-.watch-side { display: flex; flex-direction: column; }
+.chat-side { display: flex; flex-direction: column; gap: 12px; height: calc(100vh - 140px); min-height: 480px; overflow: hidden; }
+.watch-side { display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 480px; overflow: hidden; }
 .new-chat-btn { width: 100%; }
 .chat-export-btn { width: 100%; font-size: 12px; padding: 8px; }
 .chat-search { width: 100%; font-size: 13px; padding: 8px 12px; margin-bottom: 4px; }
