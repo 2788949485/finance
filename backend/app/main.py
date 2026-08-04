@@ -420,6 +420,18 @@ def transactions_api(user: dict[str, Any] = Depends(get_current_user)) -> list[d
     return portfolio.list_transactions(user["id"])
 
 
+# ---------- 回测系统 ----------
+
+@app.get("/api/backtest/{symbol}")
+def backtest_api(symbol: str, strategy: str = "ma_cross", days: int = 120) -> dict[str, Any]:
+    """策略回测：在历史K线上模拟交易策略。
+    strategy: ma_cross / grid / hold
+    """
+    sym = datalayer._norm_symbol(symbol)
+    result = backtest.run_backtest(sym, strategy=strategy, days=days)
+    return result or {"error": "回测数据不足（需要至少30个交易日）"}
+
+
 @app.get("/api/peers")
 def list_peers() -> list[dict[str, Any]]:
     """列出所有行业同行映射。"""
