@@ -120,7 +120,7 @@ export const api = {
     const token = getToken()
     const resp = await fetch('/api/chat/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
       body: JSON.stringify({ message, session_id: sessionId }),
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
