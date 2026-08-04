@@ -70,28 +70,35 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const volH = MH - volTop - PAD.b
     const vw = W - PAD.l - PAD.r
     const yP = (v: number) => PAD.t + ((top - v) / spanM) * priceH
-    const step = vw / Math.max(minute.length, 1)
-    const pts = (arr: (number | null)[]) => arr.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${yP(v)}`).join(' ')
+
+    // 时间坐标：将交易时段(0930-1130, 1300-1500)映射到 0~vw，午休跳过
+    const totalMins = 4 * 60  // 4小时交易时间
+    const timeToX = (t: string) => {
+      const hh = parseInt(t.slice(0, 2))
+      const mm = parseInt(t.slice(2, 4))
+      const morning = (hh < 11 || (hh === 11 && mm <= 30)) ? (hh * 60 + mm - 570) : -1
+      const afternoon = (hh >= 13) ? (hh * 60 + mm - 780 + 120) : -1
+      const mins = morning >= 0 ? morning : (afternoon >= 0 ? afternoon : 0)
+      return PAD.l + (mins / totalMins) * vw
+    }
+
+    // 价格点坐标：用实际时间定位（而非按序号平铺），这样未交易时段留白
+    const pts = (arr: (number | null)[]) => arr.map((v, i) => {
+      if (v == null) return ''
+      return `${timeToX(minute[i].time)},${yP(v)}`
+    }).join(' ')
+
+    const lastX = timeToX(lastP.time)
 
     // 涨跌填充区域路径
-    const fillPath = `${PAD.l},${yP(base)} ${pts(prices)} ${PAD.l + (minute.length - 1) * step + step / 2},${yP(base)}`
+    const fillPath = `${timeToX(minute[0].time)},${yP(base)} ${pts(prices)} ${lastX},${yP(base)}`
     const fillColor = trend === UP ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'
 
-    // 时间轴标签（A股交易时段）
+    // 时间轴标签
     const timeLabels = [
       { t: '0930', label: '9:30' }, { t: '1030', label: '10:30' },
       { t: '1130', label: '11:30/13:00' }, { t: '1400', label: '14:00' }, { t: '1500', label: '15:00' },
     ]
-    const timeX = (t: string) => {
-      const hh = parseInt(t.slice(0, 2))
-      const mm = parseInt(t.slice(2, 4))
-      // 将交易时段(0930-1500, 去掉1130-1300午休)映射到 0~vw
-      const morning = (hh < 11 || (hh === 11 && mm <= 30)) ? (hh * 60 + mm - 570) : -1  // 0930=570
-      const afternoon = (hh >= 13) ? (hh * 60 + mm - 780 + 120) : -1  // 1300=780, +120午休偏移
-      const mins = morning >= 0 ? morning : afternoon
-      const totalMins = 4 * 60  // 4小时交易时间
-      return PAD.l + (mins / totalMins) * vw
-    }
 
     // 最大成交量
     const maxVol = Math.max(...minute.map(m => m.volume ?? 0), 1)
@@ -134,20 +141,21 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
               </text>
             )
           })}
-          {/* 最新价格标签（右侧） */}
-          <line x1={PAD.l} x2={W - PAD.r} y1={yP(lastP.price)} y2={yP(lastP.price)} stroke={trend} strokeWidth="0.6" strokeDasharray="3 3" opacity="0.6" />
-          <rect x={W - PAD.r - 52} y={yP(lastP.price) - 8} width="50" height="16" rx="2" fill={trend} />
-          <text x={W - PAD.r - 27} y={yP(lastP.price) + 3} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">{lastP.price.toFixed(2)}</text>
+          {/* 最新价格标签（跟随当前数据末端，不拉满全宽） */}
+          <line x1={PAD.l} x2={lastX} y1={yP(lastP.price)} y2={yP(lastP.price)} stroke={trend} strokeWidth="0.6" strokeDasharray="3 3" opacity="0.6" />
+          <rect x={lastX + 2} y={yP(lastP.price) - 8} width="50" height="16" rx="2" fill={trend} />
+          <text x={lastX + 27} y={yP(lastP.price) + 3} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">{lastP.price.toFixed(2)}</text>
 
           {/* 分隔线 */}
           <line x1={PAD.l} x2={W - PAD.r} y1={volTop - 4} y2={volTop - 4} stroke="#1e293b" strokeWidth="1" />
-          {/* 成交量柱状图 */}
+          {/* 成交量柱状图（按实际时间定位） */}
           {minute.map((m, i) => {
             const h = ((m.volume ?? 0) / maxVol) * volH * 0.9
-            const x = PAD.l + i * step + step / 2
+            const x = timeToX(m.time)
+            const barW = Math.max(vw / totalMins * 0.7, 1)
             const barUp = m.price >= (i > 0 ? minute[i-1].price : base)
             return h > 0.5 ? (
-              <rect key={i} x={x - Math.max(step * 0.3, 0.8)} y={volTop + volH - h} width={Math.max(step * 0.6, 1.6)} height={h} fill={barUp ? UP : DOWN} opacity="0.5" />
+              <rect key={i} x={x - barW / 2} y={volTop + volH - h} width={barW} height={h} fill={barUp ? UP : DOWN} opacity="0.5" />
             ) : null
           })}
           {/* 成交量标签 */}
@@ -155,7 +163,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
 
           {/* 时间轴标签 */}
           {timeLabels.map(({ t, label }) => (
-            <text key={t} x={timeX(t)} y={MH - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{label}</text>
+            <text key={t} x={timeToX(t)} y={MH - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{label}</text>
           ))}
         </svg>
       </div>
