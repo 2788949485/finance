@@ -17,6 +17,7 @@ class AgentState(TypedDict, total=False):
     # 输入
     ticker: str
     topic: Optional[str]
+    user_id: Optional[int]
 
     # 数据层收集结果
     context: dict[str, Any]

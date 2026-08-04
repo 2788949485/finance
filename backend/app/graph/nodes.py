@@ -192,5 +192,5 @@ def finalize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         "disclaimer": DISCLAIMER,
         "raw": {"topic": state.get("topic") or ""},
     }
-    result["id"] = save_analysis(result["ticker"], result)
+    result["id"] = save_analysis(result["ticker"], result, user_id=state.get("user_id"))
     return {"result": result}

@@ -51,9 +51,10 @@ export const api = {
     ticker: string, topic: string | undefined,
     onEvent: (ev: any) => void
   ): Promise<void> => {
+    const token = getToken()
     const resp = await fetch('/api/analysis/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ ticker, topic: topic || null }),
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)

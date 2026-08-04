@@ -134,12 +134,12 @@ def put_profile(body: dict[str, Any], user: dict[str, Any] = Depends(get_current
 # ---------- 投研分析 ----------
 
 @app.post("/api/analysis")
-def create_analysis(req: AnalysisRequest) -> dict[str, Any]:
+def create_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     ticker = req.ticker.strip()
     if not ticker or not ticker.isdigit() or len(ticker) > 6:
         raise HTTPException(status_code=400, detail="请输入有效的A股代码（如 600519）")
     try:
-        return run_analysis(ticker.zfill(6), req.topic)
+        return run_analysis(ticker.zfill(6), req.topic, user_id=user["id"])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分析失败: {e}")
 
@@ -159,7 +159,7 @@ _NODE_LABELS = {
 
 
 @app.post("/api/analysis/stream")
-def stream_analysis(req: AnalysisRequest):
+def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_current_user)):
     """投研分析 SSE 流式：逐节点推送进展 + 最终结果。"""
     ticker = req.ticker.strip()
     if not ticker or not ticker.isdigit() or len(ticker) > 6:
@@ -174,7 +174,7 @@ def stream_analysis(req: AnalysisRequest):
         try:
             yield _sse({"type": "step", "node": "collect_data", "label": "数据收集", "status": "running"})
             config: dict[str, Any] = {"configurable": {}}
-            state: dict[str, Any] = {"ticker": ticker, "topic": req.topic}
+            state: dict[str, Any] = {"ticker": ticker, "topic": req.topic, "user_id": user["id"]}
 
             for chunk in _GRAPH.stream(state, config=config, stream_mode="updates"):
                 for node_name, node_output in chunk.items():
@@ -216,8 +216,8 @@ def get_one(analysis_id: int) -> dict[str, Any]:
 
 
 @app.get("/api/history")
-def history(limit: int = 20) -> list[dict[str, Any]]:
-    return memory.list_analyses(limit=min(limit, 100))
+def history(limit: int = 20, user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    return memory.list_analyses(limit=min(limit, 100), user_id=user["id"])
 
 
 # ---------- 行情 K 线 ----------

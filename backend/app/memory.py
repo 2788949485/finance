@@ -15,11 +15,21 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
-def save_analysis(ticker: str, result: dict[str, Any], status: str = "completed") -> int:
+def _ensure_user_id_column() -> None:
+    """确保 analyses 表有 user_id 列（兼容旧数据）。"""
+    with _connect() as conn:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(analyses)").fetchall()]
+        if "user_id" not in cols:
+            conn.execute("ALTER TABLE analyses ADD COLUMN user_id INTEGER")
+
+
+def save_analysis(ticker: str, result: dict[str, Any], status: str = "completed", user_id: int | None = None) -> int:
+    _ensure_user_id_column()
     with _connect() as conn:
         cur = conn.execute(
-            "INSERT INTO analyses (ticker, created_at, status, result) VALUES (?, ?, ?, ?)",
-            (ticker, datetime.now().isoformat(timespec="seconds"), status, json.dumps(result, ensure_ascii=False)),
+            "INSERT INTO analyses (ticker, created_at, status, result, user_id) VALUES (?, ?, ?, ?, ?)",
+            (ticker, datetime.now().isoformat(timespec="seconds"), status,
+             json.dumps(result, ensure_ascii=False), user_id),
         )
         return int(cur.lastrowid)
 
@@ -45,10 +55,17 @@ def get_analysis(analysis_id: int) -> Optional[dict[str, Any]]:
     return out
 
 
-def list_analyses(limit: int = 20) -> list[dict[str, Any]]:
+def list_analyses(limit: int = 20, user_id: int | None = None) -> list[dict[str, Any]]:
+    _ensure_user_id_column()
     with _connect() as conn:
-        rows = conn.execute(
-            "SELECT id, ticker, created_at, status FROM analyses ORDER BY id DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+        if user_id is not None:
+            rows = conn.execute(
+                "SELECT id, ticker, created_at, status FROM analyses WHERE user_id=? ORDER BY id DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT id, ticker, created_at, status FROM analyses ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
     return [dict(r) for r in rows]
