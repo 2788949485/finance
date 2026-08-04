@@ -305,7 +305,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
       const rect = svg.getBoundingClientRect()
       const sx = (e.clientX - rect.left) / rect.width * W
       const sy = (e.clientY - rect.top) / rect.height * H
-      if (!drag && sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= PAD.t + vh) {
+      if (!drag && sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= PAD.t + priceH) {
         setCrosshair({ x: sx, y: sy })
       }
     }
@@ -321,13 +321,16 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const endDrag = () => setDrag(null)
 
   const vw = W - PAD.l - PAD.r
+  const priceH = Math.round((H - PAD.t - PAD.b) * 0.72)  // 价格区72%
+  const macdTop = PAD.t + priceH + 6
+  const macdH = H - PAD.t - PAD.b - priceH - 6  // MACD区
   const vh = H - PAD.t - PAD.b
   const highs = data.map((d) => d.high)
   const lows = data.map((d) => d.low)
   const maxV = Math.max(...highs)
   const minV = Math.min(...lows)
   const span = maxV - minV || 1
-  const y = (v: number) => PAD.t + ((maxV - v) / span) * vh
+  const y = (v: number) => PAD.t + ((maxV - v) / span) * priceH
   const step = vw / data.length
   const bw = Math.max(2, step * 0.6)
 
@@ -338,6 +341,42 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   })
   const ma5 = ma(5)
   const ma20 = ma(20)
+
+  // MACD 计算（12,26,9）
+  const ema = (period: number) => {
+    const k = 2 / (period + 1)
+    const result: (number | null)[] = []
+    let prev: number | null = null
+    for (let i = 0; i < data.length; i++) {
+      if (i < period - 1) { result.push(null); continue }
+      if (prev === null) {
+        const s = data.slice(0, period).reduce((a, b) => a + b.close, 0) / period
+        prev = s; result.push(s)
+      } else {
+        prev = data[i].close * k + prev * (1 - k)
+        result.push(prev)
+      }
+    }
+    return result
+  }
+  const ema12 = ema(12)
+  const ema26 = ema(26)
+  const dif = data.map((_, i) => (ema12[i] != null && ema26[i] != null) ? (ema12[i]! - ema26[i]!) : null)
+  const dea = (() => {
+    const k = 2 / (9 + 1)
+    const result: (number | null)[] = []
+    let prev: number | null = null
+    for (let i = 0; i < dif.length; i++) {
+      if (dif[i] == null) { result.push(null); continue }
+      const d = dif[i]!
+      if (prev === null) { prev = d; result.push(d) }
+      else { prev = d * k + prev * (1 - k); result.push(prev) }
+    }
+    return result
+  })()
+  const macdBars = dif.map((d, i) => (d != null && dea[i] != null) ? (d - dea[i]!) * 2 : null)
+  const macdMax = Math.max(...macdBars.filter((v): v is number => v != null).map(Math.abs), 0.01)
+  const macdY = (v: number) => macdTop + macdH / 2 - (v / macdMax) * (macdH / 2)
 
   const last = data[data.length - 1]
   const trend = last.close >= last.open ? UP : DOWN
@@ -379,7 +418,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         onDoubleClick={resetZoom}
       >
         {[0.25, 0.5, 0.75].map((r) => (
-          <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + vh * r} y2={PAD.t + vh * r} stroke="#1e293b" strokeWidth="1" />
+          <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + priceH * r} y2={PAD.t + priceH * r} stroke="#1e293b" strokeWidth="1" />
         ))}
         <polyline
           points={ma5.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')}
@@ -405,7 +444,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         {[0, 0.5, 1].map((r) => {
           const v = maxV - span * r
           return (
-            <text key={r} x={PAD.l - 6} y={PAD.t + vh * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
+            <text key={r} x={PAD.l - 6} y={PAD.t + priceH * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
               {v.toFixed(2)}
             </text>
           )
@@ -450,12 +489,30 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           return (
             <g pointerEvents="none">
               <line x1={PAD.l} y1={cy} x2={W - PAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-              <line x1={barX} y1={PAD.t} x2={barX} y2={PAD.t + vh} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+              <line x1={barX} y1={PAD.t} x2={barX} y2={PAD.t + priceH} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
               <rect x={PAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
               <text x={PAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill="#e2e8f0" fontWeight="bold">{val.toFixed(2)}</text>
             </g>
           )
         })()}
+        {/* MACD 副图 */}
+        <line x1={PAD.l} x2={W - PAD.r} y1={macdTop - 1} y2={macdTop - 1} stroke="#1e293b" strokeWidth="1" />
+        <text x={PAD.l + 4} y={macdTop + 11} fontSize="9" fill="#64748b">MACD(12,26,9)</text>
+        {/* MACD 零轴 */}
+        <line x1={PAD.l} x2={W - PAD.r} y1={macdTop + macdH / 2} y2={macdTop + macdH / 2} stroke="#334155" strokeWidth="0.5" />
+        {/* MACD 柱状图 */}
+        {macdBars.map((v, i) => {
+          if (v == null) return null
+          const x = PAD.l + i * step + step / 2
+          const zeroY = macdTop + macdH / 2
+          const h = Math.abs(macdY(v) - zeroY)
+          const isUp = v >= 0
+          return <rect key={'m'+i} x={x - bw * 0.35} y={Math.min(macdY(v), zeroY)} width={bw * 0.7} height={Math.max(h, 0.5)} fill={isUp ? UP : DOWN} opacity="0.6" />
+        })}
+        {/* DIF 线 */}
+        <polyline points={dif.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#f59e0b" strokeWidth="1" opacity="0.85" />
+        {/* DEA 线 */}
+        <polyline points={dea.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.85" />
       </svg>
       {hover && (
         <div className="kline-tooltip">
