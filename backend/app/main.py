@@ -213,6 +213,18 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
                                 "score": getattr(view, "score", 0),
                             })
 
+                    # 风控审查结果推送（Human-in-the-loop：前端展示确认按钮）
+                    if node_name == "risk_node" and isinstance(node_output, dict):
+                        review = node_output.get("risk_review")
+                        if review:
+                            yield _sse({
+                                "type": "risk_review",
+                                "approved": getattr(review, "approved", True),
+                                "verdict": getattr(review, "verdict", ""),
+                                "max_position_pct": getattr(review, "max_position_pct", 0),
+                                "stop_loss_pct": getattr(review, "stop_loss_pct", 0),
+                            })
+
                     # finalize 节点推送最终结果
                     if node_name == "finalize" and isinstance(node_output, dict):
                         result = node_output.get("result")

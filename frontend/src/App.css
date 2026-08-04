@@ -859,3 +859,15 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   body { background: white !important; color: black !important; }
 }
 .report-export-btn { font-size: 12px; padding: 4px 12px; margin-left: auto; }
+
+/* Human-in-the-loop 风控确认 */
+.risk-review-card { padding: 12px 16px; margin: 8px 0; border-radius: var(--radius); border: 1px solid; }
+.risk-review-card.approved { border-color: rgba(34,197,94,0.3); background: var(--up-bg); }
+.risk-review-card.blocked { border-color: rgba(239,68,68,0.3); background: var(--down-bg); }
+.risk-review-head { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+.risk-review-card.approved .risk-review-head { color: var(--up); }
+.risk-review-card.blocked .risk-review-head { color: var(--down); }
+.risk-review-verdict { font-size: 13px; color: var(--text-2); margin-bottom: 4px; line-height: 1.5; }
+.risk-review-meta { font-size: 12px; color: var(--text-3); margin-bottom: 8px; }
+.risk-review-actions { display: flex; gap: 8px; margin-top: 8px; }
+.risk-waiting { padding: 20px; text-align: center; color: var(--text-3); font-size: 14px; }

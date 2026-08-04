@@ -11,11 +11,15 @@ function AnalyzePane() {
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [steps, setSteps] = useState<{ label: string; status: 'running' | 'done' }[]>([])
   const [analystViews, setAnalystViews] = useState<{ role: string; title: string; summary: string; score: number }[]>([])
+  const [riskReview, setRiskReview] = useState<{ approved: boolean; verdict: string; max_position_pct: number; stop_loss_pct: number } | null>(null)
+  const [userConfirmed, setUserConfirmed] = useState(false)
 
   const run = async () => {
     setLoading(true)
     setError('')
     setResult(null)
+    setRiskReview(null)
+    setUserConfirmed(false)
     setSteps([{ label: '数据收集', status: 'running' }])
     setAnalystViews([])
     try {
@@ -30,6 +34,8 @@ function AnalyzePane() {
           })
         } else if (ev.type === 'analyst') {
           setAnalystViews((prev) => [...prev, { role: ev.role, title: ev.title, summary: ev.summary, score: ev.score }])
+        } else if (ev.type === 'risk_review') {
+          setRiskReview({ approved: ev.approved, verdict: ev.verdict, max_position_pct: ev.max_position_pct, stop_loss_pct: ev.stop_loss_pct })
         } else if (ev.type === 'result') {
           setResult(ev.data)
         } else if (ev.type === 'error') {
@@ -84,9 +90,31 @@ function AnalyzePane() {
               ))}
             </div>
           )}
+          {/* 风控审查 Human-in-the-loop 确认 */}
+          {riskReview && !userConfirmed && (
+            <div className={`risk-review-card ${riskReview.approved ? 'approved' : 'blocked'}`}>
+              <div className="risk-review-head">
+                风控审查{riskReview.approved ? '通过' : '否决'}
+              </div>
+              <div className="risk-review-verdict">{riskReview.verdict}</div>
+              {riskReview.approved && (
+                <div className="risk-review-meta">
+                  建议最大仓位 {riskReview.max_position_pct}% | 止损 {riskReview.stop_loss_pct}%
+                </div>
+              )}
+              <div className="risk-review-actions">
+                <button onClick={() => setUserConfirmed(true)}>确认继续</button>
+                <button className="ghost" onClick={() => { setUserConfirmed(true); setLoading(false) }}>跳过交易计划</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
-      {result && <ReportView result={result} />}
+      {result && userConfirmed && <ReportView result={result} />}
+      {result && !userConfirmed && riskReview && (
+        <div className="risk-waiting">等待确认风控审查结果...</div>
+      )}
+      {result && !riskReview && <ReportView result={result} />}
     </div>
   )
 }
