@@ -4,13 +4,24 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 
 // 判断是否是 Markdown 特殊行（标题/列表/引用/表格/代码块/分隔线）
+// 注意：**加粗**以*开头但不是列表，所以要区分 * 列表和 ** 加粗
 function isSpecial(line: string): boolean {
   const s = line.trim()
+  // 排除 **加粗** 开头的情况
+  if (s.startsWith('**')) return false
   return (
-    s.startsWith('#') || s.startsWith('-') || s.startsWith('*') ||
-    s.startsWith('+') || s.startsWith('>') || s.startsWith('|') ||
-    s.startsWith('```') || s.startsWith('---') ||
-    /^\d+\.\s/.test(s) || /^\s*-\s/.test(line) || /^\s*\d+\.\s/.test(line)
+    s.startsWith('#') ||        // 标题
+    s.startsWith('- ') ||        // 无序列表（- 后有空格）
+    /^-\s/.test(s) ||            // 无序列表
+    /^\*\s/.test(s) ||           // 无序列表（* 后有空格）
+    /^\*\s/.test(s) ||           // 无序列表
+    s.startsWith('> ') ||        // 引用
+    s.startsWith('|') ||         // 表格
+    s.startsWith('```') ||       // 代码块
+    s.startsWith('---') ||       // 分隔线
+    /^\d+\.\s/.test(s) ||        // 有序列表
+    /^\s*-\s/.test(line) ||      // 缩进列表
+    /^\s*\d+\.\s/.test(line)     // 缩进有序列表
   )
 }
 
