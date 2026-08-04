@@ -1047,8 +1047,26 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 
 /* ==================== 管理后台 ==================== */
 .admin-page { max-width: 1000px; margin: 0 auto; }
-.admin-section { margin-bottom: 32px; }
-.admin-section h3 { font-size: 15px; margin-bottom: 12px; }
+.admin-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.admin-tabs button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  padding: 10px 20px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.admin-tabs button:hover { color: var(--text); }
+.admin-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.admin-tab-content { min-height: 300px; }
 .admin-toggle {
   display: flex;
   align-items: center;

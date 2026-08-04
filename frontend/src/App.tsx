@@ -48,7 +48,11 @@ function App() {
   if (!booted) return <div className="boot-screen">加载中...</div>
 
   if (!auth) {
-    return <LoginPage onLogin={(r) => { setAuth(r); setTab('chat') }} />
+    return <LoginPage onLogin={(r) => {
+      setAuth(r); setTab('chat')
+      // 登录后检查管理员权限
+      api.isAdmin().then(res => setIsAdmin(res.is_admin)).catch(() => {})
+    }} />
   }
 
   const logout = () => {
