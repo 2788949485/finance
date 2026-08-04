@@ -505,7 +505,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 /* ---------- 行情卡片 K线 ---------- */
 .quote-area { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; }
 .quote-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
-.kline-wrap { width: 100%; }
+.kline-wrap { width: 100%; aspect-ratio: 680/320; }
 .kline-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
 .kline-symbol { font-family: var(--mono); font-weight: 700; font-size: 14px; }
 .kline-price { font-family: var(--mono); font-weight: 700; font-size: 16px; }
@@ -513,7 +513,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .kline-range { margin-left: auto; display: flex; gap: 4px; }
 .kline-range button { padding: 3px 9px; font-size: 11px; }
 .kline-range button.active { color: var(--up); border-color: rgba(34, 197, 94, 0.4); background: var(--up-bg); }
-.kline-svg { width: 100%; height: auto; display: block; }
+.kline-svg { width: 100%; height: 100%; display: block; }
 .kline-tooltip { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); margin-top: 4px; }
 .kline-empty { color: var(--text-3); padding: 30px; text-align: center; }
 
@@ -531,7 +531,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   .chat-item { min-width: 140px; }
   .msg-bubble { max-width: 92%; }
   .app { padding: 10px; }
-  .kline-svg { width: 100%; height: auto; }
+  .kline-svg { width: 100%; height: 100%; }
   .kline-fullscreen { padding: 8px; }
   .news-modal { width: 95vw; max-height: 70vh; }
   .qp-meta { flex-wrap: wrap; gap: 6px; }
@@ -783,7 +783,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .compare-table td { padding: 6px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); }
 .compare-table .compare-label { font-family: inherit; color: var(--text-3); font-weight: 500; width: 100px; }
 .qp-chart { margin-bottom: 8px; }
-.qp-chart .kline-svg { width: 100%; height: auto; }
+.qp-chart .kline-svg { width: 100%; height: 100%; }
 .qp-news { border-top: 1px dashed var(--border); padding-top: 10px; }
 .qp-news-head { font-size: 11px; color: var(--text-3); font-weight: 600; margin-bottom: 6px; letter-spacing: 1px; }
 
@@ -806,7 +806,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .chat-welcome { max-width: 900px; margin: 0 auto; }
 
 .chat-hot-carousel .kline-wrap { width: 680px; max-width: 100%; margin: 0 auto; }
-.chat-hot-carousel .kline-svg { width: 100%; height: auto; display: block; }
+.chat-hot-carousel .kline-svg { width: 100%; height: 100%; display: block; }
 .kline-loading { height: 240px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 12.5px; }
 
 /* K线图缩放指示 */
