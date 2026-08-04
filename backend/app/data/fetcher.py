@@ -473,6 +473,55 @@ def search_stocks(q: str, limit: int = 8) -> Optional[list[dict[str, str]]]:
     return cached(f"search:{q.strip()}", 300, _fetch)
 
 
+def get_history_all(symbol: str) -> Optional[pd.DataFrame]:
+    """全量历史日K（至上市以来），缓存 6 小时。
+
+    - A股：akshare stock_zh_a_daily（新浪源，全量，2001年至今）
+    - 港股：akshare stock_hk_daily（腾讯源，全量）
+    - 美股：新浪日K（1984年至今，复用 get_history 的 us 分支）
+    统一返回 [date, open, close, high, low, volume] + ma5/ma20/ma60 的 DataFrame。
+    """
+    sym = _norm_symbol(symbol)
+    if sym.startswith("us"):
+        return get_history(sym, days=5000)
+
+    def _fetch() -> Optional[dict[str, Any]]:
+        try:
+            if sym.startswith("hk"):
+                df = _safe(ak.stock_hk_daily, symbol=sym[2:], adjust="qfq")
+            else:
+                df = _safe(ak.stock_zh_a_daily, symbol=f"{_market_prefix(sym)}{sym}", adjust="qfq")
+            if df is None or df.empty:
+                return None
+            bars = []
+            for _, row in df.iterrows():
+                try:
+                    bars.append({
+                        "date": str(row["date"])[:10],
+                        "open": float(row["open"]),
+                        "close": float(row["close"]),
+                        "high": float(row["high"]),
+                        "low": float(row["low"]),
+                        "volume": float(row.get("volume", 0) or 0),
+                    })
+                except (ValueError, TypeError, KeyError):
+                    continue
+            return {"bars": bars} if bars else None
+        except Exception:
+            return None
+
+    data = cached(f"kline_all:{sym}", 6 * 3600, _fetch)
+    if data is None or not data.get("bars"):
+        return None
+    df = pd.DataFrame(data["bars"])
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date").reset_index(drop=True)
+    df["ma5"] = df["close"].rolling(5).mean()
+    df["ma20"] = df["close"].rolling(20).mean()
+    df["ma60"] = df["close"].rolling(60).mean()
+    return df
+
+
 def _parse_num(v: Any) -> Optional[float]:
     """解析带单位数值：'54.27%'->54.27, '1.47亿'->147000000, False/None->None。"""
     if v is None or v is False:

@@ -18,6 +18,7 @@ export function extractCodes(text: string): string[] {
 export default function QuoteCard({ code }: { code: string }) {
   const [data, setData] = useState<QuoteResponse | null>(null)
   const [news, setNews] = useState<NewsItem[]>([])
+  const [allBars, setAllBars] = useState<KlineBar[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
   const [live, setLive] = useState(false)
   const [err, setErr] = useState('')
@@ -32,6 +33,15 @@ export default function QuoteCard({ code }: { code: string }) {
       setErr('行情加载失败')
     }
   }
+
+  // 预加载全量K线（"全部"选项用；只加载一次）
+  useEffect(() => {
+    let cancelled = false
+    api.getQuote(code, 60, 'day', 0, 1).then((q) => {
+      if (!cancelled && q.kline.length > 60) setAllBars(q.kline as KlineBar[])
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [code])
 
   useEffect(() => {
     let cancelled = false
@@ -98,7 +108,7 @@ export default function QuoteCard({ code }: { code: string }) {
         {b.market_cap != null && <span>市值 {b.market_cap}亿</span>}
       </div>
       <KLineChart
-        bars={bars}
+        bars={allBars.length > 60 ? allBars : bars}
         minute={minute}
         lastClose={data.last_close ?? null}
         symbol={name}

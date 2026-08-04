@@ -11,6 +11,7 @@ from .fetcher import (
     get_news,
     get_stock_brief,
     search_stocks,
+    get_history_all,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "get_news",
     "get_stock_brief",
     "search_stocks",
+    "get_history_all",
 ]

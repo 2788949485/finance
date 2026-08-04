@@ -23,6 +23,7 @@ export default function QuotePage() {
   const [live, setLive] = useState(false)
   const [err, setErr] = useState('')
   const [searching, setSearching] = useState(false)
+  const [allBars, setAllBars] = useState<KlineBar[]>([])
   const timerRef = useRef<number | null>(null)
   const searchTimer = useRef<number | null>(null)
 
@@ -36,11 +37,14 @@ export default function QuotePage() {
     }
   }, [])
 
-  // 选中变化时加载行情 + 新闻
+  // 选中变化时加载行情 + 新闻 + 全量K线
   useEffect(() => {
     setMode('day')
     setLive(false)
     load(selected.code, 'day', 0)
+    api.getQuote(selected.code, 60, 'day', 0, 1).then((q) => {
+      if (q.kline.length > 60) setAllBars(q.kline as KlineBar[])
+    }).catch(() => setAllBars([]))
     api.getNews(selected.code).then((n) => setNews(n.news)).catch(() => setNews([]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected.code])
@@ -149,7 +153,7 @@ export default function QuotePage() {
 
           <div className="qp-chart">
             <KLineChart
-              bars={bars}
+              bars={allBars.length > 60 ? allBars : bars}
               minute={minute}
               lastClose={data.last_close ?? null}
               symbol={b?.name ?? selected.name}

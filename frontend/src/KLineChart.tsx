@@ -15,13 +15,27 @@ interface Props {
 }
 
 export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode }: Props) {
-  const [range, setRange] = useState(60)
+  const [range, setRange] = useState<number | 'all'>(60)
   const [hover, setHover] = useState<KlineBar | null>(null)
 
   const W = 680, H = 240, PAD = { t: 14, r: 10, b: 22, l: 56 }
 
   // ---------- 分时模式 ----------
-  if (mode === 'minute' && minute && minute.length > 1) {
+  if (mode === 'minute') {
+    if (!minute || minute.length < 2) {
+      return (
+        <div className="kline-wrap">
+          <div className="kline-head">
+            <span className="kline-symbol">{symbol} 分时</span>
+            <span className="kline-range">
+              {onMode && <button className="ghost" onClick={() => onMode('day')}>日K</button>}
+              <button className="ghost active">分时</button>
+            </span>
+          </div>
+          <div className="kline-empty">分时数据暂无（非交易时段，A股/港股 9:30-15:00，美股 21:30-04:00 北京时间）</div>
+        </div>
+      )
+    }
     const prices = minute.map((p) => p.price)
     const avgs = minute.map((p) => p.avg).filter((v): v is number => v != null)
     const base = lastClose ?? prices[0]
@@ -74,7 +88,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   }
 
   // ---------- 日K模式 ----------
-  const data = useMemo(() => bars.slice(-range), [bars, range])
+  // "全部"时若数据过多则均匀降采样（最多 ~600 根，保证渲染性能）
+  const rawData = range === 'all' ? bars : bars.slice(-range)
+  const data = rawData.length > 600
+    ? rawData.filter((_, i) => i % Math.ceil(rawData.length / 600) === 0)
+    : rawData
   if (data.length < 2) {
     return <div className="kline-empty">K线数据不足</div>
   }
@@ -112,6 +130,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           {[30, 60, 120].map((n) => (
             <button key={n} className={`ghost ${range === n ? 'active' : ''}`} onClick={() => setRange(n)}>{n}日</button>
           ))}
+          <button className={`ghost ${range === 'all' ? 'active' : ''}`} onClick={() => setRange('all')}>全部</button>
           {onMode && <button className="ghost" onClick={() => onMode('minute')}>分时</button>}
         </span>
       </div>

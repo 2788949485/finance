@@ -51,8 +51,8 @@ export const api = {
 
   getHistory: () => request<HistoryItem[]>('/api/history'),
 
-  getQuote: (symbol: string, days = 60, mode = 'day', fresh = 0) =>
-    request<QuoteResponse>(`/api/quote/${symbol}?days=${days}&mode=${mode}&fresh=${fresh}`),
+  getQuote: (symbol: string, days = 60, mode = 'day', fresh = 0, all = 0) =>
+    request<QuoteResponse>(`/api/quote/${symbol}?days=${days}&mode=${mode}&fresh=${fresh}&all=${all}`),
 
   getNews: (symbol: string) => request<{ symbol: string; news: NewsItem[] }>(`/api/news/${symbol}`),
 

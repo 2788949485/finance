@@ -160,10 +160,11 @@ def history(limit: int = 20) -> list[dict[str, Any]]:
 # ---------- 行情 K 线 ----------
 
 @app.get("/api/quote/{symbol}")
-def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0) -> dict[str, Any]:
-    """行情接口：brief(实时概览) + kline(日K/分时) + tech(技术指标)。
+def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: int = 0) -> dict[str, Any]:
+    """行情接口：brief(实时概览) + kline(日K/分时/全量) + tech(技术指标)。
 
     - mode=day 日K线；mode=minute 当日分时
+    - all=1 全量历史K线（至上市以来，A股/港股 akshare 新浪/腾讯源，美股新浪）
     - fresh=1 绕过行情缓存（实时刷新最新价，配合前端轮询）
     """
     sym = datalayer._norm_symbol(symbol)
@@ -177,10 +178,25 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0) -> di
         if m:
             out["kline"] = m["points"]
             out["last_close"] = m["last_close"]
+    elif all:
+        hist = datalayer.get_history_all(sym)
+        bars: list[dict[str, Any]] = []
+        if hist is not None and not hist.empty:
+            for _, row in hist.iterrows():
+                bars.append({
+                    "date": str(row["date"].date()),
+                    "open": _num(row["open"]),
+                    "close": _num(row["close"]),
+                    "high": _num(row["high"]),
+                    "low": _num(row["low"]),
+                    "volume": _num(row["volume"]),
+                })
+            out["tech"] = datalayer.compute_tech_signals(hist) or {}
+        out["kline"] = bars
     else:
         days = min(max(days, 30), 500)
         hist = datalayer.get_history(sym, days=days)
-        bars: list[dict[str, Any]] = []
+        bars = []
         if hist is not None and not hist.empty:
             for _, row in hist.tail(days).iterrows():
                 bars.append({
