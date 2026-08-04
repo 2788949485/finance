@@ -5,7 +5,7 @@ import type { KlineBar, MinutePoint } from './types'
 
 const UP = '#22c55e'
 const DOWN = '#ef4444'
-const MAX_ZOOM = 30
+const MAX_ZOOM = 200
 const MIN_WIN = 10
 
 interface Props {
@@ -229,7 +229,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const rect = svg.getBoundingClientRect()
     if (!rect.width) return
     const ratio = (e.clientX - rect.left) / rect.width
-    const newZoom = Math.min(MAX_ZOOM, Math.max(1, zoom * (e.deltaY < 0 ? 1.25 : 0.8)))
+    const newZoom = Math.min(MAX_ZOOM, Math.max(1, zoom * (e.deltaY < 0 ? 1.6 : 0.625)))
     const newWin = Math.max(MIN_WIN, Math.round(rawLen / newZoom))
     const anchorIdx = start + ratio * winCount
     const newStart = Math.min(Math.max(0, Math.round(anchorIdx - ratio * newWin)), rawLen - newWin)
@@ -237,7 +237,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     setPan(1 - newStart / Math.max(1, rawLen - newWin))
   }
 
-  // 拖动平移（仅放大后可用）
+  // 拖动平移（放大后可用）
   const onMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if (zoom <= 1) return
     setDrag({ x: e.clientX, x0: start })
@@ -301,7 +301,13 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           <button className={`ghost ${range === 'all' ? 'active' : ''}`} onClick={() => switchRange('all')}>全部</button>
           {onMode && <button className="ghost" onClick={() => onMode('minute')}>分时</button>}
           {zoom > 1 && (
-            <button className="ghost zoom-ind" onClick={resetZoom} title="重置缩放（或双击图表）">{zoom.toFixed(1)}x ⇲</button>
+            <>
+              <span className="zoom-hint">滚轮缩放 · 拖动平移 · 双击重置</span>
+              <button className="ghost zoom-ind" onClick={resetZoom} title="重置缩放（或双击图表）">{zoom.toFixed(0)}x ⇲</button>
+            </>
+          )}
+          {zoom <= 1 && range === 'all' && rawLen > 200 && (
+            <span className="zoom-hint">滚轮缩放查看细节</span>
           )}
         </span>
       </div>
