@@ -143,7 +143,7 @@ def run_risk(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 
 def route_after_risk(state: AgentState) -> str:
     """条件边：风控批准走正常交易计划，否决走避险节点。"""
-    return "trader" if state.get("risk_review", RiskReview(approved=True, verdict="")).approved else "abstain"
+    return "trader_node" if state.get("risk_review", RiskReview(approved=True, verdict="")).approved else "abstain"
 
 
 def run_trader(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
