@@ -113,27 +113,53 @@ def run_debate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     bear, bull = sorted_views[0], sorted_views[-1]
     if bull.score - bear.score < 1:
         return {"debate": [DebateRound(topic="观点一致性较高，未触发激烈辩论", positions=[])]}
-    system = (
-        "你是辩论主持人。请组织看空方与看多方围绕标的展开一轮辩论，"
-        "双方各陈述论据并反驳对方。只输出JSON: "
-        '{"topic": "辩论主题", "positions": ["看空方论点", "看多方论点", "交锋结论"]}'
-    )
+    
+    rounds: list[DebateRound] = []
     ctx = state.get("context", {})
-    user = (
-        f"标的: {state.get('ticker')}  主题: {state.get('topic') or '常规投研'}\n"
-        f"看空方（{bear.title} 评分{bear.score}）: {bear.summary}\n"
-        f"看多方（{bull.title} 评分{bull.score}）: {bull.summary}\n"
-        f"其他观点: {', '.join(v.title + '(' + str(v.score) + ')' for v in views if v.role not in (bear.role, bull.role))}"
-    )
-    data = llm.chat_json(system, user)
-    return {
-        "debate": [
-            DebateRound(
-                topic=str(data.get("topic", "多空辩论")),
-                positions=[str(p) for p in data.get("positions", [])][:5],
+    ticker = state.get('ticker', '')
+    topic = state.get('topic') or '常规投研'
+    other_views = ', '.join(v.title + '(' + str(v.score) + ')' for v in views if v.role not in (bear.role, bull.role))
+    prev_bear_arg = bear.summary
+    prev_bull_arg = bull.summary
+    
+    # 多轮辩论：第1轮初始辩论 + 第2轮反驳（最多2轮）
+    for rnd in range(2):
+        label = "第一轮辩论" if rnd == 0 else "第二轮反驳"
+        system = (
+            f"你是辩论主持人。请组织看空方与看多方围绕标的展开{label}。"
+            "双方各陈述论据并反驳对方。只输出JSON: "
+            '{"topic": "辩论主题", "positions": ["看空方论点", "看多方论点", "交锋结论"]}'
+        )
+        if rnd == 0:
+            user = (
+                f"标的: {ticker}  主题: {topic}\n"
+                f"看空方（{bear.title} 评分{bear.score}）: {prev_bear_arg}\n"
+                f"看多方（{bull.title} 评分{bull.score}）: {prev_bull_arg}\n"
+                f"其他观点: {other_views}"
             )
-        ]
-    }
+        else:
+            user = (
+                f"标的: {ticker}  主题: {topic}（第二轮反驳）\n"
+                f"上一轮看空方论点: {prev_bear_arg}\n"
+                f"上一轮看多方论点: {prev_bull_arg}\n"
+                f"其他观点: {other_views}\n"
+                "请双方针对对方上一轮论点进行反驳，提出新证据。"
+            )
+        data = llm.chat_json(system, user)
+        positions = [str(p) for p in data.get("positions", [])][:5]
+        rounds.append(DebateRound(
+            topic=f"[{label}] " + str(data.get("topic", "多空辩论")),
+            positions=positions,
+        ))
+        # 更新论点为最新反驳
+        if len(positions) >= 2:
+            prev_bear_arg = positions[0]
+            prev_bull_arg = positions[1]
+        # 如果交锋结论显示分歧缩小则提前结束
+        if len(positions) >= 3 and any(k in positions[2] for k in ("一致", "趋同", "共识")):
+            break
+    
+    return {"debate": rounds}
 
 
 # ---------- 4. 共识 ----------
