@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
-import type { HistoryItem } from './types'
+import type { AnalysisResult, HistoryItem } from './types'
+import { ReportView } from './AnalyzePage'
 
 /* ---------------- 历史记录 ---------------- */
 
 function HistoryPane({ onPick }: { onPick: () => void }) {
   const [items, setItems] = useState<HistoryItem[]>([])
   const [error, setError] = useState('')
+  const [detail, setDetail] = useState<AnalysisResult | null>(null)
+  const [loadingId, setLoadingId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -17,6 +20,25 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const viewDetail = async (id: number) => {
+    setLoadingId(id)
+    try {
+      const r = await api.getAnalysis(id)
+      if (r.result) setDetail(r.result)
+    } catch { /* skip */ }
+    finally { setLoadingId(null) }
+  }
+
+  // 详情视图
+  if (detail) {
+    return (
+      <div className="pane">
+        <button className="ghost" onClick={() => setDetail(null)} style={{ marginBottom: 12 }}>返回列表</button>
+        <ReportView result={detail} />
+      </div>
+    )
+  }
 
   return (
     <div className="pane">
@@ -36,6 +58,9 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
                 <td>{it.created_at}</td>
                 <td>{it.status}</td>
                 <td>
+                  <button className="ghost" onClick={() => viewDetail(it.id)} disabled={loadingId === it.id}>
+                    {loadingId === it.id ? '加载...' : '查看'}
+                  </button>
                   <button onClick={onPick}>再分析</button>
                 </td>
               </tr>
