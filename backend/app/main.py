@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -327,6 +327,27 @@ def industry_compare(symbol: str) -> dict[str, Any]:
     sym = datalayer._norm_symbol(symbol)
     data = datalayer.get_industry_compare(sym)
     return data or {"peers": [], "avg_pe": None, "avg_pb": None}
+
+
+@app.get("/api/peers")
+def list_peers() -> list[dict[str, Any]]:
+    """列出所有行业同行映射。"""
+    return chat_service.list_industry_peers()
+
+
+@app.put("/api/peers/{code}")
+async def save_peer(code: str, request: Request) -> dict[str, str]:
+    """新增或更新行业同行映射。"""
+    body = await request.json()
+    chat_service.save_peers(code, body.get("name", code), body.get("peers", []))
+    return {"status": "ok"}
+
+
+@app.delete("/api/peers/{code}")
+def delete_peer(code: str) -> dict[str, str]:
+    """删除行业同行映射。"""
+    ok = chat_service.delete_peers(code)
+    return {"status": "ok" if ok else "not_found"}
 
 
 def _num(v: Any):

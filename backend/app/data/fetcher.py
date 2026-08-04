@@ -366,9 +366,15 @@ INDUSTRY_PEERS: dict[str, list[str]] = {
 
 
 def get_industry_compare(symbol: str) -> Optional[dict[str, Any]]:
-    """行业对比：返回同行股票的 PE/PB/涨跌幅 + 行业均值。"""
+    """行业对比：从数据库读取同行列表，拉取实时 PE/PB + 行业均值。"""
     sym = _norm_symbol(symbol)
-    peers = INDUSTRY_PEERS.get(sym)
+
+    # 从数据库获取同行列表（不再用硬编码映射表）
+    try:
+        from ..chat import get_peers
+        peers = get_peers(sym)
+    except Exception:
+        peers = None
     if not peers:
         return None
 

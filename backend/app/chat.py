@@ -84,6 +84,35 @@ def _init_db() -> None:
                 created_at TEXT NOT NULL
             )"""
         )
+        # 行业同行映射
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS industry_peers (
+                code TEXT PRIMARY KEY,
+                name TEXT,
+                peers TEXT NOT NULL DEFAULT '[]',
+                updated_at TEXT NOT NULL
+            )"""
+        )
+        # 预填充常用行业映射（首次启动时）
+        row = conn.execute("SELECT COUNT(*) FROM industry_peers").fetchone()
+        if row[0] == 0:
+            import json
+            presets = {
+                "600519": ("贵州茅台", ["000858", "000568", "002304", "603369", "600809"]),
+                "000858": ("五粮液", ["600519", "000568", "002304", "603369", "600809"]),
+                "000001": ("平安银行", ["600036", "601398", "601939", "601318", "600000"]),
+                "600036": ("招商银行", ["000001", "601398", "601939", "601318", "600000"]),
+                "300750": ("宁德时代", ["002594", "300014", "600089", "300274", "002460"]),
+                "002594": ("比亚迪", ["300750", "601238", "600104", "601633", "000625"]),
+                "601318": ("中国平安", ["000001", "600036", "601398", "601628", "601601"]),
+            }
+            from datetime import datetime
+            now = datetime.now().isoformat()
+            for code, (name, peers) in presets.items():
+                conn.execute(
+                    "INSERT INTO industry_peers (code, name, peers, updated_at) VALUES (?, ?, ?, ?)",
+                    (code, name, json.dumps(peers), now),
+                )
 
 
 def _new_checkpointer() -> SqliteSaver:
@@ -460,3 +489,48 @@ def chat(session_id: int, user_id: int, message: str) -> dict[str, Any]:
         rename_session(session_id, message[:12] + ("..." if len(message) > 12 else ""))
 
     return {"reply": reply, "tool_calls": tool_calls[:6], "session_id": session_id}
+
+
+def get_peers(code: str) -> list[str] | None:
+    """从数据库获取同行代码列表。"""
+    _init_db()
+    with _connect() as conn:
+        row = conn.execute("SELECT peers FROM industry_peers WHERE code=?", (code,)).fetchone()
+        if row:
+            import json
+            return json.loads(row[0])
+    return None
+
+
+def list_industry_peers() -> list[dict[str, Any]]:
+    """列出所有行业映射。"""
+    _init_db()
+    import json
+    with _connect() as conn:
+        rows = conn.execute("SELECT code, name, peers, updated_at FROM industry_peers ORDER BY code").fetchall()
+        return [{"code": r[0], "name": r[1], "peers": json.loads(r[2]), "updated_at": r[3]} for r in rows]
+
+
+def save_peers(code: str, name: str, peers: list[str]) -> None:
+    """新增或更新行业映射。"""
+    _init_db()
+    import json
+    from datetime import datetime
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO industry_peers (code, name, peers, updated_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(code) DO UPDATE SET name=?, peers=?, updated_at=?""",
+            (code, name, json.dumps(peers), datetime.now().isoformat(),
+             name, json.dumps(peers), datetime.now().isoformat()),
+        )
+        conn.commit()
+
+
+def delete_peers(code: str) -> bool:
+    """删除行业映射。"""
+    _init_db()
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM industry_peers WHERE code=?", (code,))
+        conn.commit()
+        return cur.rowcount > 0
