@@ -369,10 +369,13 @@ def get_industry_compare(symbol: str) -> Optional[dict[str, Any]]:
     """行业对比：从数据库读取同行列表，拉取实时 PE/PB + 行业均值。"""
     sym = _norm_symbol(symbol)
 
-    # 从数据库获取同行列表（不再用硬编码映射表）
+    # 从数据库获取同行列表（没有则用 LLM 自动生成）
     try:
-        from ..chat import get_peers
+        from ..chat import get_peers, auto_generate_peers
         peers = get_peers(sym)
+        if not peers:
+            # 数据库没有，自动生成并缓存
+            peers = auto_generate_peers(sym)
     except Exception:
         peers = None
     if not peers:

@@ -502,6 +502,40 @@ def get_peers(code: str) -> list[str] | None:
     return None
 
 
+def auto_generate_peers(code: str, name: str | None = None) -> list[str] | None:
+    """用 LLM 自动生成同行映射并写入数据库。"""
+    # 先获取股票名称
+    if not name:
+        from .data.fetcher import get_stock_brief
+        brief = get_stock_brief(code)
+        if not brief:
+            return None
+        name = brief.get("name", code)
+
+    # 港股/美股暂不支持自动生成
+    if code.startswith("hk") or code.startswith("us"):
+        return None
+
+    system = "你是A股行业分析专家。根据股票名称判断所属行业，列出5只最直接的同行业竞争对手的A股代码。只返回JSON，格式：{\"peers\": [\"代码1\", \"代码2\", ...]}"
+    user = f"股票：{name}（{code}）。请列出5只同行业竞争对手的A股6位代码。不要包含{code}本身。"
+
+    try:
+        llm = LLMClient(get_config())
+        result = llm.chat_json(system, user)
+        peers = result.get("peers", [])
+        if not peers or not isinstance(peers, list):
+            return None
+        # 清理：确保是6位数字代码
+        peers = [p.strip()[:6] for p in peers if isinstance(p, str) and len(p) >= 6][:5]
+        if len(peers) < 3:
+            return None
+        # 写入数据库
+        save_peers(code, name, peers)
+        return peers
+    except Exception:
+        return None
+
+
 def list_industry_peers() -> list[dict[str, Any]]:
     """列出所有行业映射。"""
     _init_db()
