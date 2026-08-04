@@ -503,7 +503,7 @@ def get_peers(code: str) -> list[str] | None:
 
 
 def auto_generate_peers(code: str, name: str | None = None) -> list[str] | None:
-    """用 LLM 自动生成同行映射并写入数据库。"""
+    """用 LLM 自动生成同行映射并写入数据库。支持A股/港股/美股。"""
     # 先获取股票名称
     if not name:
         from .data.fetcher import get_stock_brief
@@ -512,12 +512,19 @@ def auto_generate_peers(code: str, name: str | None = None) -> list[str] | None:
             return None
         name = brief.get("name", code)
 
-    # 港股/美股暂不支持自动生成
-    if code.startswith("hk") or code.startswith("us"):
-        return None
-
-    system = "你是A股行业分析专家。根据股票名称判断所属行业，列出5只最直接的同行业竞争对手的A股代码。只返回JSON，格式：{\"peers\": [\"代码1\", \"代码2\", ...]}"
-    user = f"股票：{name}（{code}）。请列出5只同行业竞争对手的A股6位代码。不要包含{code}本身。"
+    # 根据市场选择 prompt 和代码格式
+    if code.startswith("hk"):
+        system = "你是港股行业分析专家。根据公司名称判断所属行业，列出5只最直接的同行业竞争对手的港股代码。只返回JSON：{\"peers\": [\"hk00700\", \"hk09988\", ...]}"
+        user = f"公司：{name}（{code}）。列出5只港股同行的代码，格式hk+5位数字。不要包含{code}本身。"
+        clean_fn = lambda p: p.strip() if p.strip().startswith("hk") and len(p.strip()) >= 7 else None
+    elif code.startswith("us"):
+        system = "你是美股行业分析专家。根据公司名称判断所属行业，列出5只最直接的同行业竞争对手的美股代码。只返回JSON：{\"peers\": [\"AAPL\", \"MSFT\", ...]}"
+        user = f"公司：{name}（{code}）。列出5只美股同行的股票代码（英文字母）。不要包含{code[2:]}本身。"
+        clean_fn = lambda p: ("us" + p.strip().upper()) if p.strip().isalpha() and 1 <= len(p.strip()) <= 6 else None
+    else:
+        system = "你是A股行业分析专家。根据股票名称判断所属行业，列出5只最直接的同行业竞争对手的A股代码。只返回JSON：{\"peers\": [\"600519\", \"000858\", ...]}"
+        user = f"股票：{name}（{code}）。列出5只同行的A股6位代码。不要包含{code}本身。"
+        clean_fn = lambda p: p.strip()[:6] if isinstance(p, str) and len(p.strip()) >= 6 else None
 
     try:
         llm = LLMClient(get_config())
@@ -525,8 +532,9 @@ def auto_generate_peers(code: str, name: str | None = None) -> list[str] | None:
         peers = result.get("peers", [])
         if not peers or not isinstance(peers, list):
             return None
-        # 清理：确保是6位数字代码
-        peers = [p.strip()[:6] for p in peers if isinstance(p, str) and len(p) >= 6][:5]
+        # 按市场格式清理代码
+        cleaned = [clean_fn(p) for p in peers if isinstance(p, str)]
+        peers = [p for p in cleaned if p][:5]
         if len(peers) < 3:
             return None
         # 校验：过滤掉无法获取行情的假代码
