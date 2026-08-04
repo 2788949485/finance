@@ -40,6 +40,7 @@ export default function QuoteCard({ code }: { code: string }) {
   const [mode, setMode] = useState<'day' | 'minute'>('day')
   const [live, setLive] = useState(false)
   const [err, setErr] = useState('')
+  const [starred, setStarred] = useState(false)
   const timerRef = useRef<number | null>(null)
 
   const load = async (m: 'day' | 'minute', fresh: number) => {
@@ -70,6 +71,8 @@ export default function QuoteCard({ code }: { code: string }) {
         if (n) setNews(n.news)
       }
     })()
+    // 检查是否已在自选列表
+    api.getProfile().then((p) => { if (!cancelled) setStarred((p.watchlist || []).includes(code)) }).catch(() => {})
     return () => { cancelled = true }
   }, [code])
 
@@ -87,6 +90,16 @@ export default function QuoteCard({ code }: { code: string }) {
   const switchMode = (m: 'day' | 'minute') => {
     setMode(m)
     load(m, 0)
+  }
+
+  const toggleStar = async () => {
+    try {
+      const p = await api.getProfile()
+      const list = p.watchlist || []
+      const next = starred ? list.filter((c) => c !== code) : [...new Set([...list, code])]
+      await api.saveProfile({ watchlist: next })
+      setStarred(!starred)
+    } catch { /* skip */ }
   }
 
   if (!data) {
@@ -112,11 +125,18 @@ export default function QuoteCard({ code }: { code: string }) {
           {price ?? '--'} {change != null ? `${change >= 0 ? '+' : ''}${change}%` : ''}
         </span>
         <button
+          className={`star-btn ${starred ? 'on' : ''}`}
+          onClick={toggleStar}
+          title={starred ? '取消自选' : '加入自选'}
+        >
+          {starred ? '\u2605' : '\u2606'}
+        </button>
+        <button
           className={`live-btn ${live ? 'on' : ''}`}
           onClick={() => setLive((v) => !v)}
           title="实时刷新（15秒）"
         >
-          {live ? '● 实时' : '○ 实时'}
+          {live ? '\u25CF \u5B9E\u65F6' : '\u25CB \u5B9E\u65F6'}
         </button>
       </div>
       <div className="quote-meta">

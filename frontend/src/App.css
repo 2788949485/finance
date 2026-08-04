@@ -598,6 +598,10 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 }
 .live-btn.on { color: var(--up); border-color: var(--up); }
 .live-btn:hover { border-color: var(--text-2); }
+.star-btn { font-size: 16px; padding: 0 4px; border: none; background: none; cursor: pointer; color: var(--text-3); line-height: 1; margin-left: auto; }
+.star-btn.on { color: #f59e0b; }
+.star-btn:hover { color: #f59e0b; }
+.live-btn { margin-left: 0 !important; }
 .quote-meta {
   display: flex; gap: 14px; flex-wrap: wrap;
   color: var(--text-2); font-size: 11.5px; margin: 6px 0 2px;
