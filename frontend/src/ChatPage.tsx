@@ -234,9 +234,8 @@ function ThinkingTimer({ startTime }: { startTime: number }) {
   return <span className="think-time">{(elapsed / 1000).toFixed(1)}s</span>
 }
 
-// 单条消息：行情卡片只跟随用户消息展示（助手回复不重复显示）
-function MessageItem({ m }: { m: ChatMessage }) {
-  const codes = m.role === 'user' ? extractCodes(m.content) : []
+// 单条消息：行情卡片跟随用户和助手消息展示（codes 由父组件去重后传入）
+function MessageItem({ m, codes = [] }: { m: ChatMessage; codes?: string[] }) {
   return (
     <div className={`msg ${m.role}`}>
       <div className="msg-bubble">
@@ -410,7 +409,18 @@ export default function ChatPage() {
               <p className="chat-hint">我会自动查询实时行情、财务、龙虎榜、新闻等真实数据来回答</p>
             </div>
           )}
-          {messages.map((m, i) => <MessageItem key={i} m={m} />)}
+          {messages.map((m, i) => {
+            // 去重：同一只股票只展示一张卡片（首次出现在哪条消息就跟那条）
+            const seenCodes = new Set<string>()
+            for (let j = 0; j <= i; j++) {
+              const jc = extractCodes(messages[j].content)
+              for (const c of jc) {
+                if (j < i) seenCodes.add(c)  // 前面消息已展示过的
+              }
+            }
+            const itemCodes = extractCodes(m.content).filter(c => !seenCodes.has(c))
+            return <MessageItem key={i} m={m} codes={itemCodes} />
+          })}
           {/* 流式回复区：工作流步骤 + 思考动画 + 回复文本，全部在一个 assistant 气泡内 */}
           {busy && (
             <div className="msg assistant">

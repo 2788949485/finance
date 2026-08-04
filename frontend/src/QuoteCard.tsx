@@ -5,14 +5,32 @@ import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 
 export function extractCodes(text: string): string[] {
+  const codes = new Set<string>()
   // A股 6 位数字 / 港股 hk+5位 / 美股 us+代码 / 纯字母美股代码（排除常见英文停用词）
-  const codes = text.match(/\b(hk\d{5}|us[A-Z]{2,5}|[036]\d{5}|[A-Z]{2,5})\b/g)
-  if (!codes) return []
-  const STOP = new Set(['THE', 'AND', 'ARE', 'FOR', 'NOT', 'YOU', 'OUR', 'HOW', 'WHY',
-    'WAS', 'HAD', 'HAS', 'ITS', 'YOUR', 'USD', 'HKD', 'CNY', 'PE', 'PB', 'ROE', 'RSI',
-    'MA5', 'MA10', 'MA20', 'MA60', 'KPI', 'AI', 'OK', 'NO', 'IN', 'ON', 'AT', 'TO', 'OF',
-    'IS', 'IT', 'AS', 'BY', 'OR', 'AN', 'IF', 'BE', 'SO', 'UP', 'DOWN', 'HIGH', 'LOW'])
-  return [...new Set(codes.filter((c) => !STOP.has(c)))]
+  const matches = text.match(/\b(hk\d{5}|us[A-Z]{2,5}|[036]\d{5}|[A-Z]{2,5})\b/g)
+  if (matches) {
+    const STOP = new Set(['THE', 'AND', 'ARE', 'FOR', 'NOT', 'YOU', 'OUR', 'HOW', 'WHY',
+      'WAS', 'HAD', 'HAS', 'ITS', 'YOUR', 'USD', 'HKD', 'CNY', 'PE', 'PB', 'ROE', 'RSI',
+      'MA5', 'MA10', 'MA20', 'MA60', 'KPI', 'AI', 'OK', 'NO', 'IN', 'ON', 'AT', 'TO', 'OF',
+      'IS', 'IT', 'AS', 'BY', 'OR', 'AN', 'IF', 'BE', 'SO', 'UP', 'DOWN', 'HIGH', 'LOW',
+      'MACD', 'BOLL', 'KDJ', 'ETF', 'IPO', 'GDP', 'CPI', 'PMI', 'IPO', 'SEO', 'API', 'URL'])
+    matches.filter((c) => !STOP.has(c)).forEach((c) => codes.add(c))
+  }
+  // 中文公司名 -> 代码映射
+  const CN_NAMES: Record<string, string> = {
+    '贵州茅台': '600519', '茅台': '600519', '五粮液': '000858',
+    '平安银行': '000001', '招商银行': '600036', '宁德时代': '300750',
+    '比亚迪': '002594', '隆基绿能': '601012', '中国平安': '601318',
+    '美的集团': '000333', '格力电器': '000651', '东方财富': '300059',
+    '腾讯': 'hk00700', '腾讯控股': 'hk00700', '阿里巴巴': 'hk09988', '阿里': 'hk09988',
+    '小米': 'hk01810', '美团': 'hk03690', '京东': 'hk09618',
+    '苹果': 'usAAPL', '特斯拉': 'usTSLA', '英伟达': 'usNVDA',
+    '微软': 'usMSFT', '谷歌': 'usGOOGL', '亚马逊': 'usAMZN',
+  }
+  for (const [name, code] of Object.entries(CN_NAMES)) {
+    if (text.includes(name)) codes.add(code)
+  }
+  return [...codes]
 }
 
 export default function QuoteCard({ code }: { code: string }) {
