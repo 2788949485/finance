@@ -280,16 +280,13 @@ export default function ChatPage() {
 
   useEffect(() => { loadSessions() }, [loadSessions])
 
-  // Auto-scroll: MutationObserver 监听内容变化（参考 chat-langchain）
+  // Auto-scroll: 消息数量变化时才自动滚到底部（不因轮播图/K线变化触发）
+  const msgCount = messages.length
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const observer = new MutationObserver(() => {
-      el.scrollTop = el.scrollHeight
-    })
-    observer.observe(el, { childList: true, subtree: true, characterData: true })
-    return () => observer.disconnect()
-  }, [busy])
+    el.scrollTop = el.scrollHeight
+  }, [msgCount, busy, pendingReply])
 
   const openSession = async (id: number) => {
     setSessionId(id)
