@@ -373,6 +373,18 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   .views-grid { grid-template-columns: 1fr; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
+@media (max-width: 480px) {
+  .topbar nav { flex-wrap: wrap; gap: 4px; }
+  .topbar nav button { font-size: 12px; padding: 6px 10px; }
+  .brand h1 { font-size: 16px; }
+  .brand small { display: none; }
+  .chat-input { flex-direction: column; }
+  .chat-input input { width: 100%; }
+  .chat-input button { width: 100%; }
+  .msg-quotes { max-width: 100%; }
+  .quote-card { max-width: 100%; }
+  .flow-inline { max-width: 100%; }
+}
 
 
 /* ---------- 登录页 ---------- */
@@ -518,6 +530,20 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   .chat-list { flex-direction: row; overflow-x: auto; max-height: none; }
   .chat-item { min-width: 140px; }
   .msg-bubble { max-width: 92%; }
+  .app { padding: 10px; }
+  .kline-svg { width: 100%; height: auto; }
+  .kline-fullscreen { padding: 8px; }
+  .news-modal { width: 95vw; max-height: 70vh; }
+  .qp-meta { flex-wrap: wrap; gap: 6px; }
+  .qp-actions { flex-wrap: wrap; gap: 4px; }
+  .compare-input { width: 70px; }
+  .compare-table { font-size: 12px; }
+  .compare-table th, .compare-table td { padding: 4px 8px; }
+  .research-steps { gap: 4px; }
+  .research-step { font-size: 11px; padding: 3px 6px; }
+  .report-head { flex-direction: column; gap: 8px; }
+  .input-row { flex-direction: column; gap: 6px; }
+  .ticker-input, .topic-input { width: 100%; }
 }
 
 /* ---------- 消息内嵌行情卡片（重新设计：跟随消息流） ---------- */
