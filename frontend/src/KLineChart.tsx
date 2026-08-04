@@ -5,7 +5,7 @@ import type { KlineBar, MinutePoint } from './types'
 
 const UP = '#22c55e'
 const DOWN = '#ef4444'
-const MAX_ZOOM = 8
+const MAX_ZOOM = 30
 const MIN_WIN = 10
 
 interface Props {

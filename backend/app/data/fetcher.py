@@ -389,36 +389,48 @@ def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
             points = node.get("data", {}).get("data", [])
             qt = node.get("qt", {})
             last_close = None
-            # qt 里的昨收字段尝试提取
-            if isinstance(qt, dict):
-                for k in ("prec", "pre_close"):
-                    if qt.get(k):
-                        try:
-                            last_close = float(qt[k])
-                            break
-                        except (ValueError, TypeError):
-                            pass
+            # 昨收在 qt[code] 数组 index 4（腾讯行情字段：0未知 1名字 2代码 3现价 4昨收）
+            qt_arr = qt.get(code, []) if isinstance(qt, dict) else []
+            if isinstance(qt_arr, list) and len(qt_arr) > 4:
+                try:
+                    last_close = float(qt_arr[4])
+                except (ValueError, TypeError):
+                    pass
             out = []
             for p in points[:500]:
-                # 格式: ["0930", "1358.00", "1358.50", "12345", ...]
                 try:
-                    t = str(p[0])
-                    # 过滤异常点：时间非4位数字（盘前占位如 "0"）或价格异常
+                    # 腾讯分时格式: "0930 1350.06 235 31726410.00"（空格分隔字符串）
+                    # 或旧格式: ["0930", "1358.00", "1358.50", "12345"]
+                    parts = p.split() if isinstance(p, str) else p
+                    t = str(parts[0])
                     if not (t.isdigit() and len(t) == 4):
                         continue
-                    price = float(p[1])
+                    price = float(parts[1])
                     if price <= 0:
                         continue
+                    vol = float(parts[2]) if len(parts) > 2 and parts[2] else 0    # 成交量(手)
+                    amt = float(parts[3]) if len(parts) > 3 and parts[3] else 0     # 成交额
                     out.append({
                         "time": t,
                         "price": price,
-                        "avg": float(p[2]) if len(p) > 2 and p[2] else None,
-                        "volume": float(p[3]) if len(p) > 3 else None,
+                        "volume": vol if vol else None,
+                        "amount": amt if amt else None,
                     })
-                except (ValueError, IndexError, TypeError):
+                except (ValueError, IndexError, TypeError, AttributeError):
                     continue
             # 点数太少视为无效（盘前/异常）
-            return {"points": out, "last_close": last_close} if len(out) >= 2 else None
+            if len(out) < 2:
+                return None
+            # 计算分时均价（累计成交额 / 累计成交量）
+            cum_amt = 0.0
+            cum_vol = 0.0
+            for pt in out:
+                amt = pt.pop("amount", 0) or 0
+                vol = pt.get("volume") or 0
+                cum_amt += amt
+                cum_vol += vol
+                pt["avg"] = round(cum_amt / cum_vol, 2) if cum_vol > 0 else None
+            return {"points": out, "last_close": last_close}
         except Exception:
             return None
 

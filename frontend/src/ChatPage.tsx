@@ -110,6 +110,8 @@ function HotCarousel() {
   const [newsMap, setNewsMap] = useState<Record<string, NewsItem[]>>({})
   const code = HOT_CODES[idx]
 
+  const [paused, setPaused] = useState(false)
+
   useEffect(() => {
     HOT_CODES.forEach((c) => {
       api.getQuote(c, 60, 'day', 0).then((q) => setBriefs((m) => ({ ...m, [c]: q }))).catch(() => {})
@@ -117,11 +119,12 @@ function HotCarousel() {
     })
   }, [])
 
-  // 自动轮播（每次切换重置计时，手动切换后 6 秒恢复自动）
+  // 自动轮播：鼠标悬停时暂停，移开恢复
   useEffect(() => {
+    if (paused) return
     const t = window.setInterval(() => { setDir(1); setIdx((i) => (i + 1) % HOT_CODES.length) }, 6000)
     return () => window.clearInterval(t)
-  }, [idx])
+  }, [idx, paused])
 
   const go = (d: 1 | -1) => {
     setDir(d)
@@ -129,7 +132,7 @@ function HotCarousel() {
   }
 
   return (
-    <div className="chat-hot">
+    <div className="chat-hot" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       <div className="chat-hot-head">
         <span>热门行情</span>
         <span className="chat-hot-nav">
