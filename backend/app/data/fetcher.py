@@ -352,6 +352,16 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
 
     # 2) 东方财富搜索API：按股票名称搜索，返回真正的个股新闻（比akshare按代码搜索质量高）
     if name and len(items) < 8:
+        # 相关性匹配关键词：股票全名 + 核心简称（至少2字）
+        name_keywords = {name.lower()}
+        for suffix in ("控股", "集团", "股份有限公司", "有限公司", "股份", "科技"):
+            if name.endswith(suffix) and len(name) - len(suffix) >= 2:
+                name_keywords.add(name[:-len(suffix)].lower())
+                break
+        # 额外常见简称
+        if len(name) >= 4:
+            name_keywords.add(name[:2].lower())
+
         def _fetch() -> Optional[list[dict[str, str]]]:
             try:
                 import urllib.parse
@@ -359,7 +369,7 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
                     "uid": "", "keyword": name, "type": ["cmsArticleWebOld"],
                     "client": "web", "clientType": "web", "clientVersion": "curr",
                     "param": {"cmsArticleWebOld": {"searchScope": "default", "sort": "default",
-                               "pageIndex": 1, "pageSize": 8, "preTag": "", "postTag": ""}}
+                               "pageIndex": 1, "pageSize": 15, "preTag": "", "postTag": ""}}
                 }, ensure_ascii=False)
                 url = f"https://search-api-web.eastmoney.com/search/jsonp?cb=jQuery&param={urllib.parse.quote(param)}"
                 r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
@@ -369,9 +379,15 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
                 d = json.loads(m.group(1))
                 arts = d.get("result", {}).get("cmsArticleWebOld", [])
                 out = []
-                for a in arts[:8]:
+                for a in arts:
                     title = a.get("title", "").replace("<em>", "").replace("</em>", "")
+                    # 必须标题前30字符内包含股票名称核心词（排除正文碰巧提到的不相关新闻）
+                    title_head = title[:30].lower()
+                    if not any(kw in title_head for kw in name_keywords):
+                        continue
                     out.append({"title": title, "time": (a.get("date", "") or "")[:16]})
+                    if len(out) >= 8:
+                        break
                 return out or None
             except Exception:
                 return None
