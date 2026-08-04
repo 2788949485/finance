@@ -243,12 +243,12 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .login-remember input { width: 14px; height: 14px; accent-color: var(--accent); }
 
 /* ---------- 对话页 ---------- */
-.chat-layout { display: grid; grid-template-columns: 200px 1fr 200px; gap: 20px; }
-.chat-side { display: flex; flex-direction: column; gap: 12px; height: calc(100vh - 140px); min-height: 480px; overflow: hidden; }
-.watch-side { display: flex; flex-direction: column; height: calc(100vh - 140px); min-height: 480px; overflow: hidden; }
-.new-chat-btn { width: 100%; }
-.chat-export-btn { width: 100%; font-size: 12px; padding: 8px; }
-.chat-search { width: 100%; font-size: 13px; padding: 8px 12px; margin-bottom: 4px; }
+.chat-layout { display: grid; grid-template-columns: 200px 1fr 200px; gap: 20px; align-items: start; }
+.chat-side { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 140px); min-height: 200px; overflow: hidden; }
+.watch-side { display: flex; flex-direction: column; max-height: calc(100vh - 140px); min-height: 200px; overflow: hidden; }
+.new-chat-btn { width: 100%; flex-shrink: 0; }
+.chat-export-btn { width: 100%; font-size: 12px; padding: 8px; flex-shrink: 0; }
+.chat-search { width: 100%; font-size: 13px; padding: 8px 12px; margin-bottom: 4px; flex-shrink: 0; }
 .search-header { font-size: 11px; color: var(--text-3); padding: 8px 0; text-transform: uppercase; letter-spacing: 0.5px; }
 .search-item { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--surface); cursor: pointer; border: 1px solid var(--border); }
 .search-item:hover { border-color: var(--border-strong); }
@@ -259,7 +259,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 
 /* 自选股面板 */
 .watchlist { padding: 0; }
-.watchlist-head { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--text-3); text-transform: uppercase; padding: 0 0 12px; }
+.watchlist-head { font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--text-3); text-transform: uppercase; padding: 0 0 12px; flex-shrink: 0; }
 .watchlist-items { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex: 1; min-height: 0; }
 .watchlist-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--surface); font-size: 12px; }
 .watchlist-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -271,7 +271,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .watchlist-del { color: var(--text-3); background: none; border: none; cursor: pointer; font-size: 14px; padding: 0 4px; }
 .watchlist-del:hover { color: var(--down); }
 .watchlist-empty { font-size: 12px; color: var(--text-3); text-align: center; padding: 20px 0; }
-.watchlist-add { display: flex; gap: 4px; margin-top: 8px; }
+.watchlist-add { display: flex; gap: 4px; margin-top: 8px; flex-shrink: 0; }
 .watchlist-add input { flex: 1; font-size: 12px; padding: 6px 10px; }
 .watchlist-add button { width: 32px; height: 32px; padding: 0; font-size: 16px; }
 
