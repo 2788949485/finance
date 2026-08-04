@@ -20,6 +20,7 @@ export default function QuotePage() {
   const [selected, setSelected] = useState<SearchItem>({ market: 'sh', code: '600519', name: '贵州茅台', type: 'GP' })
   const [compareCode, setCompareCode] = useState('')
   const [compareData, setCompareData] = useState<QuoteResponse | null>(null)
+  const [industry, setIndustry] = useState<{ peers: { code: string; name: string; pe: number; pb: number; change_pct: number; market_cap: number; is_target: boolean }[]; avg_pe: number | null; avg_pb: number | null } | null>(null)
   const [data, setData] = useState<QuoteResponse | null>(null)
   const [news, setNews] = useState<NewsItem[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
@@ -49,6 +50,7 @@ export default function QuotePage() {
       if (q.kline.length > 60) setAllBars(q.kline as KlineBar[])
     }).catch(() => setAllBars([]))
     api.getNews(selected.code).then((n) => setNews(n.news)).catch(() => setNews([]))
+    api.getIndustry(selected.code).then(setIndustry).catch(() => setIndustry(null))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected.code])
 
@@ -196,6 +198,29 @@ export default function QuotePage() {
               </table>
             )
           })()}
+
+          {/* 行业对比 */}
+          {industry && industry.peers.length > 0 && (
+            <div className="industry-compare">
+              <div className="industry-head">
+                行业对比
+                {industry.avg_pe && <span className="industry-avg">行业均PE {industry.avg_pe}</span>}
+                {industry.avg_pb && <span className="industry-avg">均PB {industry.avg_pb}</span>}
+              </div>
+              <div className="industry-peers">
+                {industry.peers.map((p) => (
+                  <div key={p.code} className={`industry-peer ${p.is_target ? 'target' : ''}`}>
+                    <span className="industry-name">{p.name}</span>
+                    <span className="industry-pe">PE {p.pe?.toFixed(1) ?? '--'}</span>
+                    <span className="industry-pb">PB {p.pb?.toFixed(2) ?? '--'}</span>
+                    <span className={`industry-chg ${(p.change_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
+                      {p.change_pct != null ? `${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="qp-chart">
             <KLineChart

@@ -800,6 +800,18 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .compare-table th { text-align: left; padding: 8px 12px; background: var(--surface); color: var(--text-2); font-weight: 600; border-bottom: 2px solid var(--border); }
 .compare-table td { padding: 6px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); }
 .compare-table .compare-label { font-family: inherit; color: var(--text-3); font-weight: 500; width: 100px; }
+/* 行业对比 */
+.industry-compare { margin: 12px 0; }
+.industry-head { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 8px; display: flex; gap: 12px; align-items: center; }
+.industry-avg { font-size: 11px; color: var(--text-3); font-weight: 400; background: var(--surface); padding: 2px 8px; border-radius: var(--radius-sm); }
+.industry-peers { display: flex; gap: 6px; flex-wrap: wrap; }
+.industry-peer { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 11px; min-width: 90px; }
+.industry-peer.target { border-color: var(--accent); background: var(--up-bg); }
+.industry-name { font-weight: 600; color: var(--text); font-size: 12px; }
+.industry-pe, .industry-pb { color: var(--text-3); font-family: var(--mono); }
+.industry-chg { font-family: var(--mono); font-weight: 600; }
+.industry-chg.up { color: var(--up); }
+.industry-chg.down { color: var(--down); }
 .qp-chart { margin-bottom: 8px; }
 .qp-chart .kline-svg { width: 100%; height: 100%; }
 .qp-news { border-top: 1px dashed var(--border); padding-top: 10px; }

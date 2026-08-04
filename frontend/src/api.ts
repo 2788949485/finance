@@ -84,6 +84,8 @@ export const api = {
 
   getNews: (symbol: string) => request<{ symbol: string; news: NewsItem[] }>(`/api/news/${symbol}`),
 
+  getIndustry: (symbol: string) => request<{ peers: { code: string; name: string; pe: number; pb: number; change_pct: number; market_cap: number; is_target: boolean }[]; avg_pe: number | null; avg_pb: number | null }>(`/api/industry/${symbol}`),
+
   search: (q: string) => request<{ query: string; results: SearchItem[] }>(`/api/search/${encodeURIComponent(q)}`),
 
   health: () => request<{ status: string }>('/api/health'),

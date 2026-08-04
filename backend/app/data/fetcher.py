@@ -352,6 +352,54 @@ def get_flash_news(keyword: str = "", limit: int = 10) -> Optional[list[dict[str
     return data[:limit]
 
 
+# 行业同行映射（A股核心股票）
+INDUSTRY_PEERS: dict[str, list[str]] = {
+    "600519": ["000858", "000568", "002304", "603369", "600809"],  # 白酒：五粮液 泸州老窖 洋河 今世缘 山西汾酒
+    "000858": ["600519", "000568", "002304", "603369", "600809"],
+    "000001": ["600036", "601398", "601939", "601318", "600000"],  # 银行：招行 工行 建行 平安 浦发
+    "600036": ["000001", "601398", "601939", "601318", "600000"],
+    "300750": ["002594", "300014", "600089", "300274", "002460"],  # 新能源：比亚迪 亿纬锂能 特变电工 阳光电源 京东方
+    "002594": ["300750", "601238", "600104", "601633", "000625"],  # 汽车：长安 上汽 长城 长安
+    "600036": ["000001", "601398", "601939", "601318", "600000"],
+    "601318": ["000001", "600036", "601398", "601628", "601601"],  # 保险：人寿 太保
+}
+
+
+def get_industry_compare(symbol: str) -> Optional[dict[str, Any]]:
+    """行业对比：返回同行股票的 PE/PB/涨跌幅 + 行业均值。"""
+    sym = _norm_symbol(symbol)
+    peers = INDUSTRY_PEERS.get(sym)
+    if not peers:
+        return None
+
+    def _fetch() -> Optional[dict[str, Any]]:
+        items = []
+        all_codes = [sym] + peers
+        for code in all_codes:
+            brief = get_stock_brief(code)
+            if brief and brief.get("pe"):
+                items.append({
+                    "code": code,
+                    "name": brief.get("name", code),
+                    "pe": brief.get("pe"),
+                    "pb": brief.get("pb"),
+                    "change_pct": brief.get("change_pct"),
+                    "market_cap": brief.get("market_cap"),
+                    "is_target": code == sym,
+                })
+        if len(items) < 2:
+            return None
+        pes = [i["pe"] for i in items if i["pe"] and i["pe"] > 0]
+        pbs = [i["pb"] for i in items if i["pb"] and i["pb"] > 0]
+        return {
+            "peers": items,
+            "avg_pe": round(sum(pes) / len(pes), 2) if pes else None,
+            "avg_pb": round(sum(pbs) / len(pbs), 2) if pbs else None,
+        }
+
+    return cached(f"industry:{sym}", TTL["quote"], _fetch)
+
+
 def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
     """个股新闻：新浪快讯按名称/代码过滤 + 东方财富个股新闻兜底，缓存 15 分钟。"""
     sym = _norm_symbol(symbol)

@@ -309,6 +309,14 @@ def news(symbol: str) -> dict[str, Any]:
     return {"symbol": sym, "news": items or []}
 
 
+@app.get("/api/industry/{symbol}")
+def industry_compare(symbol: str) -> dict[str, Any]:
+    """行业对比：同行 PE/PB 均值。"""
+    sym = datalayer._norm_symbol(symbol)
+    data = datalayer.get_industry_compare(sym)
+    return data or {"peers": [], "avg_pe": None, "avg_pb": None}
+
+
 def _num(v: Any):
     try:
         if v is None:
