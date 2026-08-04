@@ -24,29 +24,26 @@ from app.data.fetcher import (
 
 def test_norm_symbol():
     """_norm_symbol 各种格式转换。"""
-    # A股 6 位
+    # A股 6 位数字
     assert _norm_symbol("600519") == "600519"
     assert _norm_symbol("000001") == "000001"
-    # A股不足6位补零
-    assert _norm_symbol("60051") == "0060051"[:6]  # zfill(6) -> "600519"? 实际: "60051".zfill(6)="060051"
-    # 上面的注释修正：不足6位数字会 zfill(6)
-    assert _norm_symbol("60051") == "060051"
-    # 港股 5 位数字 -> hk 前缀
+    # 5 位数字 = 港股（加 hk 前缀）
     assert _norm_symbol("00700") == "hk00700"
-    # 港股不足5位补零
+    assert _norm_symbol("60051") == "hk60051"
+    # 不足 5 位的数字 = 港股，补零到 5 位
     assert _norm_symbol("700") == "hk00700"
-    # 带 hk/us 前缀原样保留（已规范化）
+    assert _norm_symbol("12") == "hk00012"
+    assert _norm_symbol("1") == "hk00001"
+    # 带 hk 前缀原样保留（规范化大小写）
     assert _norm_symbol("hk00700") == "hk00700"
     assert _norm_symbol("HK00700") == "hk00700"
+    # 带 us 前缀：代码大写
     assert _norm_symbol("usAAPL") == "usAAPL"
     assert _norm_symbol("usaapl") == "usAAPL"
-    # 美股代码补齐/大写
-    assert _norm_symbol("usAAPL") == "usAAPL"
-    # 大小写不敏感
     assert _norm_symbol("Usaapl") == "usAAPL"
     # 空白处理
     assert _norm_symbol("  600519  ") == "600519"
-    # 公司名原样返回（非代码，交给 resolve_symbol）
+    # 公司名等非代码原样返回（小写化），交给 resolve_symbol 处理
     assert _norm_symbol("茅台") == "茅台"
 
 

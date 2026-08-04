@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, chat as chat_service, memory, alert, valuation
+from . import auth, chat as chat_service, memory, alert, valuation, portfolio, backtest
 from .pipeline import run_analysis, _GRAPH
 from .config import PROVIDER_PRESETS, get_config, save_config
 from .data import fetcher as datalayer
@@ -355,6 +355,69 @@ def dcf_valuation(symbol: str) -> dict[str, Any]:
     sym = datalayer._norm_symbol(symbol)
     data = valuation.compute_dcf(sym)
     return data or {"error": "无法计算估值（财务数据不足）"}
+
+
+# ---------- 投资组合 ----------
+
+@app.get("/api/portfolio")
+def get_portfolio_api(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """获取投资组合：持仓+实时盈亏+总览。"""
+    return portfolio.get_portfolio(user["id"])
+
+
+@app.post("/api/portfolio/buy")
+async def buy_api(request: Request, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """买入股票。body: {symbol, shares, price, date?, note?}"""
+    body = await request.json()
+    symbol = (body.get("symbol") or "").strip()
+    if not symbol:
+        raise HTTPException(400, "请提供股票代码")
+    resolved = _resolve_ticker(symbol)
+    if not resolved:
+        raise HTTPException(400, f"无法识别 {symbol}")
+    shares = float(body.get("shares", 0))
+    price = float(body.get("price", 0))
+    if shares <= 0 or price <= 0:
+        raise HTTPException(400, "数量和价格必须大于0")
+    name = body.get("symbol_name", "")
+    if not name:
+        brief = datalayer.get_stock_brief(resolved)
+        name = brief.get("name", resolved) if brief else resolved
+    result = portfolio.buy_stock(user["id"], resolved, name, shares, price,
+                                 body.get("date", ""), body.get("note", ""))
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.post("/api/portfolio/sell")
+async def sell_api(request: Request, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """卖出股票。"""
+    body = await request.json()
+    symbol = (body.get("symbol") or "").strip()
+    resolved = _resolve_ticker(symbol) or symbol
+    shares = float(body.get("shares", 0))
+    price = float(body.get("price", 0))
+    if shares <= 0 or price <= 0:
+        raise HTTPException(400, "数量和价格必须大于0")
+    result = portfolio.sell_stock(user["id"], resolved, shares, price,
+                                  body.get("date", ""), body.get("note", ""))
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.delete("/api/portfolio/{symbol}")
+def remove_position_api(symbol: str, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
+    """删除持仓。"""
+    ok = portfolio.remove_position(user["id"], datalayer._norm_symbol(symbol))
+    return {"status": "ok" if ok else "not_found"}
+
+
+@app.get("/api/portfolio/transactions")
+def transactions_api(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    """交易历史。"""
+    return portfolio.list_transactions(user["id"])
 
 
 @app.get("/api/peers")
