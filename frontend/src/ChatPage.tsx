@@ -215,13 +215,16 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="chat-flow">
-          <FlowPanel
-            steps={flowSteps}
-            collapsed={flowCollapsed}
-            onToggle={() => setFlowCollapsed((v) => !v)}
-          />
-        </div>
+        {/* 工作流面板：回答时才显示（有步骤即出现），完成后折叠成摘要 */}
+        {(busy || flowSteps.length > 0) && (
+          <div className="chat-flow">
+            <FlowPanel
+              steps={flowSteps}
+              collapsed={flowCollapsed}
+              onToggle={() => setFlowCollapsed((v) => !v)}
+            />
+          </div>
+        )}
 
         <div className="chat-input">
           <input

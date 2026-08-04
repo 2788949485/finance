@@ -344,6 +344,9 @@ def stream_chat(session_id: int, user_id: int, message: str):
                         yield _sse({"type": "tool_start", "name": name, "args": args})
                 elif isinstance(last, SystemMessage):
                     continue
+                elif getattr(last, "type", "") == "tool":
+                    # 工具执行完成（ToolMessage）：标记对应步骤 done
+                    yield _sse({"type": "tool_end", "name": "", "preview": str(last.content)[:120]})
                 elif last.content and getattr(last, "type", "") == "ai":
                     # 最终回复（无工具调用的 AIMessage）
                     reply = str(last.content)

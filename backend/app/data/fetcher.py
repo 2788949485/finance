@@ -333,9 +333,16 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
 
     # 1) 实时快讯过滤（三市场通用）
     if name:
-        flash = get_flash_news(keyword=name, limit=5)
-        if flash:
-            items.extend(flash)
+        # 名称可能带后缀（控股/集团/股份），截断核心名提高命中（腾讯控股 -> 腾讯）
+        short = name
+        for suffix in ("控股", "集团", "股份有限公司", "有限公司", "股份", "科技"):
+            if short.endswith(suffix) and len(short) - len(suffix) >= 2:
+                short = short[: -len(suffix)]
+                break
+        for kw in dict.fromkeys([name, short]):
+            flash = get_flash_news(keyword=kw, limit=4)
+            if flash:
+                items.extend(flash)
         # 代码过滤（如 600519）
         code_hits = get_flash_news(keyword=sym.replace("hk", "").replace("us", ""), limit=3)
         if code_hits:
@@ -395,15 +402,23 @@ def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
             for p in points[:500]:
                 # 格式: ["0930", "1358.00", "1358.50", "12345", ...]
                 try:
+                    t = str(p[0])
+                    # 过滤异常点：时间非4位数字（盘前占位如 "0"）或价格异常
+                    if not (t.isdigit() and len(t) == 4):
+                        continue
+                    price = float(p[1])
+                    if price <= 0:
+                        continue
                     out.append({
-                        "time": str(p[0]),
-                        "price": float(p[1]),
-                        "avg": float(p[2]) if len(p) > 2 else None,
+                        "time": t,
+                        "price": price,
+                        "avg": float(p[2]) if len(p) > 2 and p[2] else None,
                         "volume": float(p[3]) if len(p) > 3 else None,
                     })
                 except (ValueError, IndexError, TypeError):
                     continue
-            return {"points": out, "last_close": last_close} if out else None
+            # 点数太少视为无效（盘前/异常）
+            return {"points": out, "last_close": last_close} if len(out) >= 2 else None
         except Exception:
             return None
 
