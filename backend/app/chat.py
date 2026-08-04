@@ -347,12 +347,17 @@ def stream_chat(session_id: int, user_id: int, message: str):
                         # 工具执行完成（ToolMessage）：标记对应步骤 done
                         yield _sse({"type": "tool_end", "name": "", "preview": str(m.content)[:120]})
                     elif getattr(m, "type", "") == "ai" and m.content:
-                        # 最终回复（无工具调用的 AIMessage）
+                        # 最终回复（无工具调用的 AIMessage）：先存，循环结束后分块输出
                         reply = str(m.content)
-                        yield _sse({"type": "msg", "content": reply})
     except Exception as e:
         reply = f"对话处理失败: {e}"
         yield _sse({"type": "error", "message": str(e)})
+
+    # 回复分块流式输出（打字机效果）：chunk 逐块，msg 为完整回复
+    if reply:
+        for chunk in _chunk_text(reply):
+            yield _sse({"type": "chunk", "content": chunk})
+        yield _sse({"type": "msg", "content": reply})
 
     save_message(session_id, "assistant", reply, tool_calls)
     try:
@@ -362,6 +367,27 @@ def stream_chat(session_id: int, user_id: int, message: str):
     if len(get_messages(session_id, user_id)) <= 2:
         rename_session(session_id, message[:12] + ("..." if len(message) > 12 else ""))
     yield _sse({"type": "done", "session_id": session_id})
+
+
+def _chunk_text(text: str, size: int = 24) -> list[str]:
+    """把文本切成小块用于流式输出（打字机效果）。"""
+    if not text:
+        return []
+    chunks = []
+    i = 0
+    n = len(text)
+    while i < n:
+        # 优先在标点后断块，让流式输出更自然
+        end = min(i + size, n)
+        if end < n:
+            for punct in ("。", "！", "？", "\n", ".", "!", "?", "，", ","):
+                idx = text.rfind(punct, i + 8, end)
+                if idx != -1:
+                    end = idx + 1
+                    break
+        chunks.append(text[i:end])
+        i = end
+    return chunks
 
 
 def _sse(obj: dict) -> str:

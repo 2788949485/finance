@@ -86,6 +86,7 @@ export default function ChatPage() {
   const [confirmDel, setConfirmDel] = useState<number | null>(null)
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [flowCollapsed, setFlowCollapsed] = useState(false)
+  const [pendingReply, setPendingReply] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const loadSessions = useCallback(async () => {
@@ -137,6 +138,7 @@ export default function ChatPage() {
     setError('')
     setFlowSteps([])
     setFlowCollapsed(false)  // 执行中展开显示实时步骤
+    setPendingReply('')
     setMessages((prev) => [...prev, { role: 'user', content: text, created_at: new Date().toISOString() }])
     try {
       let sid = sessionId
@@ -144,21 +146,27 @@ export default function ChatPage() {
         if (ev.type === 'tool_start') {
           setFlowSteps((prev) => [...prev, { name: ev.name, args: ev.args, status: 'running' }])
         } else if (ev.type === 'tool_end') {
-          // 标记最近一个同名 running 步骤为 done
+          // 标记最近一个 running 步骤为 done
           setFlowSteps((prev) => {
             const idx = [...prev].reverse().findIndex((s) => s.status === 'running')
             if (idx === -1) return prev
             const i = prev.length - 1 - idx
             return prev.map((s, j) => (j === i ? { ...s, status: 'done' } : s))
           })
+        } else if (ev.type === 'chunk') {
+          // 流式输出：逐块追加（打字机效果）
+          setPendingReply((prev) => prev + ev.content)
+        } else if (ev.type === 'msg') {
+          setPendingReply(ev.content)  // 完整回复兜底
         } else if (ev.type === 'done') {
           sid = ev.session_id
         }
       })
       setSessionId(sid)
       setMessages((prev) => [...prev, {
-        role: 'assistant', content: reply, created_at: new Date().toISOString(),
+        role: 'assistant', content: reply || pendingReply, created_at: new Date().toISOString(),
       }])
+      setPendingReply('')
       await loadSessions()
       // 回复完成：工作流默认折叠
       setFlowCollapsed(true)
@@ -210,7 +218,12 @@ export default function ChatPage() {
             </div>
           )}
           {messages.map((m, i) => <MessageItem key={i} m={m} />)}
-          {busy && <div className="msg assistant"><div className="msg-bubble typing">智能体思考中...</div></div>}
+          {busy && pendingReply && (
+            <div className="msg assistant">
+              <div className="msg-bubble"><div className="msg-text"><Markdown text={pendingReply} /></div></div>
+            </div>
+          )}
+          {busy && !pendingReply && <div className="msg assistant"><div className="msg-bubble typing">智能体思考中...</div></div>}
           {error && <div className="error-box">{error}</div>}
           <div ref={bottomRef} />
         </div>
