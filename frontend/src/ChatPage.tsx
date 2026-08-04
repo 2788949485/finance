@@ -1,8 +1,9 @@
 // 智能对话页：ReAct 智能体聊天，行情卡片（K线图）跟随消息内嵌
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
-import type { ChatMessage, ChatSession } from './types'
+import type { ChatMessage, ChatSession, KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import QuoteCard, { extractCodes } from './QuoteCard'
+import KLineChart from './KLineChart'
 import Markdown from './Markdown'
 
 const TOOL_LABEL: Record<string, string> = {
@@ -14,6 +15,138 @@ const TOOL_LABEL: Record<string, string> = {
   get_stock_news: '读取个股新闻',
   get_market_news: '获取实时快讯',
   run_research: '运行多智能体投研',
+}
+
+// 欢迎页热门行情轮播（单排，自动轮播 + 手动切换）
+const HOT_CODES = ['600519', 'hk00700', 'usAAPL', '300750']
+
+// 轮播专用K线：切换股票时只重新加载这部分（行情简报/新闻由外层预加载）
+function HotKLine({ code, name, lastClose }: { code: string; name: string; lastClose: number | null }) {
+  const [data, setData] = useState<QuoteResponse | null>(null)
+  const [allBars, setAllBars] = useState<KlineBar[]>([])
+  const [mode, setMode] = useState<'day' | 'minute'>('day')
+
+  useEffect(() => {
+    let cancelled = false
+    setData(null)
+    setAllBars([])
+    api.getQuote(code, 60, 'day', 0).then((q) => { if (!cancelled) setData(q) }).catch(() => {})
+    api.getQuote(code, 60, 'day', 0, 1).then((q) => { if (!cancelled && q.kline.length > 60) setAllBars(q.kline as KlineBar[]) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [code])
+
+  const switchMode = (m: 'day' | 'minute') => {
+    setMode(m)
+    api.getQuote(code, 60, m, 0).then(setData).catch(() => {})
+  }
+
+  if (!data) {
+    return <div className="kline-loading">K线加载中...</div>
+  }
+
+  const bars = (data.kline as KlineBar[]).filter((k) => k.date && typeof k.close === 'number')
+  const minute = (data.kline as MinutePoint[]).filter((k) => k.time && typeof k.price === 'number')
+
+  return (
+    <KLineChart
+      bars={allBars.length > 60 ? allBars : bars}
+      minute={minute}
+      lastClose={lastClose ?? null}
+      symbol={name}
+      mode={mode}
+      onMode={switchMode}
+    />
+  )
+}
+
+// 轮播卡片：头部/新闻用预加载数据即时切换，K线独立加载
+function HotQuoteCard({ code, brief, news, dir }: {
+  code: string; brief: QuoteResponse | null; news: NewsItem[]; dir: 1 | -1
+}) {
+  const b = brief?.brief as {
+    name?: string; price?: number; change_pct?: number
+    pe?: number; pb?: number; turnover?: number; market_cap?: number
+  } | undefined
+  const name = String(b?.name ?? code)
+  const price = b?.price
+  const change = b?.change_pct
+
+  return (
+    <div className={`quote-card hot-slide ${dir === 1 ? 'in-right' : 'in-left'}`}>
+      <div className="quote-head">
+        <span className="quote-name">{name}</span>
+        <span className="quote-code">{code}</span>
+        <span className={`quote-change ${(change ?? 0) >= 0 ? 'up' : 'down'}`}>
+          {price ?? '--'} {change != null ? `${change >= 0 ? '+' : ''}${change}%` : ''}
+        </span>
+      </div>
+      <div className="quote-meta">
+        {b?.pe != null && <span>PE {b.pe}</span>}
+        {b?.pb != null && <span>PB {b.pb}</span>}
+        {b?.turnover != null && <span>换手 {b.turnover}%</span>}
+        {b?.market_cap != null && <span>市值 {b.market_cap}亿</span>}
+      </div>
+      <HotKLine code={code} name={name} lastClose={brief?.last_close ?? null} />
+      {news.length > 0 && (
+        <div className="quote-news">
+          <div className="quote-news-head">最新新闻</div>
+          {news.slice(0, 4).map((n, i) => (
+            <div className="quote-news-item" key={i}>
+              <span className="quote-news-time">{n.time.slice(5, 16)}</span>
+              <span className="quote-news-title">{n.title.length > 70 ? n.title.slice(0, 70) + '…' : n.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 热门行情轮播容器：预加载4只简报+新闻，切换只重载K线，左右滑动过渡
+function HotCarousel() {
+  const [idx, setIdx] = useState(0)
+  const [dir, setDir] = useState<1 | -1>(1)
+  const [briefs, setBriefs] = useState<Record<string, QuoteResponse | null>>({})
+  const [newsMap, setNewsMap] = useState<Record<string, NewsItem[]>>({})
+  const code = HOT_CODES[idx]
+
+  useEffect(() => {
+    HOT_CODES.forEach((c) => {
+      api.getQuote(c, 60, 'day', 0).then((q) => setBriefs((m) => ({ ...m, [c]: q }))).catch(() => {})
+      api.getNews(c).then((n) => setNewsMap((m) => ({ ...m, [c]: n.news }))).catch(() => {})
+    })
+  }, [])
+
+  // 自动轮播（每次切换重置计时，手动切换后 6 秒恢复自动）
+  useEffect(() => {
+    const t = window.setInterval(() => { setDir(1); setIdx((i) => (i + 1) % HOT_CODES.length) }, 6000)
+    return () => window.clearInterval(t)
+  }, [idx])
+
+  const go = (d: 1 | -1) => {
+    setDir(d)
+    setIdx((i) => (i + d + HOT_CODES.length) % HOT_CODES.length)
+  }
+
+  return (
+    <div className="chat-hot">
+      <div className="chat-hot-head">
+        <span>热门行情</span>
+        <span className="chat-hot-nav">
+          <button className="hot-arrow" title="上一个" onClick={() => go(-1)}>‹</button>
+          <span className="hot-dots">
+            {HOT_CODES.map((_, i) => (
+              <i key={i} className={i === idx ? 'on' : ''} onClick={() => { setDir(i > idx ? 1 : -1); setIdx(i) }} />
+            ))}
+          </span>
+          <button className="hot-arrow" title="下一个" onClick={() => go(1)}>›</button>
+        </span>
+      </div>
+      <div className="chat-hot-carousel">
+        <HotQuoteCard key={code} code={code} brief={briefs[code] ?? null} news={newsMap[code] ?? []} dir={dir} />
+      </div>
+    </div>
+  )
 }
 
 interface FlowStep { name: string; args: Record<string, unknown>; status: 'running' | 'done' }
@@ -206,6 +339,7 @@ export default function ChatPage() {
         <div className="chat-messages">
           {messages.length === 0 && (
             <div className="chat-welcome">
+              <HotCarousel />
               <h3>我是 FinanceCrew 投研助理</h3>
               <p>可以问我任何股票问题，例如：</p>
               <ul>
@@ -215,14 +349,6 @@ export default function ChatPage() {
                 <li>"对比 300750 和 002594 的估值"</li>
               </ul>
               <p className="chat-hint">我会自动查询实时行情、财务、龙虎榜、新闻等真实数据来回答</p>
-              <div className="chat-hot">
-                <div className="chat-hot-head">热门行情</div>
-                <div className="chat-hot-grid">
-                  {['600519', 'hk00700', 'usAAPL', '300750'].map((code) => (
-                    <QuoteCard key={code} code={code} />
-                  ))}
-                </div>
-              </div>
             </div>
           )}
           {messages.map((m, i) => <MessageItem key={i} m={m} />)}

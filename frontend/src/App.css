@@ -677,8 +677,26 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .qp-news { border-top: 1px dashed var(--border); padding-top: 10px; }
 .qp-news-head { font-size: 11px; color: var(--text-3); font-weight: 600; margin-bottom: 6px; letter-spacing: 1px; }
 
-/* ---------- 欢迎页热门行情 ---------- */
-.chat-hot { margin-top: 18px; text-align: left; }
-.chat-hot-head { font-size: 11px; color: var(--text-3); font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
-.chat-hot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+/* ---------- 欢迎页热门行情（单排轮播） ---------- */
+.chat-hot { margin-bottom: 20px; text-align: left; }
+.chat-hot-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--text-3); font-weight: 600; letter-spacing: 1px; margin-bottom: 8px; }
+.chat-hot-nav { display: flex; align-items: center; gap: 8px; letter-spacing: 0; }
+.hot-arrow { width: 22px; height: 22px; border: 1px solid var(--border); background: var(--muted); color: var(--text-2); border-radius: 4px; cursor: pointer; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; padding: 0; }
+.hot-arrow:hover { color: var(--accent); border-color: var(--accent); }
+.hot-dots { display: flex; gap: 5px; }
+.hot-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--border); cursor: pointer; display: block; transition: background .2s, transform .2s; }
+.hot-dots i.on { background: var(--accent); transform: scale(1.35); }
+.chat-hot-carousel { position: relative; width: 100%; }
+.chat-hot-carousel .quote-card { width: 100%; box-sizing: border-box; animation: hotFade .28s ease; }
+.chat-hot-carousel .quote-card.hot-slide.in-right { animation: slideInRight .32s cubic-bezier(.22,.68,.36,1); }
+.chat-hot-carousel .quote-card.hot-slide.in-left { animation: slideInLeft .32s cubic-bezier(.22,.68,.36,1); }
+@keyframes hotFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
+@keyframes slideInLeft { from { opacity: 0; transform: translateX(-48px); } to { opacity: 1; transform: none; } }
 .chat-welcome { max-width: 900px; margin: 0 auto; }
+
+/* K线加载占位（固定高度，避免切换时布局跳动） */
+.kline-loading { height: 240px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 12.5px; }
+
+/* K线图缩放指示 */
+.zoom-ind { color: var(--accent); }

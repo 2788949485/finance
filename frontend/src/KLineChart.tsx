@@ -1,9 +1,12 @@
 // 自绘 SVG 图表：日K蜡烛图 + 分时折线图（无第三方库）
-import { useState } from 'react'
+// 日K支持：滚轮缩放（放大=减少K线数量，蜡烛更宽更清晰）、拖动平移、双击重置
+import { useRef, useState } from 'react'
 import type { KlineBar, MinutePoint } from './types'
 
 const UP = '#22c55e'
 const DOWN = '#ef4444'
+const MAX_ZOOM = 8
+const MIN_WIN = 10
 
 interface Props {
   bars: KlineBar[]
@@ -17,8 +20,17 @@ interface Props {
 export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode }: Props) {
   const [range, setRange] = useState<number | 'all'>(60)
   const [hover, setHover] = useState<KlineBar | null>(null)
+  // 缩放：zoom 放大倍数（1=显示当前 range 全部），pan 0~1 窗口位置（0=最新端，1=最旧端）
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState(0)
+  const [drag, setDrag] = useState<{ x: number; x0: number } | null>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
 
   const W = 680, H = 240, PAD = { t: 14, r: 10, b: 22, l: 56 }
+
+  const resetZoom = () => { setZoom(1); setPan(0) }
+
+  const switchRange = (n: number | 'all') => { setRange(n); resetZoom() }
 
   // ---------- 分时模式 ----------
   if (mode === 'minute') {
@@ -88,14 +100,58 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   }
 
   // ---------- 日K模式 ----------
-  // "全部"时若数据过多则均匀降采样（最多 ~600 根，保证渲染性能）
   const rawData = range === 'all' ? bars : bars.slice(-range)
-  const data = rawData.length > 600
-    ? rawData.filter((_, i) => i % Math.ceil(rawData.length / 600) === 0)
-    : rawData
+  if (rawData.length < 2) {
+    return <div className="kline-empty">K线数据不足</div>
+  }
+
+  // 数据窗口缩放：放大 → 窗口内K线数量变少，蜡烛更宽更清晰（不是像素放大）
+  const rawLen = rawData.length
+  const winCount = Math.max(MIN_WIN, Math.round(rawLen / zoom))
+  const maxStart = rawLen - winCount
+  const start = Math.round(maxStart * (1 - pan))
+  const winData = rawData.slice(start, start + winCount)
+  // 窗口内仍过多则均匀降采样（保证渲染性能）
+  const data = winData.length > 600
+    ? winData.filter((_, i) => i % Math.ceil(winData.length / 600) === 0)
+    : winData
   if (data.length < 2) {
     return <div className="kline-empty">K线数据不足</div>
   }
+
+  // 缩放事件：闭包引用当前窗口，每次渲染重建
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault()
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    if (!rect.width) return
+    const ratio = (e.clientX - rect.left) / rect.width
+    const newZoom = Math.min(MAX_ZOOM, Math.max(1, zoom * (e.deltaY < 0 ? 1.25 : 0.8)))
+    const newWin = Math.max(MIN_WIN, Math.round(rawLen / newZoom))
+    const anchorIdx = start + ratio * winCount
+    const newStart = Math.min(Math.max(0, Math.round(anchorIdx - ratio * newWin)), rawLen - newWin)
+    setZoom(newZoom)
+    setPan(1 - newStart / Math.max(1, rawLen - newWin))
+  }
+
+  // 拖动平移（仅放大后可用）
+  const onMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (zoom <= 1) return
+    setDrag({ x: e.clientX, x0: start })
+    e.preventDefault()
+  }
+  const onMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!drag) return
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    if (!rect.width) return
+    const roots = ((e.clientX - drag.x) / rect.width) * winCount
+    const ns = Math.min(Math.max(0, Math.round(drag.x0 - roots)), rawLen - winCount)
+    setPan(1 - ns / Math.max(1, rawLen - winCount))
+  }
+  const endDrag = () => setDrag(null)
 
   const vw = W - PAD.l - PAD.r
   const vh = H - PAD.t - PAD.b
@@ -128,13 +184,27 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         </span>
         <span className="kline-range">
           {[30, 60, 120].map((n) => (
-            <button key={n} className={`ghost ${range === n ? 'active' : ''}`} onClick={() => setRange(n)}>{n}日</button>
+            <button key={n} className={`ghost ${range === n ? 'active' : ''}`} onClick={() => switchRange(n)}>{n}日</button>
           ))}
-          <button className={`ghost ${range === 'all' ? 'active' : ''}`} onClick={() => setRange('all')}>全部</button>
+          <button className={`ghost ${range === 'all' ? 'active' : ''}`} onClick={() => switchRange('all')}>全部</button>
           {onMode && <button className="ghost" onClick={() => onMode('minute')}>分时</button>}
+          {zoom > 1 && (
+            <button className="ghost zoom-ind" onClick={resetZoom} title="重置缩放（或双击图表）">{zoom.toFixed(1)}x ⇲</button>
+          )}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="kline-svg" onMouseLeave={() => setHover(null)}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        className="kline-svg"
+        style={{ cursor: zoom > 1 ? (drag ? 'grabbing' : 'grab') : 'crosshair', touchAction: 'none' }}
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={endDrag}
+        onMouseLeave={() => { endDrag(); setHover(null) }}
+        onDoubleClick={resetZoom}
+      >
         {[0.25, 0.5, 0.75].map((r) => (
           <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + vh * r} y2={PAD.t + vh * r} stroke="#1e293b" strokeWidth="1" />
         ))}
