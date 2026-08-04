@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +28,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+FRONTEND_DIST = Path(os.environ.get("FRONTEND_DIST", Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"))
 
 
 # ---------- 认证依赖 ----------
