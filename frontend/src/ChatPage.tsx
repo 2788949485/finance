@@ -510,7 +510,6 @@ export default function ChatPage() {
             </div>
           ))}
         </div>
-        <WatchList />
       </aside>
 
       <div className="chat-main">
@@ -587,6 +586,10 @@ export default function ChatPage() {
           <button onClick={() => send()} disabled={busy || !input.trim()}>发送</button>
         </div>
       </div>
+
+      <aside className="watch-side">
+        <WatchList />
+      </aside>
     </div>
   )
 }

@@ -411,15 +411,16 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .user-menu button { padding: 6px 12px; font-size: 12px; }
 
 /* ---------- 对话页 ---------- */
-.chat-layout { display: grid; grid-template-columns: 220px 1fr; gap: 14px; }
+.chat-layout { display: grid; grid-template-columns: 200px 1fr 200px; gap: 12px; }
 .chat-side { display: flex; flex-direction: column; gap: 10px; }
+.watch-side { display: flex; flex-direction: column; }
 .new-chat-btn { width: 100%; }
 .chat-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; min-height: 0; }
 
-/* 自选股面板 */
-.watchlist { border-top: 1px solid var(--border); padding-top: 8px; flex-shrink: 0; }
-.watchlist-head { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-3); padding: 0 4px 6px; }
-.watchlist-items { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; }
+/* 自选股面板（右侧栏） */
+.watchlist { padding: 0; }
+.watchlist-head { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text-3); padding: 0 0 8px; }
+.watchlist-items { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; flex: 1; min-height: 0; }
 .watchlist-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: var(--radius-sm); background: var(--surface); font-size: 12px; }
 .watchlist-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .watchlist-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -506,6 +507,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 
 @media (max-width: 900px) {
   .chat-layout { grid-template-columns: 1fr; }
+  .watch-side { display: none; }
   .chat-list { flex-direction: row; overflow-x: auto; max-height: none; }
   .chat-item { min-width: 140px; }
   .msg-bubble { max-width: 92%; }
