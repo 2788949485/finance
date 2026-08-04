@@ -101,11 +101,13 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
 
     // 图表分区：上半部分价格区(70%) + 下半部分成交量区(30%)
     const MH = H + 80  // 分时图加高
-    const priceH = Math.round((MH - PAD.t - PAD.b) * 0.7)
-    const volTop = PAD.t + priceH + 8
-    const volH = MH - volTop - PAD.b
-    const vw = W - PAD.l - PAD.r
-    const yP = (v: number) => PAD.t + ((top - v) / spanM) * priceH
+    // 分时模式用更宽的左/右 padding 给 Y 轴价格+涨跌幅留空间
+    const mPAD = { ...PAD, l: 72, r: 56 }
+    const priceH = Math.round((MH - mPAD.t - mPAD.b) * 0.7)
+    const volTop = mPAD.t + priceH + 8
+    const volH = MH - volTop - mPAD.b
+    const vw = W - mPAD.l - mPAD.r
+    const yP = (v: number) => mPAD.t + ((top - v) / spanM) * priceH
 
     // 时间坐标：按实际数据的时间范围线性映射到 0~vw（适配 A股/港股/美股不同交易时段）
     // 将交易时段分为上午段和下午段（中间午休跳过），用分段线性映射
@@ -134,11 +136,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
       if (pmTimes.length > 0 && m >= pmStart) {
         // 下午段：映射到 amRatio~1
         const frac = (m - pmStart) / pmLen
-        return PAD.l + (amRatio + frac * (1 - amRatio)) * vw
+        return mPAD.l + (amRatio + frac * (1 - amRatio)) * vw
       } else {
         // 上午段：映射到 0~amRatio
         const frac = (m - amStart) / amLen
-        return PAD.l + frac * amRatio * vw
+        return mPAD.l + frac * amRatio * vw
       }
     }
 
@@ -189,7 +191,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             const rect = svg.getBoundingClientRect()
             const sx = (e.clientX - rect.left) / rect.width * W
             const sy = (e.clientY - rect.top) / rect.height * MH
-            if (sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= PAD.t + priceH) {
+            if (sx >= mPAD.l && sx <= W - mPAD.r && sy >= mPAD.t && sy <= mPAD.t + priceH) {
               setCrosshair({ x: sx, y: sy })
             } else {
               setCrosshair(null)
@@ -199,10 +201,10 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         >
           {/* 价格区网格 */}
           {[0, 0.25, 0.5, 0.75, 1].map((r) => (
-            <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + priceH * r} y2={PAD.t + priceH * r} stroke="#1e293b" strokeWidth="1" />
+            <line key={r} x1={mPAD.l} x2={W - mPAD.r} y1={mPAD.t + priceH * r} y2={mPAD.t + priceH * r} stroke="#1e293b" strokeWidth="1" />
           ))}
           {/* 昨收基准线 */}
-          <line x1={PAD.l} x2={W - PAD.r} y1={yP(base)} y2={yP(base)} stroke="#64748b" strokeWidth="1" strokeDasharray="4 4" />
+          <line x1={mPAD.l} x2={W - mPAD.r} y1={yP(base)} y2={yP(base)} stroke="#64748b" strokeWidth="1" strokeDasharray="4 4" />
           {/* 涨跌填充区域 */}
           <polygon points={fillPath} fill={fillColor} />
           {/* 价格线 */}
@@ -216,19 +218,19 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             const v = top - spanM * r
             const changePct = ((v - base) / base * 100)
             return (
-              <text key={r} x={PAD.l - 6} y={PAD.t + priceH * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
+              <text key={r} x={mPAD.l - 6} y={mPAD.t + priceH * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
                 {v.toFixed(2)}
                 <tspan fill={changePct >= 0 ? UP : DOWN} dx="2">{changePct >= 0 ? '+' : ''}{changePct.toFixed(1)}%</tspan>
               </text>
             )
           })}
           {/* 最新价格标签（跟随当前数据末端，不拉满全宽） */}
-          <line x1={PAD.l} x2={lastX} y1={yP(lastP.price)} y2={yP(lastP.price)} stroke={trend} strokeWidth="0.6" strokeDasharray="3 3" opacity="0.6" />
-          <rect x={lastX + 2} y={yP(lastP.price) - 8} width="50" height="16" rx="2" fill={trend} />
-          <text x={lastX + 27} y={yP(lastP.price) + 3} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">{lastP.price.toFixed(2)}</text>
+          <line x1={mPAD.l} x2={lastX} y1={yP(lastP.price)} y2={yP(lastP.price)} stroke={trend} strokeWidth="0.6" strokeDasharray="3 3" opacity="0.6" />
+          <rect x={Math.min(lastX + 2, W - mPAD.r - 52)} y={yP(lastP.price) - 8} width="50" height="16" rx="2" fill={trend} />
+          <text x={Math.min(lastX + 27, W - mPAD.r - 27)} y={yP(lastP.price) + 3} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">{lastP.price.toFixed(2)}</text>
 
           {/* 分隔线 */}
-          <line x1={PAD.l} x2={W - PAD.r} y1={volTop - 4} y2={volTop - 4} stroke="#1e293b" strokeWidth="1" />
+          <line x1={mPAD.l} x2={W - mPAD.r} y1={volTop - 4} y2={volTop - 4} stroke="#1e293b" strokeWidth="1" />
           {/* 成交量柱状图（按实际时间定位） */}
           {minute.map((m, i) => {
             const h = ((m.volume ?? 0) / maxVol) * volH * 0.9
@@ -240,7 +242,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             ) : null
           })}
           {/* 成交量标签 */}
-          <text x={PAD.l - 6} y={volTop + 10} textAnchor="end" fontSize="9" fill="#64748b">成交量</text>
+          <text x={mPAD.l - 6} y={volTop + 10} textAnchor="end" fontSize="9" fill="#64748b">成交量</text>
 
           {/* 时间轴标签 */}
           {timeLabels.map(({ t, label }) => (
@@ -249,14 +251,14 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           {/* 十字光标 */}
           {crosshair && (() => {
             const cy = crosshair.y
-            const val = top - ((cy - PAD.t) / priceH) * spanM
+            const val = top - ((cy - mPAD.t) / priceH) * spanM
             const valColor = val >= base ? UP : DOWN
             return (
               <g pointerEvents="none">
-                <line x1={PAD.l} y1={cy} x2={W - PAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-                <line x1={crosshair.x} y1={PAD.t} x2={crosshair.x} y2={PAD.t + priceH} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-                <rect x={PAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
-                <text x={PAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill={valColor} fontWeight="bold">{val.toFixed(2)}</text>
+                <line x1={mPAD.l} y1={cy} x2={W - mPAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+                <line x1={crosshair.x} y1={mPAD.t} x2={crosshair.x} y2={mPAD.t + priceH} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+                <rect x={mPAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
+                <text x={mPAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill={valColor} fontWeight="bold">{val.toFixed(2)}</text>
               </g>
             )
           })()}
