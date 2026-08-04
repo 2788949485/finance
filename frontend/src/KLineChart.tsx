@@ -27,6 +27,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const svgRef = useRef<SVGSVGElement>(null)
   const [crosshair, setCrosshair] = useState<{ x: number; y: number } | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
+  const [subIndicator, setSubIndicator] = useState<'macd' | 'kdj'>('macd')
 
   // ESC 退出全屏
   useEffect(() => {
@@ -380,6 +381,47 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const macdMax = Math.max(...allMacdVals, 0.01)
   const macdY = (v: number) => macdTop + macdH / 2 - (v / macdMax) * (macdH / 2 - 2)
 
+  // KDJ 计算（9,3,3）
+  const kdj = (() => {
+    const kArr: (number | null)[] = []
+    const dArr: (number | null)[] = []
+    const jArr: (number | null)[] = []
+    let prevK = 50, prevD = 50
+    for (let i = 0; i < data.length; i++) {
+      if (i < 8) { kArr.push(null); dArr.push(null); jArr.push(null); continue }
+      const window = data.slice(i - 8, i + 1)
+      const hn = Math.max(...window.map(d => d.high))
+      const ln = Math.min(...window.map(d => d.low))
+      const rsv = hn === ln ? 50 : ((data[i].close - ln) / (hn - ln)) * 100
+      const k = (2 / 3) * prevK + (1 / 3) * rsv
+      const d = (2 / 3) * prevD + (1 / 3) * k
+      const j = 3 * k - 2 * d
+      prevK = k; prevD = d
+      kArr.push(k); dArr.push(d); jArr.push(j)
+    }
+    return { k: kArr, d: dArr, j: jArr }
+  })()
+  const kdjVals = [...kdj.k, ...kdj.d, ...kdj.j].filter((v): v is number => v != null)
+  const kdjMin = Math.min(...kdjVals, 0)
+  const kdjMax = Math.max(...kdjVals, 100)
+  const kdjY = (v: number) => macdTop + macdH - 4 - ((v - kdjMin) / (kdjMax - kdjMin || 1)) * (macdH - 8)
+
+  // BOLL 计算（20,2）
+  const boll = (() => {
+    const mid: (number | null)[] = []
+    const upper: (number | null)[] = []
+    const lower: (number | null)[] = []
+    for (let i = 0; i < data.length; i++) {
+      if (i < 19) { mid.push(null); upper.push(null); lower.push(null); continue }
+      const window = data.slice(i - 19, i + 1)
+      const m = window.reduce((a, b) => a + b.close, 0) / 20
+      const variance = window.reduce((a, b) => a + (b.close - m) ** 2, 0) / 20
+      const sd = Math.sqrt(variance)
+      mid.push(m); upper.push(m + 2 * sd); lower.push(m - 2 * sd)
+    }
+    return { mid, upper, lower }
+  })()
+
   const last = data[data.length - 1]
   const trend = last.close >= last.open ? UP : DOWN
 
@@ -406,6 +448,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             <span className="zoom-hint">滚轮缩放查看细节</span>
           )}
           <button className="ghost" onClick={() => setFullscreen(!fullscreen)} title="全屏">{fullscreen ? '退出全屏' : '全屏'}</button>
+          <button className={`ghost ${subIndicator === 'macd' ? 'active' : ''}`} onClick={() => setSubIndicator('macd')} title="MACD副图">MACD</button>
+          <button className={`ghost ${subIndicator === 'kdj' ? 'active' : ''}`} onClick={() => setSubIndicator('kdj')} title="KDJ副图">KDJ</button>
         </span>
       </div>
       <svg
@@ -430,6 +474,12 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           points={ma20.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')}
           fill="none" stroke="#3b82f6" strokeWidth="1.2" opacity="0.9"
         />
+        {/* BOLL 上轨 */}
+        <polyline points={boll.upper.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')} fill="none" stroke="#64748b" strokeWidth="0.8" opacity="0.5" strokeDasharray="3 2" />
+        {/* BOLL 中轨 */}
+        <polyline points={boll.mid.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')} fill="none" stroke="#64748b" strokeWidth="0.8" opacity="0.4" />
+        {/* BOLL 下轨 */}
+        <polyline points={boll.lower.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')} fill="none" stroke="#64748b" strokeWidth="0.8" opacity="0.5" strokeDasharray="3 2" />
         {data.map((d, i) => {
           const x = PAD.l + i * step + step / 2
           const up = d.close >= d.open
@@ -497,10 +547,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </g>
           )
         })()}
-        {/* MACD 副图 */}
+        {/* 副图分隔线 */}
         <line x1={PAD.l} x2={W - PAD.r} y1={macdTop - 1} y2={macdTop - 1} stroke="#1e293b" strokeWidth="1" />
+        {subIndicator === 'macd' ? (
+          <>
         <text x={PAD.l + 4} y={macdTop + 11} fontSize="9" fill="#64748b">MACD(12,26,9)</text>
-        {/* 当前/hover 时显示 DIF/DEA/MACD 数值 */}
         {(() => {
           const idx = hover ? Math.min(data.length - 1, Math.max(0, Math.round((crosshair?.x ?? 0 - PAD.l) / step - 0.5))) : data.length - 1
           const d = dif[idx] ?? 0
@@ -529,6 +580,38 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         <polyline points={dif.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#f59e0b" strokeWidth="1" opacity="0.85" />
         {/* DEA 线 */}
         <polyline points={dea.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.85" />
+          </>
+        ) : (
+          <>
+        <text x={PAD.l + 4} y={macdTop + 11} fontSize="9" fill="#64748b">KDJ(9,3,3)</text>
+        {(() => {
+          const idx = hover ? Math.min(data.length - 1, Math.max(0, Math.round((crosshair?.x ?? 0 - PAD.l) / step - 0.5))) : data.length - 1
+          const kv = kdj.k[idx] ?? 0
+          const dv = kdj.d[idx] ?? 0
+          const jv = kdj.j[idx] ?? 0
+          return (
+            <text x={PAD.l + 70} y={macdTop + 11} fontSize="9" fill="#64748b">
+              <tspan fill="#a855f7">K {kv.toFixed(1)}</tspan>
+              <tspan dx="6" fill="#3b82f6">D {dv.toFixed(1)}</tspan>
+              <tspan dx="6" fill="#f59e0b">J {jv.toFixed(1)}</tspan>
+            </text>
+          )
+        })()}
+        {/* KDJ 20/50/80 参考线 */}
+        {[20, 50, 80].map((lvl) => (
+          <g key={lvl}>
+            <line x1={PAD.l} x2={W - PAD.r} y1={kdjY(lvl)} y2={kdjY(lvl)} stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 4" />
+            <text x={W - PAD.r + 2} y={kdjY(lvl) + 3} fontSize="8" fill="#475569">{lvl}</text>
+          </g>
+        ))}
+        {/* K 线 */}
+        <polyline points={kdj.k.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#a855f7" strokeWidth="1" opacity="0.85" />
+        {/* D 线 */}
+        <polyline points={kdj.d.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.85" />
+        {/* J 线 */}
+        <polyline points={kdj.j.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#f59e0b" strokeWidth="1" opacity="0.85" />
+          </>
+        )}
       </svg>
       {hover && (() => {
         const idx = data.findIndex(d => d.date === hover.date)
