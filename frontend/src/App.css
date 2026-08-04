@@ -486,7 +486,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .quote-loading { color: var(--text-3); font-size: 12.5px; padding: 6px 0; }
 
 /* ---------- Markdown 美化渲染 ---------- */
-.md-body { font-size: 13px; line-height: 1.55; }
+.md-body { font-size: 13px; line-height: 1.5; }
 .md-body > *:first-child { margin-top: 0; }
 .md-body > *:last-child { margin-bottom: 0; }
 .md-body h1, .md-body h2, .md-body h3, .md-body h4 {
@@ -494,7 +494,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   margin: 10px 0 5px;
 }
 .md-body h1 { font-size: 14.5px; }
-.md-body p { margin: 4px 0; color: var(--text); }
+.md-body p { margin: 2px 0; color: var(--text); }
 .md-body strong { color: var(--text); font-weight: 600; }
 .md-body ul, .md-body ol { margin: 4px 0; padding-left: 18px; }
 .md-body li { margin: 2px 0; }

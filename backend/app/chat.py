@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
 from datetime import datetime
 from typing import Any, Optional
 
@@ -357,6 +358,7 @@ def stream_chat(session_id: int, user_id: int, message: str):
     if reply:
         for chunk in _chunk_text(reply):
             yield _sse({"type": "chunk", "content": chunk})
+            time.sleep(0.03)  # 30ms/块，打字机节奏
         yield _sse({"type": "msg", "content": reply})
 
     save_message(session_id, "assistant", reply, tool_calls)
@@ -369,7 +371,7 @@ def stream_chat(session_id: int, user_id: int, message: str):
     yield _sse({"type": "done", "session_id": session_id})
 
 
-def _chunk_text(text: str, size: int = 24) -> list[str]:
+def _chunk_text(text: str, size: int = 12) -> list[str]:
     """把文本切成小块用于流式输出（打字机效果）。"""
     if not text:
         return []
