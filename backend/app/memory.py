@@ -69,3 +69,15 @@ def list_analyses(limit: int = 20, user_id: int | None = None) -> list[dict[str,
                 (limit,),
             ).fetchall()
     return [dict(r) for r in rows]
+
+
+def delete_analysis(analysis_id: int, user_id: int | None = None) -> bool:
+    """删除投研分析记录。"""
+    _ensure_user_id_column()
+    with _connect() as conn:
+        if user_id is not None:
+            cur = conn.execute("DELETE FROM analyses WHERE id=? AND user_id=?", (analysis_id, user_id))
+        else:
+            cur = conn.execute("DELETE FROM analyses WHERE id=?", (analysis_id,))
+        conn.commit()
+        return cur.rowcount > 0

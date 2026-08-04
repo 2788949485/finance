@@ -62,12 +62,16 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
                     {loadingId === it.id ? '加载...' : '查看'}
                   </button>
                   <button onClick={onPick}>再分析</button>
+                  <button className="ghost hist-del-btn" onClick={async () => {
+                    if (!confirm(`确定删除记录 #${it.id}？`)) return
+                    try { await api.deleteHistory(it.id); setItems(prev => prev.filter(x => x.id !== it.id)) } catch {}
+                  }}>删除</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
+    )}
     </div>
   )
 }

@@ -79,6 +79,8 @@ export const api = {
 
   getHistory: () => request<HistoryItem[]>('/api/history'),
 
+  deleteHistory: (id: number) => request<{ status: string }>(`/api/history/${id}`, { method: 'DELETE' }),
+
   getQuote: (symbol: string, days = 60, mode = 'day', fresh = 0, all = 0) =>
     request<QuoteResponse>(`/api/quote/${symbol}?days=${days}&mode=${mode}&fresh=${fresh}&all=${all}`),
 

@@ -212,6 +212,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .history-table td:first-child { font-family: var(--mono); }
 .history-table button { padding: 5px 14px; font-size: 12px; background: transparent; color: var(--text-2); border: 1px solid var(--border-strong); }
 .history-table button:hover { background: var(--surface-hover); color: var(--text); }
+.hist-del-btn:hover { color: var(--down) !important; border-color: var(--down) !important; }
 
 /* ---------- 报告头 ---------- */
 .report-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }

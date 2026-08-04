@@ -251,6 +251,12 @@ def history(limit: int = 20, user: dict[str, Any] = Depends(get_current_user)) -
     return memory.list_analyses(limit=min(limit, 100), user_id=user["id"])
 
 
+@app.delete("/api/history/{analysis_id}")
+def delete_history(analysis_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
+    ok = memory.delete_analysis(analysis_id, user_id=user["id"])
+    return {"status": "ok" if ok else "not_found"}
+
+
 # ---------- 行情 K 线 ----------
 
 @app.get("/api/quote/{symbol}")
