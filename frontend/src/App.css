@@ -570,7 +570,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   position: relative;
   background: none;
   border: none;
-  color: var(--text-secondary);
+  color: var(--text-2);
   cursor: pointer;
   padding: 6px;
   display: flex;
@@ -600,12 +600,12 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   top: 60px;
   right: 20px;
   z-index: 9999;
-  background: var(--bg-card);
+  background: var(--surface);
   border: 1px solid var(--accent);
   border-radius: 2px;
   min-width: 320px;
   max-width: 400px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 .alert-notif-header {
   display: flex;
@@ -619,7 +619,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .alert-notif-header button {
   background: none;
   border: none;
-  color: var(--text-secondary);
+  color: var(--text-2);
   cursor: pointer;
   font-size: 14px;
 }
@@ -632,21 +632,21 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   align-items: center;
 }
 .alert-notif-item:last-child { border-bottom: none; }
-.alert-notif-msg { color: var(--text-primary); }
-.alert-notif-time { color: var(--text-secondary); font-size: 11px; }
+.alert-notif-msg { color: var(--text); }
+.alert-notif-time { color: var(--text-2); font-size: 11px; }
 
 /* 预警管理面板 */
 .alert-panel {
   position: absolute;
   top: 50px;
   right: 0;
-  background: var(--bg-card);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 2px;
   min-width: 360px;
   max-width: 420px;
   z-index: 999;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 .alert-panel-header {
   display: flex;
@@ -668,7 +668,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .alert-add-btn:hover { background: var(--accent); color: #fff; }
 
 .alert-list { max-height: 360px; overflow-y: auto; }
-.alert-empty { padding: 20px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+.alert-empty { padding: 20px; text-align: center; color: var(--text-2); font-size: 13px; }
 
 .alert-item {
   padding: 10px 14px;
@@ -679,8 +679,8 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 }
 .alert-item.triggered { background: rgba(239,68,68,0.05); }
 .alert-item-info { display: flex; flex-direction: column; gap: 2px; }
-.alert-item-symbol { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-.alert-item-type { font-size: 12px; color: var(--text-secondary); }
+.alert-item-symbol { font-size: 13px; font-weight: 600; color: var(--text); }
+.alert-item-type { font-size: 12px; color: var(--text-2); }
 .alert-item-right { display: flex; align-items: center; gap: 8px; }
 .alert-tag {
   font-size: 10px;
@@ -692,7 +692,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .alert-del-btn {
   background: none;
   border: none;
-  color: var(--text-secondary);
+  color: var(--text-2);
   cursor: pointer;
   font-size: 14px;
   padding: 2px 4px;
@@ -714,9 +714,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   gap: 8px;
 }
 .alert-input, .alert-select {
-  background: var(--bg-main);
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  color: var(--text-primary);
+  color: var(--text);
   padding: 8px 10px;
   font-size: 13px;
   border-radius: 2px;
