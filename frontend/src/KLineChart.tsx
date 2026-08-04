@@ -33,6 +33,32 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
 
   const switchRange = (n: number | 'all') => { setRange(n); resetZoom() }
 
+  // 缩放：用 native event listener（passive: false 才能 preventDefault 阻止页面滚动）
+  // 必须在所有 return 之前调用（React Hooks 规则）
+  useEffect(() => {
+    if (mode === 'minute') return  // 分时模式不需要滚轮缩放
+    const svg = svgRef.current
+    if (!svg) return
+    const rawLen = (range === 'all' ? bars : bars.slice(-range)).length
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = svg.getBoundingClientRect()
+      if (!rect.width) return
+      const ratio = (e.clientX - rect.left) / rect.width
+      const newZoom = Math.min(MAX_ZOOM, Math.max(1, zoom * (e.deltaY < 0 ? 1.6 : 0.625)))
+      const newWin = Math.max(MIN_WIN, Math.round(rawLen / newZoom))
+      const curWin = Math.max(MIN_WIN, Math.round(rawLen / zoom))
+      const maxStart = rawLen - curWin
+      const curStart = Math.round(maxStart * (1 - pan))
+      const anchorIdx = curStart + ratio * curWin
+      const newStart = Math.min(Math.max(0, Math.round(anchorIdx - ratio * newWin)), Math.max(0, rawLen - newWin))
+      setZoom(newZoom)
+      setPan(1 - newStart / Math.max(1, Math.max(0, rawLen - newWin)))
+    }
+    svg.addEventListener('wheel', handler, { passive: false })
+    return () => svg.removeEventListener('wheel', handler)
+  }, [mode, zoom, pan, range, bars])
+
   // ---------- 分时模式 ----------
   if (mode === 'minute') {
     if (!minute || minute.length < 2) {
@@ -220,26 +246,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   if (data.length < 2) {
     return <div className="kline-empty">K线数据不足</div>
   }
-
-  // 缩放：用 native event listener（passive: false 才能 preventDefault 阻止页面滚动）
-  useEffect(() => {
-    const svg = svgRef.current
-    if (!svg) return
-    const handler = (e: WheelEvent) => {
-      e.preventDefault()
-      const rect = svg.getBoundingClientRect()
-      if (!rect.width) return
-      const ratio = (e.clientX - rect.left) / rect.width
-      const newZoom = Math.min(MAX_ZOOM, Math.max(1, zoom * (e.deltaY < 0 ? 1.6 : 0.625)))
-      const newWin = Math.max(MIN_WIN, Math.round(rawLen / newZoom))
-      const anchorIdx = start + ratio * winCount
-      const newStart = Math.min(Math.max(0, Math.round(anchorIdx - ratio * newWin)), rawLen - newWin)
-      setZoom(newZoom)
-      setPan(1 - newStart / Math.max(1, rawLen - newWin))
-    }
-    svg.addEventListener('wheel', handler, { passive: false })
-    return () => svg.removeEventListener('wheel', handler)
-  }, [zoom, rawLen, start, winCount])
 
   // 拖动平移（放大后可用）
   const onMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
