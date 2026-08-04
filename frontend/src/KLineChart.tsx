@@ -373,9 +373,13 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             const idx = Math.min(data.length - 1, i * interval)
             const d = data[idx]
             const x = PAD.l + idx * step + step / 2
-            // 日期格式化：YYYY-MM-DD -> MM-DD 或 YYYY-MM
+            // 日期格式化：本年显示 MM-DD，往年显示 YY-MM-DD
             const dateStr = d.date || ''
-            const short = dateStr.length >= 10 ? dateStr.slice(5) : dateStr
+            const year = dateStr.slice(0, 4)
+            const thisYear = String(new Date().getFullYear())
+            const short = dateStr.length >= 10
+              ? (year === thisYear ? dateStr.slice(5) : dateStr.slice(2))
+              : dateStr
             labels.push({ x, label: short })
           }
           return labels.map((l, i) => (
