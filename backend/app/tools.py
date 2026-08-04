@@ -183,6 +183,71 @@ def get_news(symbol: str) -> str:
 
 
 @tool
+def search_stock(query: str) -> str:
+    """通过股票名称、代码或拼音搜索股票。当用户提到一个你不认识的股票名称时，先用此工具搜索代码。
+    参数 query: 股票名称（如 嘉立创/茅台）、代码（如 600519）或拼音缩写（如 gzmt）。"""
+    results = datalayer.search_stocks(query, limit=8)
+    if not results:
+        return f"未找到匹配 '{query}' 的股票"
+    lines = [f"搜索 '{query}' 找到 {len(results)} 只股票："]
+    for r in results:
+        lines.append(f"  {r['name']} 代码:{r['code']} 市场:{r['market']}")
+    return "\n".join(lines)
+
+
+@tool
+def web_search(query: str) -> str:
+    """联网搜索最新信息。当用户问到训练数据之外的内容（如新上市公司、最新政策、今日新闻）时使用。
+    参数 query: 搜索关键词。"""
+    import requests
+    import re
+
+    try:
+        # 优先用搜狗搜索（国内可达，结果质量好）
+        r = requests.get(
+            "https://www.sogou.com/web",
+            params={"query": query, "ie": "utf8"},
+            timeout=10,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+        )
+        r.encoding = "utf-8"
+        # 提取搜索结果摘要
+        texts = re.findall(r'<p[^>]*class="[^"]*"[^>]*>(.*?)</p>', r.text, re.S)
+        results = []
+        for t in texts[:8]:
+            clean = re.sub(r"<[^>]+>", "", t).strip()
+            clean = clean.replace("&nbsp;", " ").replace("&amp;", "&")
+            if len(clean) > 15 and not clean.startswith("相关推荐"):
+                results.append(clean[:200])
+        if results:
+            return f"搜索 '{query}' 结果：\n" + "\n".join(f"- {r}" for r in results[:5])
+    except Exception:
+        pass
+
+    # 降级：Bing
+    try:
+        r2 = requests.get(
+            "https://www.bing.com/search",
+            params={"q": query},
+            timeout=10,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+        )
+        r2.encoding = "utf-8"
+        texts2 = re.findall(r"<p[^>]*>(.*?)</p>", r2.text, re.S)
+        results2 = []
+        for t in texts2[:8]:
+            clean = re.sub(r"<[^>]+>", "", t).strip()
+            if len(clean) > 15 and "cookie" not in clean.lower():
+                results2.append(clean[:200])
+        if results2:
+            return f"搜索 '{query}' 结果：\n" + "\n".join(f"- {r}" for r in results2[:5])
+    except Exception:
+        pass
+
+    return f"联网搜索 '{query}' 失败，请稍后再试"
+
+
+@tool
 def get_market_news(keyword: str = "") -> str:
     """查询实时财经快讯（新浪7x24全球财经直播，秒级更新）。
     参数 keyword: 可选关键词过滤（如 腾讯/茅台/芯片/AI），空则返回最新快讯。"""
@@ -300,4 +365,4 @@ def get_valuation(symbol: str) -> str:
     return "\n".join(lines)
 
 
-FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, compare_industry, get_sentiment, get_valuation, run_research]
+FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, search_stock, web_search, compare_industry, get_sentiment, get_valuation, run_research]
