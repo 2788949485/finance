@@ -10,6 +10,7 @@ from .fetcher import (
     get_minute_kline,
     get_news,
     get_stock_brief,
+    search_stocks,
 )
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "get_minute_kline",
     "get_news",
     "get_stock_brief",
+    "search_stocks",
 ]

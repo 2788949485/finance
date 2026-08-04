@@ -52,9 +52,9 @@ function FlowPanel({ steps, collapsed, onToggle }: {
   )
 }
 
-// 单条消息 + 内嵌行情卡片
+// 单条消息：行情卡片只跟随用户消息展示（助手回复不重复显示）
 function MessageItem({ m }: { m: ChatMessage }) {
-  const codes = extractCodes(m.content)
+  const codes = m.role === 'user' ? extractCodes(m.content) : []
   return (
     <div className={`msg ${m.role}`}>
       <div className="msg-bubble">
@@ -207,14 +207,22 @@ export default function ChatPage() {
           {messages.length === 0 && (
             <div className="chat-welcome">
               <h3>我是 FinanceCrew 投研助理</h3>
-              <p>可以问我任何 A 股问题，例如：</p>
+              <p>可以问我任何股票问题，例如：</p>
               <ul>
                 <li>"分析一下 600519 的基本面"</li>
                 <li>"600519 最近为什么涨？"</li>
                 <li>"跑一份 000001 的完整投研报告"</li>
                 <li>"对比 300750 和 002594 的估值"</li>
               </ul>
-              <p className="chat-hint">我会自动查询实时行情、财务、龙虎榜、新闻等真实数据来回答，涉及股票的消息下方会直接展示 K 线图</p>
+              <p className="chat-hint">我会自动查询实时行情、财务、龙虎榜、新闻等真实数据来回答</p>
+              <div className="chat-hot">
+                <div className="chat-hot-head">热门行情</div>
+                <div className="chat-hot-grid">
+                  {['600519', 'hk00700', 'usAAPL', '300750'].map((code) => (
+                    <QuoteCard key={code} code={code} />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
           {messages.map((m, i) => <MessageItem key={i} m={m} />)}

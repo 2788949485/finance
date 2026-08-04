@@ -196,6 +196,13 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0) -> di
     return out
 
 
+@app.get("/api/search/{q}")
+def search(q: str) -> dict[str, Any]:
+    """股票搜索（代码/名称/拼音，A股/港股/美股）。"""
+    items = datalayer.search_stocks(q, limit=8)
+    return {"query": q, "results": items or []}
+
+
 @app.get("/api/news/{symbol}")
 def news(symbol: str) -> dict[str, Any]:
     """个股新闻（实时快讯过滤 + 东财兜底）。"""

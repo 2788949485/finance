@@ -127,3 +127,10 @@ export interface NewsItem {
   title: string
   time: string
 }
+
+export interface SearchItem {
+  market: string
+  code: string
+  name: string
+  type: string
+}

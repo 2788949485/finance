@@ -1,7 +1,7 @@
 // 后端 API 封装
 import type {
   AnalysisResult, AuthResponse, ChatMessage, ChatReply, ChatSession,
-  HistoryItem, LLMConfig, NewsItem, QuoteResponse, UserProfile,
+  HistoryItem, LLMConfig, NewsItem, QuoteResponse, SearchItem, UserProfile,
 } from './types'
 
 const TOKEN_KEY = 'financecrew_token'
@@ -55,6 +55,8 @@ export const api = {
     request<QuoteResponse>(`/api/quote/${symbol}?days=${days}&mode=${mode}&fresh=${fresh}`),
 
   getNews: (symbol: string) => request<{ symbol: string; news: NewsItem[] }>(`/api/news/${symbol}`),
+
+  search: (q: string) => request<{ query: string; results: SearchItem[] }>(`/api/search/${encodeURIComponent(q)}`),
 
   health: () => request<{ status: string }>('/api/health'),
 

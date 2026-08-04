@@ -3,10 +3,11 @@ import { api, getToken, setToken } from './api'
 import type { AnalysisResult, AuthResponse, HistoryItem, LLMConfig } from './types'
 import LoginPage from './LoginPage'
 import ChatPage from './ChatPage'
+import QuotePage from './QuotePage'
 import Markdown from './Markdown'
 import './App.css'
 
-type Tab = 'chat' | 'analyze' | 'history' | 'config'
+type Tab = 'chat' | 'quote' | 'analyze' | 'history' | 'config'
 
 function App() {
   const [tab, setTab] = useState<Tab>('chat')
@@ -45,6 +46,7 @@ function App() {
         </div>
         <nav>
           <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>智能对话</button>
+          <button className={tab === 'quote' ? 'active' : ''} onClick={() => setTab('quote')}>行情</button>
           <button className={tab === 'analyze' ? 'active' : ''} onClick={() => setTab('analyze')}>投研分析</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
           <button className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>模型配置</button>
@@ -56,6 +58,7 @@ function App() {
       </header>
       <main>
         {tab === 'chat' && <ChatPage />}
+        {tab === 'quote' && <QuotePage />}
         {tab === 'analyze' && <AnalyzePane />}
         {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
         {tab === 'config' && <ConfigPane />}
