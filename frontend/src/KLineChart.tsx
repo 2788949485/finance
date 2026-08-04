@@ -1,6 +1,6 @@
 // 自绘 SVG 图表：日K蜡烛图 + 分时折线图（无第三方库）
 // 日K支持：滚轮缩放（放大=减少K线数量，蜡烛更宽更清晰）、拖动平移、双击重置
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { KlineBar, MinutePoint } from './types'
 
 const UP = '#22c55e'
@@ -221,21 +221,25 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     return <div className="kline-empty">K线数据不足</div>
   }
 
-  // 缩放事件：闭包引用当前窗口，每次渲染重建
-  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault()
+  // 缩放：用 native event listener（passive: false 才能 preventDefault 阻止页面滚动）
+  useEffect(() => {
     const svg = svgRef.current
     if (!svg) return
-    const rect = svg.getBoundingClientRect()
-    if (!rect.width) return
-    const ratio = (e.clientX - rect.left) / rect.width
-    const newZoom = Math.min(MAX_ZOOM, Math.max(1, zoom * (e.deltaY < 0 ? 1.6 : 0.625)))
-    const newWin = Math.max(MIN_WIN, Math.round(rawLen / newZoom))
-    const anchorIdx = start + ratio * winCount
-    const newStart = Math.min(Math.max(0, Math.round(anchorIdx - ratio * newWin)), rawLen - newWin)
-    setZoom(newZoom)
-    setPan(1 - newStart / Math.max(1, rawLen - newWin))
-  }
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = svg.getBoundingClientRect()
+      if (!rect.width) return
+      const ratio = (e.clientX - rect.left) / rect.width
+      const newZoom = Math.min(MAX_ZOOM, Math.max(1, zoom * (e.deltaY < 0 ? 1.6 : 0.625)))
+      const newWin = Math.max(MIN_WIN, Math.round(rawLen / newZoom))
+      const anchorIdx = start + ratio * winCount
+      const newStart = Math.min(Math.max(0, Math.round(anchorIdx - ratio * newWin)), rawLen - newWin)
+      setZoom(newZoom)
+      setPan(1 - newStart / Math.max(1, rawLen - newWin))
+    }
+    svg.addEventListener('wheel', handler, { passive: false })
+    return () => svg.removeEventListener('wheel', handler)
+  }, [zoom, rawLen, start, winCount])
 
   // 拖动平移（放大后可用）
   const onMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -316,7 +320,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         viewBox={`0 0 ${W} ${H}`}
         className="kline-svg"
         style={{ cursor: zoom > 1 ? (drag ? 'grabbing' : 'grab') : 'crosshair', touchAction: 'none' }}
-        onWheel={onWheel}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={endDrag}
@@ -355,6 +358,24 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </text>
           )
         })}
+        {/* X轴日期标签：均匀取5个点 */}
+        {(() => {
+          const n = Math.min(5, data.length)
+          const interval = Math.floor(data.length / n)
+          const labels = []
+          for (let i = 0; i < n; i++) {
+            const idx = Math.min(data.length - 1, i * interval)
+            const d = data[idx]
+            const x = PAD.l + idx * step + step / 2
+            // 日期格式化：YYYY-MM-DD -> MM-DD 或 YYYY-MM
+            const dateStr = d.date || ''
+            const short = dateStr.length >= 10 ? dateStr.slice(5) : dateStr
+            labels.push({ x, label: short })
+          }
+          return labels.map((l, i) => (
+            <text key={i} x={l.x} y={H - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{l.label}</text>
+          ))
+        })()}
         {hover && (
           <g>
             <line x1={PAD.l} x2={W - PAD.r} y1={y(hover.close)} y2={y(hover.close)} stroke="#64748b" strokeWidth="0.6" strokeDasharray="3 3" />
