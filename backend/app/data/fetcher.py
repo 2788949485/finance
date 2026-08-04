@@ -7,7 +7,9 @@
 """
 from __future__ import annotations
 
+import json
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
@@ -348,16 +350,31 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
         if code_hits:
             items.extend(code_hits)
 
-    # 2) A股专用：东方财富个股新闻（akshare，可能受限，仅作补充）
-    if AK_AVAILABLE and not sym.startswith(("hk", "us")) and len(items) < 8:
+    # 2) 东方财富搜索API：按股票名称搜索，返回真正的个股新闻（比akshare按代码搜索质量高）
+    if name and len(items) < 8:
         def _fetch() -> Optional[list[dict[str, str]]]:
-            df = _safe(ak.stock_news_em, symbol=sym)
-            if df is None or df.empty:
+            try:
+                import urllib.parse
+                param = json.dumps({
+                    "uid": "", "keyword": name, "type": ["cmsArticleWebOld"],
+                    "client": "web", "clientType": "web", "clientVersion": "curr",
+                    "param": {"cmsArticleWebOld": {"searchScope": "default", "sort": "default",
+                               "pageIndex": 1, "pageSize": 8, "preTag": "", "postTag": ""}}
+                }, ensure_ascii=False)
+                url = f"https://search-api-web.eastmoney.com/search/jsonp?cb=jQuery&param={urllib.parse.quote(param)}"
+                r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                m = re.search(r"jQuery\((.+)\)", r.text, re.S)
+                if not m:
+                    return None
+                d = json.loads(m.group(1))
+                arts = d.get("result", {}).get("cmsArticleWebOld", [])
+                out = []
+                for a in arts[:8]:
+                    title = a.get("title", "").replace("<em>", "").replace("</em>", "")
+                    out.append({"title": title, "time": (a.get("date", "") or "")[:16]})
+                return out or None
+            except Exception:
                 return None
-            out = []
-            for _, row in df.head(6).iterrows():
-                out.append({"title": str(row.get("新闻标题", "")), "time": str(row.get("发布时间", ""))[:16]})
-            return out or None
 
         extra = cached(f"news:{sym}", TTL["news"], _fetch)
         if extra:
