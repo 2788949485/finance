@@ -134,3 +134,28 @@ export interface SearchItem {
   name: string
   type: string
 }
+
+export interface AlertItem {
+  id: number
+  user_id: number
+  symbol: string
+  symbol_name: string
+  alert_type: string  // price_above / price_below / change_pct_up / change_pct_down
+  threshold: number
+  operator: string
+  status: string  // active / triggered / expired
+  message: string
+  created_at: string
+  triggered_at: string | null
+  current_price?: number
+}
+
+export interface SentimentData {
+  hot_rank_trend?: { time: string; rank: number }[]
+  xq_followers?: number | null
+  vol_ratio?: number | null
+  price_5d_chg?: number | null
+  momentum?: number | null
+  sentiment_score?: number | null
+  error?: string
+}

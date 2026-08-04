@@ -2,6 +2,7 @@
 import type {
   AnalysisResult, AuthResponse, ChatMessage, ChatReply, ChatSession,
   HistoryItem, LLMConfig, NewsItem, QuoteResponse, SearchItem, UserProfile,
+  AlertItem, SentimentData,
 } from './types'
 
 const TOKEN_KEY = 'financecrew_token'
@@ -154,4 +155,24 @@ export const api = {
     }
     return reply
   },
+
+  // 价格预警
+  listAlerts: (status = 'all') =>
+    request<AlertItem[]>(`/api/alerts?status=${status}`),
+
+  createAlert: (symbol: string, symbolName: string, alertType: string, threshold: number) =>
+    request<AlertItem>('/api/alerts', {
+      method: 'POST',
+      body: JSON.stringify({ symbol, symbol_name: symbolName, alert_type: alertType, threshold }),
+    }),
+
+  deleteAlert: (id: number) =>
+    request<{ status: string }>(`/api/alerts/${id}`, { method: 'DELETE' }),
+
+  checkAlerts: () =>
+    request<{ triggered: AlertItem[]; count: number }>('/api/alerts/check', { method: 'POST' }),
+
+  // 情绪面数据
+  getSentiment: (symbol: string) =>
+    request<SentimentData>(`/api/sentiment/${symbol}`),
 }

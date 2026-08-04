@@ -7,6 +7,7 @@ import QuotePage from './QuotePage'
 import AnalyzePane from './AnalyzePage'
 import HistoryPane from './HistoryPage'
 import ConfigPane from './ConfigPage'
+import AlertBell from './AlertBell'
 import './App.css'
 
 type Tab = 'chat' | 'quote' | 'analyze' | 'history' | 'config'
@@ -64,6 +65,7 @@ function App() {
           <button className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>模型配置</button>
         </nav>
         <div className="user-menu">
+          <AlertBell />
           <button className="ghost" onClick={toggle} title="切换主题">{theme === 'dark' ? '亮色' : '暗色'}</button>
           <span className="user-name">{auth.user.username}</span>
           <button className="ghost" onClick={logout}>退出</button>

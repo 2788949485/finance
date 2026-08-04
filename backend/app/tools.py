@@ -249,4 +249,32 @@ def compare_industry(symbol: str) -> str:
     return "\n".join(lines)
 
 
-FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, compare_industry, run_research]
+@tool
+def get_sentiment(symbol: str) -> str:
+    """查询社交情绪面数据：东财人气榜排名、雪球关注度、今日主力资金净流入、综合情绪评分。
+    参数 symbol: A股6位代码或公司名。仅支持A股。"""
+    from .tools import resolve_symbol as _rs
+    resolved = _rs(symbol)
+    if not resolved.isdigit() or len(resolved) != 6:
+        return f"{symbol} 的情绪数据暂不支持（当前仅支持A股）"
+    data = datalayer.get_social_sentiment(resolved)
+    if not data:
+        return f"未获取到 {resolved} 的情绪数据"
+    lines = [f"{resolved} 社交情绪面："]
+    if data.get("hot_rank_trend"):
+        latest_rank = data["hot_rank_trend"][-1]["rank"]
+        lines.append(f"  东财人气榜排名: 第{latest_rank}名")
+    if data.get("xq_followers"):
+        lines.append(f"  雪球关注人数: {data['xq_followers']:,}")
+    if data.get("vol_ratio") is not None:
+        lines.append(f"  近5日量比: {data['vol_ratio']}（>1放量 <1缩量）")
+    if data.get("price_5d_chg") is not None:
+        lines.append(f"  近5日涨跌幅: {data['price_5d_chg']:+.2f}%")
+    if data.get("momentum") is not None:
+        lines.append(f"  资金动能: {data['momentum']:+.1f}（正=主力流入 负=流出）")
+    if data.get("sentiment_score") is not None:
+        lines.append(f"  综合情绪评分: {data['sentiment_score']}/100")
+    return "\n".join(lines)
+
+
+FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, compare_industry, get_sentiment, run_research]

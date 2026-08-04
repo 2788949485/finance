@@ -124,12 +124,13 @@ class TechnicalAnalyst(Agent):
 
 
 class SentimentAnalyst(Agent):
-    """情绪面分析师：新闻舆情、市场情绪。"""
+    """情绪面分析师：新闻舆情、社交热度、资金流向、市场情绪。"""
     role = "sentiment"
     title = "情绪面分析师"
     system_prompt = (
         "你是市场情绪分析师，擅长舆情与新闻解读：消息面利好利空、"
-        "市场关注度、情绪温度。基于新闻标题和资金数据判断市场对该标的的情绪。"
+        "社交媒体热度、主力资金动向、市场情绪温度。综合新闻、东财人气榜排名、"
+        "雪球关注度、主力资金净流入等多维度数据，判断市场对该标的的情绪倾向。"
         + SCORE_HINT
     )
 
@@ -138,11 +139,37 @@ class SentimentAnalyst(Agent):
         news_block = "\n".join(
             f"- [{n.get('time', '')}] {n.get('title', '')}" for n in news[:8]
         ) or "（暂无新闻数据）"
+
+        # 社交情绪数据
+        sent = context.get("sentiment")
+        sent_block = ""
+        if sent:
+            parts = ["社交情绪数据："]
+            trend = sent.get("hot_rank_trend")
+            if trend:
+                latest_rank = trend[-1]["rank"]
+                parts.append(f"  东财人气榜排名: 第{latest_rank}名")
+            if sent.get("xq_followers"):
+                parts.append(f"  雪球关注人数: {sent['xq_followers']:,}")
+            if sent.get("vol_ratio") is not None:
+                parts.append(f"  近5日量比: {sent['vol_ratio']}（>1放量 <1缩量）")
+            if sent.get("price_5d_chg") is not None:
+                parts.append(f"  近5日涨跌幅: {sent['price_5d_chg']:+.2f}%")
+            if sent.get("momentum") is not None:
+                parts.append(f"  资金动能: {sent['momentum']:+.1f}（正=主力流入 负=流出）")
+            if sent.get("sentiment_score") is not None:
+                parts.append(f"  综合情绪评分: {sent['sentiment_score']}/100")
+            sent_block = "\n".join(parts) + "\n"
+        else:
+            sent_block = "（暂无社交情绪数据）\n"
+
         data_block = (
-            f"标的: {context.get('ticker')}\n最近新闻：\n{news_block}\n"
+            f"标的: {context.get('ticker')}\n"
+            f"最近新闻：\n{news_block}\n"
+            f"{sent_block}"
         )
         return self._call_structured(
-            "请基于以下新闻信息判断市场情绪：\n" + data_block,
+            "请基于以下新闻和社交情绪数据综合判断市场情绪：\n" + data_block,
             context=context
         )
 

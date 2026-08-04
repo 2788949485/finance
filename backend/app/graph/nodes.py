@@ -65,6 +65,11 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         ctx["industry"] = datalayer.get_industry_compare(ticker) or None
     except Exception:
         ctx["industry"] = None
+    # 社交情绪数据（东财人气榜+雪球关注+主力资金流，仅A股）
+    try:
+        ctx["sentiment"] = datalayer.get_social_sentiment(ticker) or None
+    except Exception:
+        ctx["sentiment"] = None
     # 历史趋势摘要（让分析师有纵向参照，不只是最新快照）
     try:
         hist = datalayer.get_history(ticker, days=120)

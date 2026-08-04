@@ -79,7 +79,7 @@ a { color: var(--accent); text-decoration: none; }
 .topbar nav button:hover { color: var(--text); }
 .topbar nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 
-.user-menu { display: flex; align-items: center; gap: 12px; }
+.user-menu { display: flex; align-items: center; gap: 12px; position: relative; }
 .user-name { font-size: 12px; color: var(--text-2); }
 .user-menu button { padding: 6px 12px; font-size: 12px; }
 
@@ -564,3 +564,173 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   .quote-card { max-width: 100%; }
   .flow-inline { max-width: 100%; }
 }
+
+/* ==================== 价格预警 ==================== */
+.alert-bell-btn {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+}
+.alert-bell-btn:hover { color: var(--accent); }
+.alert-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+/* 通知弹窗 */
+.alert-notif-toast {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  z-index: 9999;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.alert-notif-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+}
+.alert-notif-header button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+}
+.alert-notif-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.alert-notif-item:last-child { border-bottom: none; }
+.alert-notif-msg { color: var(--text-primary); }
+.alert-notif-time { color: var(--text-secondary); font-size: 11px; }
+
+/* 预警管理面板 */
+.alert-panel {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  min-width: 360px;
+  max-width: 420px;
+  z-index: 999;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.alert-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.alert-panel-header h3 { margin: 0; font-size: 14px; }
+.alert-add-btn {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.alert-add-btn:hover { background: var(--accent); color: #fff; }
+
+.alert-list { max-height: 360px; overflow-y: auto; }
+.alert-empty { padding: 20px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+
+.alert-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.alert-item.triggered { background: rgba(239,68,68,0.05); }
+.alert-item-info { display: flex; flex-direction: column; gap: 2px; }
+.alert-item-symbol { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.alert-item-type { font-size: 12px; color: var(--text-secondary); }
+.alert-item-right { display: flex; align-items: center; gap: 8px; }
+.alert-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+.alert-tag.active { background: rgba(59,130,246,0.15); color: var(--accent); }
+.alert-tag.triggered { background: rgba(239,68,68,0.15); color: #ef4444; }
+.alert-del-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+.alert-del-btn:hover { color: #ef4444; }
+.alert-item-msg {
+  font-size: 11px;
+  color: #ef4444;
+  margin-top: 4px;
+  width: 100%;
+}
+
+/* 新建预警表单 */
+.alert-form {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.alert-input, .alert-select {
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 13px;
+  border-radius: 2px;
+  outline: none;
+}
+.alert-input:focus, .alert-select:focus { border-color: var(--accent); }
+.alert-error { color: #ef4444; font-size: 12px; }
+.alert-submit-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.alert-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
