@@ -5,7 +5,7 @@ import type { AuthResponse } from './types'
 export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState(localStorage.getItem('fc_remember_user') || '')
-  const [password, setPassword] = useState(localStorage.getItem('fc_remember_pass') || '')
+  const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(!!localStorage.getItem('fc_remember_user'))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -22,10 +22,9 @@ export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => v
       setToken(r.token)
       if (remember) {
         localStorage.setItem('fc_remember_user', username.trim())
-        localStorage.setItem('fc_remember_pass', password)
+        // 安全：不再明文存储密码，只记住用户名
       } else {
         localStorage.removeItem('fc_remember_user')
-        localStorage.removeItem('fc_remember_pass')
       }
       onLogin(r)
     } catch (e) {

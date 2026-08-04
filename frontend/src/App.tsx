@@ -6,13 +6,13 @@ import ChatPage from './ChatPage'
 import QuotePage from './QuotePage'
 import AnalyzePane from './AnalyzePage'
 import HistoryPane from './HistoryPage'
-import ConfigPane from './ConfigPage'
 import AlertBell from './AlertBell'
 import PortfolioPage from './PortfolioPage'
 import BacktestPage from './BacktestPage'
+import ProfilePage from './ProfilePage'
 import './App.css'
 
-type Tab = 'chat' | 'quote' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'config'
+type Tab = 'chat' | 'quote' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'profile'
 
 function useTheme() {
   const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme') || 'dark')
@@ -66,7 +66,7 @@ function App() {
           <button className={tab === 'portfolio' ? 'active' : ''} onClick={() => setTab('portfolio')}>投资组合</button>
           <button className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
-          <button className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>模型配置</button>
+          <button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>个人中心</button>
         </nav>
         <div className="user-menu">
           <AlertBell />
@@ -82,7 +82,7 @@ function App() {
         {tab === 'portfolio' && <PortfolioPage />}
         {tab === 'backtest' && <BacktestPage />}
         {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
-        {tab === 'config' && <ConfigPane />}
+        {tab === 'profile' && <ProfilePage />}
       </main>
     </div>
   )

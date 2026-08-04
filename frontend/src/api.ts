@@ -213,4 +213,19 @@ export const api = {
     request<{ results: { name: string; model: string; response: string; latency_ms: number; error: string }[] }>(
       '/api/llm-compare', { method: 'POST', body: JSON.stringify({ prompt, models }) }
     ),
+
+  // 修改密码
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<{ status: string }>('/api/auth/change-password', {
+      method: 'POST', body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    }),
+
+  // per-user LLM 配置
+  getUserLLMConfig: () =>
+    request<LLMConfig & { api_key: string }>('/api/auth/llm-config'),
+
+  saveUserLLMConfig: (cfg: Partial<LLMConfig>) =>
+    request<LLMConfig & { api_key: string }>('/api/auth/llm-config', {
+      method: 'PUT', body: JSON.stringify(cfg),
+    }),
 }
