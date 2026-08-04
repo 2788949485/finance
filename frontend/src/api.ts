@@ -2,7 +2,8 @@
 import type {
   AnalysisResult, AuthResponse, ChatMessage, ChatReply, ChatSession,
   HistoryItem, LLMConfig, NewsItem, QuoteResponse, SearchItem, UserProfile,
-  AlertItem, SentimentData,
+  AlertItem, SentimentData, DCFResult, PortfolioPosition, PortfolioSummary,
+  TransactionItem, BacktestResult,
 } from './types'
 
 const TOKEN_KEY = 'financecrew_token'
@@ -178,4 +179,38 @@ export const api = {
   // 情绪面数据
   getSentiment: (symbol: string) =>
     request<SentimentData>(`/api/sentiment/${symbol}`),
+
+  // DCF估值
+  getDCF: (symbol: string) =>
+    request<DCFResult>(`/api/dcf/${symbol}`),
+
+  // 投资组合
+  getPortfolio: () =>
+    request<{ positions: PortfolioPosition[]; summary: PortfolioSummary }>(`/api/portfolio`),
+
+  buyStock: (symbol: string, shares: number, price: number, date?: string) =>
+    request<{ symbol: string; action: string }>(`/api/portfolio/buy`, {
+      method: 'POST', body: JSON.stringify({ symbol, shares, price, date: date || '' }),
+    }),
+
+  sellStock: (symbol: string, shares: number, price: number, date?: string) =>
+    request<{ symbol: string; action: string }>(`/api/portfolio/sell`, {
+      method: 'POST', body: JSON.stringify({ symbol, shares, price, date: date || '' }),
+    }),
+
+  removePosition: (symbol: string) =>
+    request<{ status: string }>(`/api/portfolio/${symbol}`, { method: 'DELETE' }),
+
+  getTransactions: () =>
+    request<TransactionItem[]>(`/api/portfolio/transactions`),
+
+  // 回测
+  getBacktest: (symbol: string, strategy: string, days: number) =>
+    request<BacktestResult>(`/api/backtest/${symbol}?strategy=${strategy}&days=${days}`),
+
+  // 多LLM对比
+  compareLLM: (prompt: string, models: { name: string; base_url: string; api_key: string; model: string }[]) =>
+    request<{ results: { name: string; model: string; response: string; latency_ms: number; error: string }[] }>(
+      '/api/llm-compare', { method: 'POST', body: JSON.stringify({ prompt, models }) }
+    ),
 }

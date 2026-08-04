@@ -8,9 +8,11 @@ import AnalyzePane from './AnalyzePage'
 import HistoryPane from './HistoryPage'
 import ConfigPane from './ConfigPage'
 import AlertBell from './AlertBell'
+import PortfolioPage from './PortfolioPage'
+import BacktestPage from './BacktestPage'
 import './App.css'
 
-type Tab = 'chat' | 'quote' | 'analyze' | 'history' | 'config'
+type Tab = 'chat' | 'quote' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'config'
 
 function useTheme() {
   const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme') || 'dark')
@@ -61,6 +63,8 @@ function App() {
           <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>智能对话</button>
           <button className={tab === 'quote' ? 'active' : ''} onClick={() => setTab('quote')}>行情</button>
           <button className={tab === 'analyze' ? 'active' : ''} onClick={() => setTab('analyze')}>投研分析</button>
+          <button className={tab === 'portfolio' ? 'active' : ''} onClick={() => setTab('portfolio')}>投资组合</button>
+          <button className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
           <button className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>模型配置</button>
         </nav>
@@ -75,6 +79,8 @@ function App() {
         {tab === 'chat' && <ChatPage />}
         {tab === 'quote' && <QuotePage />}
         {tab === 'analyze' && <AnalyzePane />}
+        {tab === 'portfolio' && <PortfolioPage />}
+        {tab === 'backtest' && <BacktestPage />}
         {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
         {tab === 'config' && <ConfigPane />}
       </main>

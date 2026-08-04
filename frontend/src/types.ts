@@ -159,3 +159,72 @@ export interface SentimentData {
   sentiment_score?: number | null
   error?: string
 }
+
+export interface DCFResult {
+  current_price: number
+  intrinsic_value: number
+  upside_pct: number
+  terminal_value: number
+  verdict: string
+  assumptions: {
+    base_growth: number
+    terminal_growth: number
+    discount_rate: number
+    fcf_margin: number
+    net_profit: number
+    revenue: number
+  }
+  projections: { year: number; growth_rate: number; fcf: number; pv: number }[]
+  error?: string
+}
+
+export interface PortfolioPosition {
+  id: number
+  symbol: string
+  symbol_name: string
+  shares: number
+  avg_cost: number
+  current_price: number | null
+  market_value: number | null
+  cost: number | null
+  pnl: number | null
+  pnl_pct: number | null
+  change_pct: number | null
+}
+
+export interface PortfolioSummary {
+  total_market_value: number
+  total_cost: number
+  total_pnl: number
+  total_pnl_pct: number
+  position_count: number
+}
+
+export interface TransactionItem {
+  id: number
+  symbol: string
+  symbol_name: string
+  action: string
+  shares: number
+  price: number
+  total: number
+  date: string
+  note: string
+}
+
+export interface BacktestResult {
+  strategy: string
+  symbol: string
+  period: string
+  initial_capital: number
+  final_value: number
+  total_return: number
+  benchmark_return: number
+  excess_return: number
+  max_drawdown: number
+  trades: number
+  win_rate: number
+  trades_log: { date: string; action: string; price: number; shares: number }[]
+  equity_curve: { date: string; value: number }[]
+  error?: string
+}
