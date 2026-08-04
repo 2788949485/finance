@@ -234,7 +234,7 @@ function ThinkingTimer({ startTime }: { startTime: number }) {
   return <span className="think-time">{(elapsed / 1000).toFixed(1)}s</span>
 }
 
-// 单条消息：行情卡片跟随用户和助手消息展示（codes 由父组件去重后传入）
+// 单条消息：行情卡片只在助手回复下面展示（基于工具调用确定相关股票）
 function MessageItem({ m, codes = [] }: { m: ChatMessage; codes?: string[] }) {
   return (
     <div className={`msg ${m.role}`}>
@@ -410,15 +410,19 @@ export default function ChatPage() {
             </div>
           )}
           {messages.map((m, i) => {
-            // 去重：同一只股票只展示一张卡片（首次出现在哪条消息就跟那条）
-            const seenCodes = new Set<string>()
-            for (let j = 0; j <= i; j++) {
-              const jc = extractCodes(messages[j].content)
-              for (const c of jc) {
-                if (j < i) seenCodes.add(c)  // 前面消息已展示过的
+            // 只从助手回复提取代码（用户消息不展示卡片）
+            let itemCodes: string[] = []
+            if (m.role === 'assistant') {
+              itemCodes = extractCodes(m.content)
+              // 去重：前面助手消息已展示过的不再展示
+              const seenCodes = new Set<string>()
+              for (let j = 0; j < i; j++) {
+                if (messages[j].role === 'assistant') {
+                  extractCodes(messages[j].content).forEach(c => seenCodes.add(c))
+                }
               }
+              itemCodes = itemCodes.filter(c => !seenCodes.has(c))
             }
-            const itemCodes = extractCodes(m.content).filter(c => !seenCodes.has(c))
             return <MessageItem key={i} m={m} codes={itemCodes} />
           })}
           {/* 流式回复区：工作流步骤 + 思考动画 + 回复文本，全部在一个 assistant 气泡内 */}
