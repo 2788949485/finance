@@ -26,8 +26,19 @@ class Agent:
         """子类实现：从 context 提取数据，调用 LLM，返回结构化结论。"""
         raise NotImplementedError
 
-    def _call_structured(self, user_prompt: str) -> AnalystView:
+    def _memory_block(self, context: dict[str, Any]) -> str:
+        """从 context 提取用户记忆，拼成 prompt 片段。"""
+        memories = context.get("user_memories") or []
+        if not memories:
+            return ""
+        items = "\n".join(f"- {m}" for m in memories[:10])
+        return f"\n\n【用户画像与偏好】\n以下是该用户的历史偏好记录，分析时请适当参考（如用户偏保守则更看重风险，偏激进则更看重弹性）：\n{items}\n"
+
+    def _call_structured(self, user_prompt: str, context: dict[str, Any] | None = None) -> AnalystView:
         """LangChain 结构化输出（with_structured_output），失败回退 JSON 解析。"""
+        # 注入用户记忆到 prompt 尾部
+        if context:
+            user_prompt += self._memory_block(context)
         model = self.llm._build_model()
         if model is None:
             data = json.loads(self.llm._mock(self.system_prompt, user_prompt))

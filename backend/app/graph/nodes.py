@@ -60,6 +60,16 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         ctx["news"] = datalayer.get_news(ticker) or []
     except Exception:
         ctx["news"] = []
+    # 注入用户长期记忆（反哺分析师：偏好影响评分方向）
+    user_id = state.get("user_id")
+    if user_id:
+        try:
+            from ..chat import get_user_memories
+            ctx["user_memories"] = get_user_memories(user_id)
+        except Exception:
+            ctx["user_memories"] = []
+    else:
+        ctx["user_memories"] = []
     return {"context": ctx}
 
 

@@ -40,7 +40,8 @@ class MacroAnalyst(Agent):
             "注：宏观数据源暂缺时，基于标的所处行业的景气度做合理推断。"
         )
         return self._call_structured(
-            "请分析以下标的当前所处的市场环境（宏观与行业层面）：\n" + data_block
+            "请分析以下标的当前所处的市场环境（宏观与行业层面）：\n" + data_block,
+            context=context
         )
 
 
@@ -67,7 +68,8 @@ class FundamentalAnalyst(Agent):
             f"ROE: {fin.get('roe', 'N/A')}  毛利率: {fin.get('gross_margin', 'N/A')}  负债率: {fin.get('debt_ratio', 'N/A')}%\n"
         )
         return self._call_structured(
-            "请分析以下标的的基本面与估值：\n" + data_block
+            "请分析以下标的的基本面与估值：\n" + data_block,
+            context=context
         )
 
 
@@ -94,7 +96,8 @@ class TechnicalAnalyst(Agent):
             f"60日高点: {tech.get('high_60d', 'N/A')}  60日低点: {tech.get('low_60d', 'N/A')}\n"
         )
         return self._call_structured(
-            "请分析以下标的的技术形态：\n" + data_block
+            "请分析以下标的的技术形态：\n" + data_block,
+            context=context
         )
 
 
@@ -117,7 +120,8 @@ class SentimentAnalyst(Agent):
             f"标的: {context.get('ticker')}\n最近新闻：\n{news_block}\n"
         )
         return self._call_structured(
-            "请基于以下新闻信息判断市场情绪：\n" + data_block
+            "请基于以下新闻信息判断市场情绪：\n" + data_block,
+            context=context
         )
 
 
@@ -150,7 +154,8 @@ class CapitalAnalyst(Agent):
                 f"换手率: {brief.get('turnover', 'N/A')}%  总市值: {brief.get('market_cap', 'N/A')}\n"
             )
         return self._call_structured(
-            "请分析以下标的的资金面动向：\n" + data_block
+            "请分析以下标的的资金面动向：\n" + data_block,
+            context=context
         )
 
 

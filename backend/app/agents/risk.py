@@ -21,11 +21,17 @@ class RiskManager:
         views_block = "\n".join(
             f"- {v.title}: 评分 {v.score} | {v.summary[:80]}" for v in views
         )
+        # 注入用户记忆（影响风控建议：偏保守则更严格）
+        memories = context.get("user_memories") or []
+        mem_block = ""
+        if memories:
+            mem_block = "\n用户偏好：" + "；".join(memories[:5]) + "\n"
         user_prompt = (
             f"标的: {context.get('ticker')} ({brief.get('name', '')})  现价: {brief.get('price', 'N/A')}\n"
             f"共识评分: {consensus_score}（-10看空 ~ +10看多）\n"
             f"各角色观点:\n{views_block}\n"
-            f"60日低点: {tech.get('low_60d', 'N/A')}  60日高点: {tech.get('high_60d', 'N/A')}\n\n"
+            f"60日低点: {tech.get('low_60d', 'N/A')}  60日高点: {tech.get('high_60d', 'N/A')}\n"
+            f"{mem_block}\n"
             "请输出JSON: {\"approved\": bool, \"verdict\": \"风控结论\", "
             "\"max_position_pct\": 建议最大仓位百分比, \"stop_loss_pct\": 建议止损百分比}\n"
             "规则：评分极端(<-6或>6)时仓位不超过10%；中性评分仓位不超过5%；"

@@ -27,13 +27,19 @@ class Trader:
         views_block = "\n".join(
             f"- {v.title}: 评分 {v.score} | {v.summary[:80]}" for v in views
         )
+        # 注入用户记忆（影响仓位和执行建议）
+        memories = context.get("user_memories") or []
+        mem_block = ""
+        if memories:
+            mem_block = "\n用户偏好：" + "；".join(memories[:5]) + "\n"
         user_prompt = (
             f"标的: {context.get('ticker')} ({brief.get('name', '')})  现价: {brief.get('price', 'N/A')}\n"
             f"共识评分: {consensus_score}  共识结论: {consensus_verdict}\n"
             f"风控意见: {risk.verdict}  批准: {'是' if risk.approved else '否'}  "
             f"最大仓位: {risk.max_position_pct}%  止损: {risk.stop_loss_pct}%\n"
             f"60日区间: {tech.get('low_60d', 'N/A')} ~ {tech.get('high_60d', 'N/A')}\n"
-            f"各角色观点:\n{views_block}\n\n"
+            f"各角色观点:\n{views_block}\n"
+            f"{mem_block}\n"
             "请输出JSON: {\"action\": \"买入/卖出/观望/回避\", \"target_price\": 目标价或null, "
             "\"stop_loss\": 止损价或null, \"position_pct\": 建议仓位百分比, "
             "\"reasoning\": \"执行逻辑(80字内)\", \"risk_warnings\": [\"风险提示\"]}\n"
