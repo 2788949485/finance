@@ -226,13 +226,39 @@ def compute_tech_signals(df: Optional[pd.DataFrame]) -> dict[str, Any]:
 
 
 def get_financials(symbol: str) -> Optional[dict[str, Any]]:
-    """财务摘要（同花顺），缓存 24 小时。
+    """财务摘要：A股用同花顺接口，港股/美股用 yfinance。缓存 24 小时。"""
+    sym = _norm_symbol(symbol)
 
-    注意：同花顺接口数据倒序（最新报告期在最后一行），数值带单位（亿/万/%）。
-    """
+    # 港股/美股：用 yfinance
+    if sym.startswith("hk") or sym.startswith("us"):
+        def _fetch_yf() -> Optional[dict[str, Any]]:
+            try:
+                import yfinance as yf
+                # 转换代码：hk00700 -> 0700.HK，usAAPL -> AAPL
+                if sym.startswith("hk"):
+                    yf_sym = sym[2:] + ".HK"
+                else:
+                    yf_sym = sym[2:]
+                info = yf.Ticker(yf_sym).info
+                if not info:
+                    return None
+                return {
+                    "period": "最新报告期",
+                    "revenue": info.get("totalRevenue"),
+                    "revenue_yoy": None,
+                    "net_profit": info.get("netIncomeToCommon"),
+                    "net_profit_yoy": None,
+                    "roe": round(info.get("returnOnEquity", 0) * 100, 2) if info.get("returnOnEquity") else None,
+                    "gross_margin": round(info.get("grossMargins", 0) * 100, 2) if info.get("grossMargins") else None,
+                    "debt_ratio": info.get("debtToEquity"),
+                }
+            except Exception:
+                return None
+        return cached(f"financials:{sym}", TTL["financials"], _fetch_yf)
+
+    # A股：同花顺接口
     if not AK_AVAILABLE:
         return None
-    sym = _norm_symbol(symbol)
 
     def _fetch() -> Optional[dict[str, Any]]:
         df = _safe(ak.stock_financial_abstract_ths, symbol=sym, indicator="按报告期")

@@ -12,3 +12,4 @@ pandas>=2.2
 pydantic>=2.7
 python-dotenv>=1.0
 pyjwt>=2.9
+yfinance>=1.5
