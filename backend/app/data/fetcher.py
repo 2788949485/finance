@@ -595,10 +595,17 @@ def search_stocks(q: str, limit: int = 8) -> Optional[list[dict[str, str]]]:
     if not q or not q.strip():
         return None
 
+    # 腾讯搜索不支持 us/hk 前缀，去掉后再搜
+    search_q = q.strip()
+    if search_q.lower().startswith("us"):
+        search_q = search_q[2:]
+    elif search_q.lower().startswith("hk"):
+        search_q = search_q[2:].lstrip("0") or search_q[2:]
+
     def _fetch() -> Optional[list[dict[str, str]]]:
         import json as _json
         import urllib.parse
-        url = f"https://smartbox.gtimg.cn/s3/?v=2&q={urllib.parse.quote(q.strip())}&t=all"
+        url = f"https://smartbox.gtimg.cn/s3/?v=2&q={urllib.parse.quote(search_q)}&t=all"
         try:
             r = requests.get(url, timeout=8)
             r.encoding = "gbk"

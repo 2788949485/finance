@@ -44,7 +44,7 @@ from collections import defaultdict
 
 _rate_map: dict[str, list[float]] = defaultdict(list)
 RATE_WINDOW = 60  # 60秒窗口
-RATE_MAX = 60     # 每窗口最多60次请求
+RATE_MAX = 200    # 每窗口最多200次请求（K线轮询+行情+预警+搜索正常使用需要余量）
 
 
 @app.middleware("http")

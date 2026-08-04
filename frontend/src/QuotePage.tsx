@@ -78,8 +78,33 @@ export default function QuotePage() {
     try {
       const r = await api.search(q.trim())
       setResults(r.results)
+      // 如果只有一个结果，自动选中
+      if (r.results.length === 1) {
+        setSelected(r.results[0])
+        setQuery(r.results[0].name)
+        setResults([])
+      }
     } catch { setResults([]) } finally { setSearching(false) }
   }, [])
+
+  // 回车时：如果有搜索结果选第一个，否则搜完自动选
+  const onSearchEnter = async () => {
+    const q = query.trim()
+    if (!q) return
+    if (results.length > 0) {
+      pick(results[0])
+      return
+    }
+    setSearching(true)
+    try {
+      const r = await api.search(q)
+      if (r.results.length > 0) {
+        setSelected(r.results[0])
+        setQuery(r.results[0].name)
+      }
+      setResults([])
+    } catch { setResults([]) } finally { setSearching(false) }
+  }
 
   const onQueryChange = (v: string) => {
     setQuery(v)
@@ -108,7 +133,7 @@ export default function QuotePage() {
         <input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && doSearch(query)}
+          onKeyDown={(e) => e.key === 'Enter' && onSearchEnter()}
           placeholder="搜索股票代码 / 名称 / 拼音（如 600519 / 茅台 / maotai）"
         />
         {searching && <span className="qp-searching">搜索中...</span>}

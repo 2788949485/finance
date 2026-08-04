@@ -76,10 +76,10 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
 
   // ---------- 分时模式 ----------
   if (mode === 'minute') {
-    if (!minute || minute.length < 2) {
-      return (
+    if (!minute || minute.length < 1) {
+            return (
         <div className="kline-wrap">
-          <div className="kline-head">
+          <div className="kline-toolbar">
             <span className="kline-symbol">{symbol} 分时</span>
             <span className="kline-range">
               {onMode && <button className="ghost" onClick={() => onMode('day')}>日K</button>}

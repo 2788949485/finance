@@ -15,6 +15,11 @@ const TOOL_LABEL: Record<string, string> = {
   get_stock_news: '读取个股新闻',
   get_market_news: '获取实时快讯',
   run_research: '运行多智能体投研',
+  search_stock: '搜索股票代码',
+  web_search: '联网搜索',
+  compare_industry: '行业对比分析',
+  get_sentiment: '查询情绪面数据',
+  get_valuation: 'DCF估值计算',
 }
 
 // 欢迎页热门行情轮播（单排，自动轮播 + 手动切换）
