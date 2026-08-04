@@ -337,7 +337,11 @@ function WatchList() {
 }
 
 // 单条消息：行情卡片只在助手回复下面展示（基于工具调用确定相关股票）
-function MessageItem({ m, codes = [] }: { m: ChatMessage; codes?: string[] }) {
+function MessageItem({ m, codes = [], onRegenerate }: { m: ChatMessage; codes?: string[]; onRegenerate?: () => void }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () => {
+    navigator.clipboard.writeText(m.content).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
+  }
   return (
     <div className={`msg ${m.role}`}>
       <div className="msg-bubble">
@@ -347,6 +351,12 @@ function MessageItem({ m, codes = [] }: { m: ChatMessage; codes?: string[] }) {
             {m.tool_calls.map((t, j) => (
               <span key={j}>{TOOL_LABEL[t.name] || t.name}</span>
             ))}
+          </div>
+        )}
+        {m.role === 'assistant' && (
+          <div className="msg-actions">
+            <button className="msg-action-btn" title="复制" onClick={copy}>{copied ? '已复制' : '复制'}</button>
+            {onRegenerate && <button className="msg-action-btn" title="重新生成" onClick={onRegenerate}>重新生成</button>}
           </div>
         )}
       </div>
@@ -419,10 +429,10 @@ export default function ChatPage() {
     setError('')
   }
 
-  const send = async () => {
-    const text = input.trim()
+  const send = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim()
     if (!text || busy) return
-    setInput('')
+    if (!overrideText) setInput('')
     setBusy(true)
     setError('')
     setFlowSteps([])
@@ -465,6 +475,16 @@ export default function ChatPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  const regenerate = async () => {
+    // 找到最后一条 user 消息，删掉其后的 assistant 消息，重新发送
+    const lastUserIdx = messages.length - 1 - [...messages].reverse().findIndex(m => m.role === 'user')
+    if (lastUserIdx < 0) return
+    const userMsg = messages[lastUserIdx].content
+    // 删掉这条 user 消息后面的所有消息（包括 assistant 回复）
+    setMessages(prev => prev.slice(0, lastUserIdx))
+    send(userMsg)
   }
 
   return (
@@ -523,7 +543,9 @@ export default function ChatPage() {
               }
               itemCodes = itemCodes.filter(c => !seenCodes.has(c))
             }
-            return <MessageItem key={i} m={m} codes={itemCodes} />
+            // 最后一条 assistant 消息才显示重新生成按钮
+            const isLastAssistant = m.role === 'assistant' && i === messages.length - 1
+            return <MessageItem key={i} m={m} codes={itemCodes} onRegenerate={isLastAssistant && !busy ? regenerate : undefined} />
           })}
           {/* 流式回复区：工作流步骤 + 思考动画 + 回复文本，全部在一个 assistant 气泡内 */}
           {busy && (
@@ -562,7 +584,7 @@ export default function ChatPage() {
             onKeyDown={(e) => e.key === 'Enter' && send()}
             placeholder="输入问题，回车发送（支持直接输入股票代码）"
           />
-          <button onClick={send} disabled={busy || !input.trim()}>发送</button>
+          <button onClick={() => send()} disabled={busy || !input.trim()}>发送</button>
         </div>
       </div>
     </div>
