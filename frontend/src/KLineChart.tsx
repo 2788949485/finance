@@ -375,8 +375,10 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     return result
   })()
   const macdBars = dif.map((d, i) => (d != null && dea[i] != null) ? (d - dea[i]!) * 2 : null)
-  const macdMax = Math.max(...macdBars.filter((v): v is number => v != null).map(Math.abs), 0.01)
-  const macdY = (v: number) => macdTop + macdH / 2 - (v / macdMax) * (macdH / 2)
+  // 缩放范围取 DIF/DEA/MACD 三者的最大绝对值（否则柱子和线可能超出副图区域）
+  const allMacdVals = [...dif, ...dea, ...macdBars].filter((v): v is number => v != null).map(Math.abs)
+  const macdMax = Math.max(...allMacdVals, 0.01)
+  const macdY = (v: number) => macdTop + macdH / 2 - (v / macdMax) * (macdH / 2 - 2)
 
   const last = data[data.length - 1]
   const trend = last.close >= last.open ? UP : DOWN
@@ -498,6 +500,20 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         {/* MACD 副图 */}
         <line x1={PAD.l} x2={W - PAD.r} y1={macdTop - 1} y2={macdTop - 1} stroke="#1e293b" strokeWidth="1" />
         <text x={PAD.l + 4} y={macdTop + 11} fontSize="9" fill="#64748b">MACD(12,26,9)</text>
+        {/* 当前/hover 时显示 DIF/DEA/MACD 数值 */}
+        {(() => {
+          const idx = hover ? Math.min(data.length - 1, Math.max(0, Math.round((crosshair?.x ?? 0 - PAD.l) / step - 0.5))) : data.length - 1
+          const d = dif[idx] ?? 0
+          const e = dea[idx] ?? 0
+          const m = macdBars[idx] ?? 0
+          return (
+            <text x={PAD.l + 90} y={macdTop + 11} fontSize="9" fill="#64748b">
+              <tspan fill="#f59e0b">DIF {d.toFixed(3)}</tspan>
+              <tspan dx="6" fill="#3b82f6">DEA {e.toFixed(3)}</tspan>
+              <tspan dx="6" fill={m >= 0 ? UP : DOWN}>MACD {m.toFixed(3)}</tspan>
+            </text>
+          )
+        })()}
         {/* MACD 零轴 */}
         <line x1={PAD.l} x2={W - PAD.r} y1={macdTop + macdH / 2} y2={macdTop + macdH / 2} stroke="#334155" strokeWidth="0.5" />
         {/* MACD 柱状图 */}
@@ -514,11 +530,20 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         {/* DEA 线 */}
         <polyline points={dea.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.85" />
       </svg>
-      {hover && (
-        <div className="kline-tooltip">
-          {hover.date} 开 {hover.open} 高 {hover.high} 低 {hover.low} 收 {hover.close}
-        </div>
-      )}
+      {hover && (() => {
+        const idx = data.findIndex(d => d.date === hover.date)
+        const d = dif[idx] ?? 0
+        const e = dea[idx] ?? 0
+        const m = macdBars[idx] ?? 0
+        return (
+          <div className="kline-tooltip">
+            {hover.date} 开 {hover.open} 高 {hover.high} 低 {hover.low} 收 {hover.close}
+            <span style={{ marginLeft: 12, color: '#f59e0b' }}>DIF {d.toFixed(3)}</span>
+            <span style={{ marginLeft: 6, color: '#3b82f6' }}>DEA {e.toFixed(3)}</span>
+            <span style={{ marginLeft: 6, color: m >= 0 ? '#22c55e' : '#ef4444' }}>MACD {m.toFixed(3)}</span>
+          </div>
+        )
+      })()}
     </div>
   )
 }
