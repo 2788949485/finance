@@ -92,6 +92,8 @@ export const api = {
 
   health: () => request<{ status: string }>('/api/health'),
 
+  getHotStocks: () => request<{ code: string; name: string; change_pct: number }[]>('/api/hot'),
+
   // 认证
   register: (username: string, password: string) =>
     request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),

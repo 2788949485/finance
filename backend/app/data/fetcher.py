@@ -409,6 +409,52 @@ def get_industry_compare(symbol: str) -> Optional[dict[str, Any]]:
     return cached(f"industry:{sym}", TTL["quote"], _fetch)
 
 
+def get_hot_stocks() -> list[dict[str, Any]]:
+    """每日热门股票：A股大市值涨幅前4 + 港股美股各1只，每天动态变化。"""
+    # A股候选池（大市值蓝筹+热门赛道龙头）
+    a_pool = [
+        "600519", "601398", "300750", "600036", "000858",
+        "601318", "000001", "600276", "601012", "002594",
+        "600900", "000333", "601899", "600030", "002475",
+    ]
+    # 港股美股候选
+    hk_pool = ["hk00700", "hk09988", "hk01810", "hk03690"]
+    us_pool = ["usAAPL", "usTSLA", "usNVDA", "usMSFT"]
+
+    def _fetch() -> list[dict[str, Any]]:
+        import time
+        today = time.strftime("%Y%m%d")
+        items: list[dict[str, Any]] = []
+
+        # A股：拉实时行情，按涨幅排序取前4
+        a_quotes = []
+        for code in a_pool:
+            brief = get_stock_brief(code)
+            if brief and brief.get("price"):
+                a_quotes.append(brief)
+        a_quotes.sort(key=lambda x: x.get("change_pct", 0), reverse=True)
+        for q in a_quotes[:4]:
+            items.append({"code": q["symbol"], "name": q["name"], "change_pct": q.get("change_pct", 0)})
+
+        # 港股：取1只
+        for code in hk_pool:
+            brief = get_stock_brief(code)
+            if brief and brief.get("price"):
+                items.append({"code": code, "name": brief["name"], "change_pct": brief.get("change_pct", 0)})
+                break
+
+        # 美股：取1只
+        for code in us_pool:
+            brief = get_stock_brief(code)
+            if brief and brief.get("price"):
+                items.append({"code": code, "name": brief["name"], "change_pct": brief.get("change_pct", 0)})
+                break
+
+        return items[:6]
+
+    return cached(f"hot_stocks", 3600, _fetch)  # 缓存1小时
+
+
 def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
     """个股新闻：新浪快讯按名称/代码过滤 + 东方财富个股新闻兜底，缓存 15 分钟。"""
     sym = _norm_symbol(symbol)

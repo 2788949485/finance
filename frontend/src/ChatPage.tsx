@@ -18,7 +18,19 @@ const TOOL_LABEL: Record<string, string> = {
 }
 
 // 欢迎页热门行情轮播（单排，自动轮播 + 手动切换）
-const HOT_CODES = ['600519', 'hk00700', 'usAAPL', '300750']
+const HOT_FALLBACK = ['600519', 'hk00700', 'usAAPL', '300750']
+
+function useHotCodes() {
+  const [codes, setCodes] = useState<string[]>(HOT_FALLBACK)
+  useEffect(() => {
+    api.getHotStocks().then((items) => {
+      if (items && items.length >= 3) {
+        setCodes(items.map((i) => i.code))
+      }
+    }).catch(() => {})
+  }, [])
+  return codes
+}
 
 // 轮播专用K线：切换股票时只重新加载这部分（行情简报/新闻由外层预加载）
 function HotKLine({ code, name, lastClose }: { code: string; name: string; lastClose: number | null }) {
@@ -136,6 +148,7 @@ function HotQuoteCard({ code, brief, news, dir }: {
 
 // 热门行情轮播容器：预加载4只简报+新闻，切换只重载K线，左右滑动过渡
 function HotCarousel() {
+  const HOT_CODES = useHotCodes()
   const [idx, setIdx] = useState(0)
   const [dir, setDir] = useState<1 | -1>(1)
   const [briefs, setBriefs] = useState<Record<string, QuoteResponse | null>>({})
@@ -149,7 +162,7 @@ function HotCarousel() {
       api.getQuote(c, 60, 'day', 0).then((q) => setBriefs((m) => ({ ...m, [c]: q }))).catch(() => {})
       api.getNews(c).then((n) => setNewsMap((m) => ({ ...m, [c]: n.news }))).catch(() => {})
     })
-  }, [])
+  }, [HOT_CODES])
 
   // 自动轮播：鼠标悬停时暂停，移开恢复
   useEffect(() => {
