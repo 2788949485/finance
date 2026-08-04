@@ -334,23 +334,22 @@ def stream_chat(session_id: int, user_id: int, message: str):
                 msgs = value.get("messages", [])
                 if not msgs:
                     continue
-                last = msgs[-1]
-                tcs = getattr(last, "tool_calls", None)
-                if tcs:
-                    for tc in tcs:
-                        name = tc.get("name", "")
-                        args = tc.get("args", {})
-                        tool_calls.append({"name": name, "args": args})
-                        yield _sse({"type": "tool_start", "name": name, "args": args})
-                elif isinstance(last, SystemMessage):
-                    continue
-                elif getattr(last, "type", "") == "tool":
-                    # 工具执行完成（ToolMessage）：标记对应步骤 done
-                    yield _sse({"type": "tool_end", "name": "", "preview": str(last.content)[:120]})
-                elif last.content and getattr(last, "type", "") == "ai":
-                    # 最终回复（无工具调用的 AIMessage）
-                    reply = str(last.content)
-                    yield _sse({"type": "msg", "content": reply})
+                # 并行工具调用时 tools 节点可能含多个消息，逐个处理
+                for m in msgs:
+                    tcs = getattr(m, "tool_calls", None)
+                    if tcs:
+                        for tc in tcs:
+                            name = tc.get("name", "")
+                            args = tc.get("args", {})
+                            tool_calls.append({"name": name, "args": args})
+                            yield _sse({"type": "tool_start", "name": name, "args": args})
+                    elif getattr(m, "type", "") == "tool":
+                        # 工具执行完成（ToolMessage）：标记对应步骤 done
+                        yield _sse({"type": "tool_end", "name": "", "preview": str(m.content)[:120]})
+                    elif getattr(m, "type", "") == "ai" and m.content:
+                        # 最终回复（无工具调用的 AIMessage）
+                        reply = str(m.content)
+                        yield _sse({"type": "msg", "content": reply})
     except Exception as e:
         reply = f"对话处理失败: {e}"
         yield _sse({"type": "error", "message": str(e)})
