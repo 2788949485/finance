@@ -695,6 +695,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 @keyframes slideInLeft { from { opacity: 0; transform: translateX(-48px); } to { opacity: 1; transform: none; } }
 .chat-welcome { max-width: 900px; margin: 0 auto; }
 
+.chat-hot-carousel .kline-wrap { width: 680px; max-width: 100%; margin: 0 auto; }
+.chat-hot-carousel .kline-svg { width: 100%; height: auto; display: block; }
+
 /* K线加载占位（固定高度，避免切换时布局跳动） */
 .kline-loading { height: 240px; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 12.5px; }
 
