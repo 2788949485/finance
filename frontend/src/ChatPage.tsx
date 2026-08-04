@@ -197,15 +197,15 @@ function FlowPanel({ steps, collapsed, onToggle }: {
         {steps.length > 0 && (
           <span className="flow-status">
             {doneCount === steps.length && steps.length > 0
-              ? `完成 ${steps.length} 步工具调用`
-              : `正在执行 ${doneCount}/${steps.length} 步`}
+              ? `完成 ${steps.length} 步`
+              : `执行中 ${doneCount}/${steps.length}`}
           </span>
         )}
         <span className={`flow-arrow ${collapsed ? '' : 'open'}`}>▾</span>
       </button>
       {!collapsed && (
         <div className="flow-body">
-          {steps.length === 0 && <div className="flow-empty">正在规划执行步骤...</div>}
+          {steps.length === 0 && <div className="flow-empty"><span className="thinking-dots"><i></i><i></i><i></i></span> 正在规划...</div>}
           {steps.map((s, i) => (
             <div key={i} className={`flow-step ${s.status}`}>
               <span className="flow-step-icon">{s.status === 'done' ? '✓' : '◌'}</span>
@@ -217,6 +217,21 @@ function FlowPanel({ steps, collapsed, onToggle }: {
       )}
     </div>
   )
+}
+
+// 思考动画：三个跳动的小圆点
+function ThinkingDots() {
+  return <span className="thinking-dots"><i></i><i></i><i></i></span>
+}
+
+// 耗时计时器
+function ThinkingTimer({ startTime }: { startTime: number }) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const t = window.setInterval(() => setElapsed(Date.now() - startTime), 100)
+    return () => window.clearInterval(t)
+  }, [startTime])
+  return <span className="think-time">{(elapsed / 1000).toFixed(1)}s</span>
 }
 
 // 单条消息：行情卡片只跟随用户消息展示（助手回复不重复显示）
@@ -254,7 +269,9 @@ export default function ChatPage() {
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [flowCollapsed, setFlowCollapsed] = useState(false)
   const [pendingReply, setPendingReply] = useState('')
+  const [thinkStart, setThinkStart] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const loadSessions = useCallback(async () => {
     try {
@@ -264,9 +281,16 @@ export default function ChatPage() {
 
   useEffect(() => { loadSessions() }, [loadSessions])
 
+  // Auto-scroll: MutationObserver 监听内容变化（参考 chat-langchain）
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, busy])
+    const el = scrollRef.current
+    if (!el) return
+    const observer = new MutationObserver(() => {
+      el.scrollTop = el.scrollHeight
+    })
+    observer.observe(el, { childList: true, subtree: true, characterData: true })
+    return () => observer.disconnect()
+  }, [busy])
 
   const openSession = async (id: number) => {
     setSessionId(id)
@@ -304,8 +328,9 @@ export default function ChatPage() {
     setBusy(true)
     setError('')
     setFlowSteps([])
-    setFlowCollapsed(false)  // 执行中展开显示实时步骤
+    setFlowCollapsed(false)
     setPendingReply('')
+    setThinkStart(Date.now())
     setMessages((prev) => [...prev, { role: 'user', content: text, created_at: new Date().toISOString() }])
     try {
       let sid = sessionId
@@ -370,7 +395,7 @@ export default function ChatPage() {
       </aside>
 
       <div className="chat-main">
-        <div className="chat-messages">
+        <div className="chat-messages" ref={scrollRef}>
           {messages.length === 0 && (
             <div className="chat-welcome">
               <HotCarousel />
@@ -386,22 +411,32 @@ export default function ChatPage() {
             </div>
           )}
           {messages.map((m, i) => <MessageItem key={i} m={m} />)}
-          {/* 工作流面板：在回复气泡上方，跟随消息流滚动（不是固定在输入框上方） */}
-          {(busy || flowSteps.length > 0) && (
-            <div className="flow-inline">
-              <FlowPanel
-                steps={flowSteps}
-                collapsed={flowCollapsed}
-                onToggle={() => setFlowCollapsed((v) => !v)}
-              />
-            </div>
-          )}
-          {busy && pendingReply && (
+          {/* 流式回复区：工作流步骤 + 思考动画 + 回复文本，全部在一个 assistant 气泡内 */}
+          {busy && (
             <div className="msg assistant">
-              <div className="msg-bubble"><div className="msg-text"><Markdown text={pendingReply} /></div></div>
+              <div className="msg-bubble">
+                {(flowSteps.length > 0 || !pendingReply) && (
+                  <div className="msg-thinking">
+                    <div className="think-header">
+                      <ThinkingDots />
+                      <span className="think-label">{pendingReply ? '' : '思考中'}</span>
+                      <ThinkingTimer startTime={thinkStart} />
+                    </div>
+                    {flowSteps.length > 0 && (
+                      <FlowPanel
+                        steps={flowSteps}
+                        collapsed={flowCollapsed}
+                        onToggle={() => setFlowCollapsed((v) => !v)}
+                      />
+                    )}
+                  </div>
+                )}
+                {pendingReply && (
+                  <div className="msg-text"><Markdown text={pendingReply} /></div>
+                )}
+              </div>
             </div>
           )}
-          {busy && !pendingReply && !flowSteps.length && <div className="msg assistant"><div className="msg-bubble typing">智能体思考中...</div></div>}
           {error && <div className="error-box">{error}</div>}
           <div ref={bottomRef} />
         </div>
