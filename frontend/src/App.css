@@ -734,3 +734,83 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   border-radius: 2px;
 }
 .alert-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* 预警Tab切换 */
+.alert-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.alert-tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  padding: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.alert-tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* 重新激活按钮 */
+.alert-react-btn {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+.alert-react-btn:hover { color: var(--accent); }
+
+/* 搜索结果 */
+.alert-search-results {
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.alert-search-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.alert-search-item:hover { background: var(--surface-hover); }
+.alert-search-item:last-child { border-bottom: none; }
+.alert-search-code {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* 已选股票 */
+.alert-selected {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface-2);
+  padding: 8px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--accent);
+  font-size: 13px;
+}
+.alert-selected button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+.alert-item-main { flex: 1; min-width: 0; }

@@ -169,6 +169,9 @@ export const api = {
   deleteAlert: (id: number) =>
     request<{ status: string }>(`/api/alerts/${id}`, { method: 'DELETE' }),
 
+  reactivateAlert: (id: number) =>
+    request<{ status: string }>(`/api/alerts/${id}/reactivate`, { method: 'POST' }),
+
   checkAlerts: () =>
     request<{ triggered: AlertItem[]; count: number }>('/api/alerts/check', { method: 'POST' }),
 

@@ -422,6 +422,13 @@ def delete_alert_api(alert_id: int, user: dict[str, Any] = Depends(get_current_u
     return {"status": "ok" if ok else "not_found"}
 
 
+@app.post("/api/alerts/{alert_id}/reactivate")
+def reactivate_alert_api(alert_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
+    """重新激活已触发的预警（re-arm），支持重复触发。"""
+    ok = alert.reactivate_alert(alert_id, user["id"])
+    return {"status": "ok" if ok else "not_found"}
+
+
 @app.post("/api/alerts/check")
 def check_alerts_api() -> dict[str, Any]:
     """扫描所有 active 预警（定时轮询触发），返回新触发的预警列表。
