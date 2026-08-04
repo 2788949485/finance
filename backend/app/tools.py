@@ -222,4 +222,31 @@ def run_research(symbol: str, topic: str = "") -> str:
         return f"投研分析失败: {e}"
 
 
-FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, run_research]
+@tool
+def compare_industry(symbol: str) -> str:
+    """行业对比：查询该股票与同行业竞争对手的 PE/PB/涨跌幅对比 + 行业均值。
+    自动判断同行股票（数据库缓存或 LLM 生成），无需手动指定。
+    参数 symbol: A股6位代码或公司名。"""
+    resolved = resolve_symbol(symbol)
+    if not _valid_symbol(resolved):
+        return f"无法识别 {symbol}，请提供股票代码或公司名"
+    data = datalayer.fetcher.get_industry_compare(resolved)
+    if not data or not data.get("peers"):
+        return f"{symbol} 暂不支持行业对比（可能是港股/美股或同行数据不足）"
+    peers = data["peers"]
+    avg_pe = data.get("avg_pe")
+    avg_pb = data.get("avg_pb")
+    lines = [f"行业对比（共{len(peers)}只）行业均PE {avg_pe} | 均PB {avg_pb}"]
+    for p in peers:
+        mark = " <--目标" if p.get("is_target") else ""
+        pe = p.get("pe")
+        pb = p.get("pb")
+        chg = p.get("change_pct")
+        pe_s = f"{pe:.1f}" if pe else "N/A"
+        pb_s = f"{pb:.2f}" if pb else "N/A"
+        chg_s = f"{chg:+.2f}%" if chg is not None else ""
+        lines.append(f"  {p['name']}({p['code']}) PE={pe_s} PB={pb_s} {chg_s}{mark}")
+    return "\n".join(lines)
+
+
+FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, compare_industry, run_research]
