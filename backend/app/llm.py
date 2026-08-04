@@ -18,8 +18,20 @@ from .config import get_config
 
 
 class LLMClient:
-    def __init__(self, config: dict[str, Any] | None = None):
-        self.config = config or get_config()
+    def __init__(self, config: dict[str, Any] | None = None, user_id: int | None = None):
+        """初始化LLM客户端。
+
+        优先用传入的config，其次用per-user配置（如果user_id给定），
+        最后用全局默认配置。
+        """
+        if config:
+            self.config = config
+        elif user_id is not None:
+            # 从per-user存储读取（key已解密）
+            from .auth import get_user_llm_config
+            self.config = get_user_llm_config(user_id)
+        else:
+            self.config = get_config()
 
     def _build_model(self) -> ChatOpenAI | None:
         api_key = (self.config.get("api_key") or "").strip()

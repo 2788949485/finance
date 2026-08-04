@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import auth, chat as chat_service, memory, alert, valuation, portfolio, backtest, llm_compare
@@ -19,14 +20,47 @@ from .config import PROVIDER_PRESETS, get_config, save_config
 from .data import fetcher as datalayer
 from .models import AnalysisRequest, LLMConfig
 
-app = FastAPI(title="FinanceCrew API", version="0.2.0")
+app = FastAPI(title="FinanceCrew API", version="0.3.0")
 
+# CORS: 只允许本机和局域网（收紧安全）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=[
+        "http://localhost:8000", "http://127.0.0.1:8000",
+        "http://localhost:5173", "http://127.0.0.1:5173",
+    ],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
+
+# ---------- 请求频率限制中间件（反爬） ----------
+from collections import defaultdict
+
+_rate_map: dict[str, list[float]] = defaultdict(list)
+RATE_WINDOW = 60  # 60秒窗口
+RATE_MAX = 60     # 每窗口最多60次请求
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """全局频率限制：每IP每60秒最多60次请求，超过返回429。"""
+    # 跳过健康检查
+    if request.url.path == "/api/health":
+        return await call_next(request)
+
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    reqs = _rate_map[client_ip]
+    # 清理过期记录
+    _rate_map[client_ip] = [t for t in reqs if now - t < RATE_WINDOW]
+    if len(_rate_map[client_ip]) >= RATE_MAX:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "请求过于频繁，请稍后再试"},
+        )
+    _rate_map[client_ip].append(now)
+    return await call_next(request)
 
 FRONTEND_DIST = Path(os.environ.get("FRONTEND_DIST", Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"))
 
@@ -86,7 +120,11 @@ def write_config(cfg: LLMConfig) -> dict[str, Any]:
 # ---------- 认证与用户画像 ----------
 
 @app.post("/api/auth/register")
-def register(body: dict[str, str]) -> dict[str, Any]:
+def register(body: dict[str, str], request: Request) -> dict[str, Any]:
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, msg = auth.check_rate_limit(f"register:{client_ip}")
+    if not allowed:
+        raise HTTPException(429, msg)
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""
     if len(username) < 2 or len(username) > 20:
@@ -98,15 +136,28 @@ def register(body: dict[str, str]) -> dict[str, Any]:
     except ValueError as e:
         raise HTTPException(400, str(e))
     token = auth.create_token(user["id"], user["username"])
+    auth.record_login_success(f"register:{client_ip}")
     return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
 
 
 @app.post("/api/auth/login")
-def login(body: dict[str, str]) -> dict[str, Any]:
-    user = auth.authenticate((body.get("username") or "").strip(), body.get("password") or "")
+def login(body: dict[str, str], request: Request) -> dict[str, Any]:
+    client_ip = request.client.host if request.client else "unknown"
+    username = (body.get("username") or "").strip()
+    # 频率限制：按IP+用户名双重检查
+    for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
+        allowed, msg = auth.check_rate_limit(ident)
+        if not allowed:
+            raise HTTPException(429, msg)
+
+    user = auth.authenticate(username, body.get("password") or "")
     if not user:
+        for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
+            auth.record_login_fail(ident)
         raise HTTPException(401, "用户名或密码错误")
     token = auth.create_token(user["id"], user["username"])
+    for ident in [f"login_ip:{client_ip}", f"login_user:{username}"]:
+        auth.record_login_success(ident)
     return {"token": token, "user": user, "profile": auth.get_profile(user["id"])}
 
 
@@ -130,6 +181,38 @@ def put_profile(body: dict[str, Any], user: dict[str, Any] = Depends(get_current
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.post("/api/auth/change-password")
+async def change_password_api(request: Request, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
+    """修改密码。需提供旧密码。"""
+    body = await request.json()
+    old_pwd = body.get("old_password", "")
+    new_pwd = body.get("new_password", "")
+    if not old_pwd or not new_pwd:
+        raise HTTPException(400, "请填写旧密码和新密码")
+    try:
+        ok = auth.change_password(user["id"], old_pwd, new_pwd)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if not ok:
+        raise HTTPException(400, "旧密码错误")
+    return {"status": "ok"}
+
+
+# ---------- per-user LLM 配置 ----------
+
+@app.get("/api/auth/llm-config")
+def get_llm_config_api(user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """获取当前用户的LLM配置（api_key脱敏）。"""
+    return auth.get_user_llm_config(user["id"]) | {"api_key": auth._mask_key(auth.get_user_llm_config(user["id"])["api_key"])}
+
+
+@app.put("/api/auth/llm-config")
+async def save_llm_config_api(request: Request, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """保存当前用户的LLM配置（api_key加密存储）。"""
+    body = await request.json()
+    return auth.save_user_llm_config(user["id"], body)
 
 
 # ---------- 投研分析 ----------
@@ -239,7 +322,7 @@ def stream_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
 
 
 @app.get("/api/analysis/{analysis_id}")
-def get_one(analysis_id: int) -> dict[str, Any]:
+def get_one(analysis_id: int, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     row = memory.get_analysis(analysis_id)
     if row is None:
         raise HTTPException(status_code=404, detail="记录不存在")
@@ -435,8 +518,8 @@ def backtest_api(symbol: str, strategy: str = "ma_cross", days: int = 120) -> di
 # ---------- 多LLM对比 ----------
 
 @app.post("/api/llm-compare")
-async def llm_compare_api(request: Request) -> dict[str, Any]:
-    """多LLM模型对比：同一prompt调用多个模型，对比回答。
+async def llm_compare_api(request: Request, user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """多LLM模型对比：同一prompt调用多个模型，对比回答。需要登录。
     body: {prompt, models: [{name, base_url, api_key, model}]}
     """
     body = await request.json()
