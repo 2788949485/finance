@@ -112,6 +112,8 @@ export const api = {
 
   chatMessages: (sessionId: number) => request<ChatMessage[]>(`/api/chat/${sessionId}/messages`),
 
+  searchChat: (q: string) => request<{ id: number; session_id: number; role: string; content: string; created_at: string; session_title: string }[]>(`/api/chat/search?q=${encodeURIComponent(q)}`),
+
   sendChat: (message: string, sessionId?: number) =>
     request<ChatReply>(`/api/chat`, { method: 'POST', body: JSON.stringify({ message, session_id: sessionId }) }),
 

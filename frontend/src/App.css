@@ -415,6 +415,13 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .chat-side { display: flex; flex-direction: column; gap: 10px; }
 .watch-side { display: flex; flex-direction: column; }
 .new-chat-btn { width: 100%; }
+.chat-search { width: 100%; font-size: 12px; padding: 5px 10px; margin-bottom: 4px; border-radius: var(--radius-sm); }
+.search-header { font-size: 11px; color: var(--text-3); padding: 4px 0; }
+.search-item { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; border: 1px solid var(--border); }
+.search-item:hover { border-color: var(--accent); }
+.search-item-title { font-size: 12px; font-weight: 600; color: var(--text); }
+.search-item-content { font-size: 11px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-item-meta { font-size: 10px; color: var(--text-3); }
 .chat-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; min-height: 0; }
 
 /* 自选股面板（右侧栏） */

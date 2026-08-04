@@ -356,6 +356,13 @@ def delete_chat(session_id: int, user: dict[str, Any] = Depends(get_current_user
     return {"deleted": session_id}
 
 
+@app.get("/api/chat/search")
+def chat_search(q: str, user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    if not q.strip():
+        return []
+    return chat_service.search_messages(user["id"], q.strip())
+
+
 @app.get("/api/chat/{session_id}/messages")
 def chat_messages(session_id: int, user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
     return chat_service.get_messages(session_id, user["id"])

@@ -377,6 +377,16 @@ export default function ChatPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [confirmDel, setConfirmDel] = useState<number | null>(null)
+  const [searchQ, setSearchQ] = useState('')
+  const [searchResults, setSearchResults] = useState<{ id: number; session_id: number; role: string; content: string; created_at: string; session_title: string }[]>([])
+
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setSearchResults([]); return }
+    try {
+      const r = await api.searchChat(q.trim())
+      setSearchResults(r)
+    } catch { setSearchResults([]) }
+  }, [])
   const [flowSteps, setFlowSteps] = useState<FlowStep[]>([])
   const [flowCollapsed, setFlowCollapsed] = useState(false)
   const [pendingReply, setPendingReply] = useState('')
@@ -491,6 +501,24 @@ export default function ChatPage() {
     <div className="chat-layout">
       <aside className="chat-side">
         <button className="new-chat-btn" onClick={newSession}>新建对话</button>
+        <input
+          className="chat-search"
+          placeholder="搜索对话内容..."
+          value={searchQ}
+          onChange={(e) => { setSearchQ(e.target.value); doSearch(e.target.value) }}
+        />
+        {searchResults.length > 0 ? (
+          <div className="chat-list">
+            <div className="search-header">搜索结果 ({searchResults.length})</div>
+            {searchResults.map((r) => (
+              <div key={r.id} className="search-item" onClick={() => { openSession(r.session_id); setSearchQ(''); setSearchResults([]) }}>
+                <span className="search-item-title">{r.session_title}</span>
+                <span className="search-item-content">{r.content.slice(0, 60)}...</span>
+                <span className="search-item-meta">{r.role === 'user' ? '我' : 'AI'} · {r.created_at.slice(5, 16)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="chat-list">
           {sessions.map((s) => (
             <div key={s.id} className={`chat-item ${s.id === sessionId ? 'active' : ''}`}>
@@ -510,6 +538,7 @@ export default function ChatPage() {
             </div>
           ))}
         </div>
+        )}
       </aside>
 
       <div className="chat-main">

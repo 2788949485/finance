@@ -169,6 +169,22 @@ def list_sessions(user_id: int, limit: int = 30) -> list[dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def search_messages(user_id: int, keyword: str, limit: int = 20) -> list[dict[str, Any]]:
+    """搜索用户所有对话中的消息（按关键词模糊匹配 content）。"""
+    _init_db()
+    kw = f"%{keyword}%"
+    with _connect() as conn:
+        rows = conn.execute(
+            """SELECT m.id, m.session_id, m.role, m.content, m.created_at, s.title as session_title
+               FROM chat_messages m
+               JOIN chat_sessions s ON m.session_id = s.id
+               WHERE s.user_id=? AND m.content LIKE ?
+               ORDER BY m.id DESC LIMIT ?""",
+            (user_id, kw, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def delete_session(session_id: int, user_id: int) -> bool:
     """删除会话：校验归属 -> 删消息/会话 -> 删 checkpoint 状态。"""
     _init_db()
