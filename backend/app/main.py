@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, chat as chat_service, memory, alert
+from . import auth, chat as chat_service, memory, alert, valuation
 from .pipeline import run_analysis, _GRAPH
 from .config import PROVIDER_PRESETS, get_config, save_config
 from .data import fetcher as datalayer
@@ -347,6 +347,14 @@ def sentiment_data(symbol: str) -> dict[str, Any]:
     sym = datalayer._norm_symbol(symbol)
     data = datalayer.get_social_sentiment(sym)
     return data or {"error": "暂无情绪数据（可能为港股美股或数据获取失败）"}
+
+
+@app.get("/api/dcf/{symbol}")
+def dcf_valuation(symbol: str) -> dict[str, Any]:
+    """DCF现金流折现估值。"""
+    sym = datalayer._norm_symbol(symbol)
+    data = valuation.compute_dcf(sym)
+    return data or {"error": "无法计算估值（财务数据不足）"}
 
 
 @app.get("/api/peers")

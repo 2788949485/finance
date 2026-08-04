@@ -277,4 +277,27 @@ def get_sentiment(symbol: str) -> str:
     return "\n".join(lines)
 
 
-FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, compare_industry, get_sentiment, run_research]
+@tool
+def get_valuation(symbol: str) -> str:
+    """DCF现金流折现估值：计算股票内在价值，判断高估/低估。
+    返回内在价值、上行空间、10年FCF预测、关键假设。
+    参数 symbol: A股6位代码或公司名。仅支持有财务数据的股票。"""
+    from .tools import resolve_symbol as _rs
+    resolved = _rs(symbol)
+    if not _valid_symbol(resolved):
+        return f"无法识别 {symbol}"
+    from .valuation import compute_dcf
+    data = compute_dcf(resolved)
+    if not data:
+        return f"{resolved} 无法计算估值（财务数据不足）"
+    lines = [f"{resolved} DCF估值："]
+    lines.append(f"  当前价格: {data['current_price']}")
+    lines.append(f"  内在价值: {data['intrinsic_value']}")
+    lines.append(f"  上行空间: {data['upside_pct']:+.1f}%")
+    lines.append(f"  结论: {data['verdict']}")
+    a = data["assumptions"]
+    lines.append(f"  假设: 增长率{a['base_growth']}% 折现率{a['discount_rate']}% 永续{a['terminal_growth']}%")
+    return "\n".join(lines)
+
+
+FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, compare_industry, get_sentiment, get_valuation, run_research]
