@@ -386,26 +386,25 @@ export default function ChatPage() {
             </div>
           )}
           {messages.map((m, i) => <MessageItem key={i} m={m} />)}
+          {/* 工作流面板：在回复气泡上方，跟随消息流滚动（不是固定在输入框上方） */}
+          {(busy || flowSteps.length > 0) && (
+            <div className="flow-inline">
+              <FlowPanel
+                steps={flowSteps}
+                collapsed={flowCollapsed}
+                onToggle={() => setFlowCollapsed((v) => !v)}
+              />
+            </div>
+          )}
           {busy && pendingReply && (
             <div className="msg assistant">
               <div className="msg-bubble"><div className="msg-text"><Markdown text={pendingReply} /></div></div>
             </div>
           )}
-          {busy && !pendingReply && <div className="msg assistant"><div className="msg-bubble typing">智能体思考中...</div></div>}
+          {busy && !pendingReply && !flowSteps.length && <div className="msg assistant"><div className="msg-bubble typing">智能体思考中...</div></div>}
           {error && <div className="error-box">{error}</div>}
           <div ref={bottomRef} />
         </div>
-
-        {/* 工作流面板：回答时才显示（有步骤即出现），完成后折叠成摘要 */}
-        {(busy || flowSteps.length > 0) && (
-          <div className="chat-flow">
-            <FlowPanel
-              steps={flowSteps}
-              collapsed={flowCollapsed}
-              onToggle={() => setFlowCollapsed((v) => !v)}
-            />
-          </div>
-        )}
 
         <div className="chat-input">
           <input
