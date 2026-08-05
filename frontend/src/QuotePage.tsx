@@ -258,11 +258,17 @@ export default function QuotePage() {
 
           {/* 周期切换工具栏 - 单独一行 */}
           <div className="qp-toolbar">
-            <button className={`mode-btn ${mode === 'minute' && !multiDay ? 'active' : ''}`} onClick={() => { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }}>分时</button>
-            <button className={`mode-btn ${mode === 'minute' && multiDay === 2 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(2); setPeriod(''); loadMultiDay(selected.code, 2) }}>2日</button>
-            <button className={`mode-btn ${mode === 'minute' && multiDay === 3 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(3); setPeriod(''); loadMultiDay(selected.code, 3) }}>3日</button>
-            <button className={`mode-btn ${mode === 'minute' && multiDay === 4 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(4); setPeriod(''); loadMultiDay(selected.code, 4) }}>4日</button>
-            <button className={`mode-btn ${mode === 'minute' && multiDay === 5 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(5); setPeriod(''); loadMultiDay(selected.code, 5) }}>5日</button>
+            <select className="period-select" value={multiDay ? `day${multiDay}` : (mode === 'minute' ? 'minute' : '')} onChange={(e) => {
+              const v = e.target.value
+              if (v === 'minute') { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }
+              else if (v.startsWith('day')) { const n = parseInt(v.slice(3)); setMode('minute'); setMultiDay(n); setPeriod(''); loadMultiDay(selected.code, n) }
+            }}>
+              <option value="minute">分时</option>
+              <option value="day2">2日</option>
+              <option value="day3">3日</option>
+              <option value="day4">4日</option>
+              <option value="day5">5日</option>
+            </select>
             <span className="toolbar-sep" />
             <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
             <button className={`mode-btn ${period === 'week' ? 'active' : ''}`} onClick={() => { setPeriod('week'); setMode('day'); loadPeriod(selected.code, 'week') }}>周K</button>
