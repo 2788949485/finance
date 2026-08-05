@@ -153,9 +153,12 @@ def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: boo
         if dd > max_dd:
             max_dd = dd
 
-    # 如果还持仓，用最后价格结算
+    # 如果还持仓，用最后价格模拟平仓补全交易对
     final_price = float(df.iloc[-1]["close"])
-    final_value = cash + shares * final_price
+    if shares > 0:
+        cash += shares * final_price
+        trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL", "price": final_price, "shares": int(shares)})
+    final_value = cash
 
     return {
         "final_value": round(final_value, 2),
@@ -163,9 +166,12 @@ def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: boo
         "max_drawdown": round(max_dd, 2),
         "trades": len(trades_log),
         "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
-        "trades_log": trades_log[-20:],  # 最近20笔
+        "trades_log": trades_log[-20:],
         "equity_curve": equity_curve,
     }
+
+
+# ==================== 网格策略 ====================
 
 
 def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
@@ -177,7 +183,7 @@ def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
     shares = position_value // base_price
     cash -= shares * base_price
     last_grid_price = base_price
-    trades_log = []
+    trades_log = [{"date": df.iloc[0]["date"].strftime("%Y-%m-%d"), "action": "BUY", "price": base_price, "shares": int(shares)}]
     equity_curve = []
     peak_value = capital
     max_dd = 0.0
@@ -213,7 +219,10 @@ def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
             max_dd = dd
 
     final_price = float(df.iloc[-1]["close"])
-    final_value = cash + shares * final_price
+    if shares > 0:
+        cash += shares * final_price
+        trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL", "price": final_price, "shares": int(shares)})
+    final_value = cash
 
     return {
         "final_value": round(final_value, 2),
@@ -227,7 +236,7 @@ def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
 
 
 def _backtest_hold(df, capital: float) -> dict[str, Any]:
-    """买入持有策略（基准）。"""
+    """买入持有策略（基准）。回测结束时自动平仓补全交易对。"""
     first_price = float(df.iloc[0]["close"])
     shares = capital // first_price
     cash = capital - shares * first_price
@@ -246,8 +255,17 @@ def _backtest_hold(df, capital: float) -> dict[str, Any]:
         if dd > max_dd:
             max_dd = dd
 
+    # 回测结束时用最后价格模拟平仓，补全交易对
     last_price = float(df.iloc[-1]["close"])
+    last_date = df.iloc[-1]["date"].strftime("%Y-%m-%d")
+    first_date = df.iloc[0]["date"].strftime("%Y-%m-%d")
     final_value = cash + shares * last_price
+
+    # 完整的交易记录：买入 + 期末平仓
+    trades_log = [
+        {"date": first_date, "action": "BUY", "price": first_price, "shares": int(shares)},
+        {"date": last_date, "action": "SELL", "price": last_price, "shares": int(shares)},
+    ]
 
     return {
         "final_value": round(final_value, 2),
@@ -255,7 +273,7 @@ def _backtest_hold(df, capital: float) -> dict[str, Any]:
         "max_drawdown": round(max_dd, 2),
         "trades": 1,
         "win_rate": 100 if final_value > capital else 0,
-        "trades_log": [{"date": df.iloc[0]["date"].strftime("%Y-%m-%d"), "action": "BUY", "price": first_price, "shares": int(shares)}],
+        "trades_log": trades_log,
         "equity_curve": equity_curve,
     }
 
@@ -428,7 +446,10 @@ def _backtest_ai(df, capital: float, symbol: str = "", record_signals: bool = Fa
             max_dd = dd
 
     final_price = float(df.iloc[-1]["close"])
-    final_value = cash + shares * final_price
+    if shares > 0:
+        cash += shares * final_price
+        trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL", "price": final_price, "shares": int(shares)})
+    final_value = cash
 
     return {
         "final_value": round(final_value, 2),
