@@ -1048,10 +1048,15 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 /* ==================== 回测深度分析 ==================== */
 .bt-tabs { display: flex; gap: 4px; }
 .bt-tabs button {
-  padding: 4px 12px; border: none; background: transparent;
-  color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+  padding: 6px 16px; border: 1px solid var(--border); background: var(--bg1);
+  color: var(--text, #c8d0da); cursor: pointer; font-size: 13px;
+  transition: all 0.15s;
 }
-.bt-tabs button.active { color: var(--blue); border-bottom-color: var(--blue); }
+.bt-tabs button:hover { color: var(--blue); border-color: var(--blue); }
+.bt-tabs button.active {
+  color: var(--blue); border-color: var(--blue);
+  background: rgba(59,130,246,0.08);
+}
 .bt-analysis { padding: 0; }
 .bt-loading { padding: 20px; color: var(--muted); text-align: center; }
 .bt-result { margin-top: 16px; }
