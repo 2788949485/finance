@@ -19,6 +19,7 @@ def run_backtest(
     strategy: str = "ma_cross",
     days: int = 120,
     initial_capital: float = 100000.0,
+    record_signals: bool = False,
     **kwargs: Any,
 ) -> Optional[dict[str, Any]]:
     """运行策略回测。
@@ -52,15 +53,16 @@ def run_backtest(
         return None
 
     # 执行策略
+    signal_log: list[dict[str, Any]] = []
     if strategy == "ma_cross":
-        result = _backtest_ma_cross(df, initial_capital)
+        result = _backtest_ma_cross(df, initial_capital, symbol=symbol, record_signals=record_signals, signal_log=signal_log)
     elif strategy == "grid":
         grid_pct = kwargs.get("grid_pct", 0.05)  # 5%网格间距
         result = _backtest_grid(df, initial_capital, grid_pct)
     elif strategy == "hold":
         result = _backtest_hold(df, initial_capital)
     elif strategy == "ai":
-        result = _backtest_ai(df, initial_capital, sym)
+        result = _backtest_ai(df, initial_capital, sym, record_signals=record_signals, signal_log=signal_log)
     else:
         return None
 
@@ -77,10 +79,22 @@ def run_backtest(
         "benchmark_return": round(benchmark_return, 2),
         "excess_return": round(result["total_return"] - benchmark_return, 2),
     })
+
+    # 如果开启了信号记录，填充标签并保存CSV
+    if record_signals and signal_log:
+        from .signal_features import fill_labels, save_signals_to_csv
+        signal_log = fill_labels(signal_log, df)
+        csv_path = save_signals_to_csv(signal_log)
+        result["signal_log_count"] = len(signal_log)
+        result["signal_csv_path"] = csv_path
+        result["signal_sample"] = signal_log[:3]  # 返回前3条样本预览
+    else:
+        result["signal_log_count"] = 0
+
     return result
 
 
-def _backtest_ma_cross(df, capital: float) -> dict[str, Any]:
+def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: bool = False, signal_log: list = None) -> dict[str, Any]:
     """MA5/MA20均线交叉策略。"""
     shares = 0.0
     cash = capital
@@ -98,8 +112,15 @@ def _backtest_ma_cross(df, capital: float) -> dict[str, Any]:
         price = float(row["close"])
         date = row["date"].strftime("%Y-%m-%d")
 
-        # 金叉买入（昨天MA5<=MA20，今天MA5>MA20）
+        # 金叉买入
         if prev["ma5"] <= prev["ma20"] and row["ma5"] > row["ma20"] and shares == 0:
+            # 记录ML特征快照
+            if record_signals and signal_log is not None:
+                from .signal_features import build_signal_features
+                feat = build_signal_features(df, i, symbol, 1, "ma_cross")
+                if feat:
+                    signal_log.append(feat)
+
             buy_shares = cash // price
             if buy_shares > 0:
                 shares = buy_shares
@@ -109,6 +130,13 @@ def _backtest_ma_cross(df, capital: float) -> dict[str, Any]:
 
         # 死叉卖出
         elif prev["ma5"] >= prev["ma20"] and row["ma5"] < row["ma20"] and shares > 0:
+            # 记录ML特征快照（做空信号也记）
+            if record_signals and signal_log is not None:
+                from .signal_features import build_signal_features
+                feat = build_signal_features(df, i, symbol, -1, "ma_cross")
+                if feat:
+                    signal_log.append(feat)
+
             total_sells += 1
             if price > buy_price:
                 wins += 1
@@ -323,7 +351,7 @@ def _ai_decision(context: dict[str, Any], position_info: dict[str, Any]) -> tupl
     return "HOLD", ""
 
 
-def _backtest_ai(df, capital: float, symbol: str) -> dict[str, Any]:
+def _backtest_ai(df, capital: float, symbol: str = "", record_signals: bool = False, signal_log: list = None) -> dict[str, Any]:
     """AI增强策略：大模型每隔3个交易日决策一次，综合技术指标做买卖。
 
     交易频率：每3个交易日调一次LLM（平衡速度和响应度）。
@@ -362,6 +390,13 @@ def _backtest_ai(df, capital: float, symbol: str) -> dict[str, Any]:
             action, reason = _ai_decision(context, position_info)
 
             if action == "BUY" and cash > price * 100:
+                # 记录ML特征快照
+                if record_signals and signal_log is not None:
+                    from .signal_features import build_signal_features
+                    feat = build_signal_features(df, i, symbol, 1, "ai")
+                    if feat:
+                        signal_log.append(feat)
+
                 # 用30%剩余资金买入（分批建仓）
                 buy_amount = cash * 0.3
                 buy_shares = int(buy_amount // price)
