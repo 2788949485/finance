@@ -19,10 +19,10 @@ def _em_secid(symbol: str) -> str:
 
 
 def _fetch_with_retry(url: str, retries: int = 2) -> Optional[dict]:
-    """带重试的请求"""
+    """带重试的请求（东财国内站点不走代理）"""
     for i in range(retries):
         try:
-            r = requests.get(url, timeout=8)
+            r = requests.get(url, timeout=8, proxies={"http": None, "https": None})
             if r.status_code == 200:
                 return r.json()
         except Exception:
