@@ -556,8 +556,14 @@ def multi_period_api(symbol: str) -> dict[str, Any]:
 
 @app.get("/api/kline/{symbol}")
 def kline_multi_period_api(symbol: str, period: str = "day", count: int = 250) -> dict[str, Any]:
-    """多周期K线数据。period: day/week/month/5min/15min/30min/60min"""
+    """多周期K线数据。period: day/week/month/5min/15min/30min/60min
+    分钟级默认显示最近5个交易日，日K/周K/月K显示全部。
+    """
     sym = datalayer._norm_symbol(symbol)
+    # 分钟级默认只取最近5个交易日的数据
+    if period.endswith("min"):
+        bars_per_day = {"5min": 48, "15min": 16, "30min": 8, "60min": 4}
+        count = min(count, bars_per_day.get(period, 48) * 5)  # 最近5个交易日
     df = datalayer.get_history_multi(sym, period=period, count=count)
     if df is None or len(df) == 0:
         return {"error": "数据不足"}
