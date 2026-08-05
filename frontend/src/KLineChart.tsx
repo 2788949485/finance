@@ -17,9 +17,19 @@ interface Props {
   onMode?: (m: 'day' | 'minute') => void
   dataDate?: string
   isToday?: boolean
+  subIndicator?: 'macd' | 'kdj'
+  onSubIndicator?: (v: 'macd' | 'kdj') => void
+  fullscreen?: boolean
+  onFullscreen?: (v: boolean) => void
 }
 
-export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode, dataDate, isToday }: Props) {
+export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode: _onMode, dataDate, isToday, subIndicator: extSub, onSubIndicator: _onSubInd, fullscreen: extFs, onFullscreen }: Props) {
+  const [subIndicator, setSubIndicator] = useState<'macd' | 'kdj'>(extSub ?? 'macd')
+  const [fullscreen, setFullscreen] = useState(extFs ?? false)
+
+  // 同步外部 props
+  useEffect(() => { if (extSub) setSubIndicator(extSub) }, [extSub])
+  useEffect(() => { if (extFs !== undefined) setFullscreen(extFs) }, [extFs])
   const [range] = useState<number | 'all'>('all')
   const [hover, setHover] = useState<KlineBar | null>(null)
   // 缩放：zoom 放大倍数（1=显示当前 range 全部），pan 0~1 窗口位置（0=最新端，1=最旧端）
@@ -28,8 +38,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const [drag, setDrag] = useState<{ x: number; x0: number } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [crosshair, setCrosshair] = useState<{ x: number; y: number } | null>(null)
-  const [fullscreen, setFullscreen] = useState(false)
-  const [subIndicator, setSubIndicator] = useState<'macd' | 'kdj'>('macd')
 
   // ESC 退出全屏
   useEffect(() => {
@@ -81,10 +89,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         <div className="kline-wrap">
           <div className="kline-toolbar">
             <span className="kline-symbol">{symbol} 分时</span>
-            <span className="kline-range">
-              {onMode && <button className="ghost" onClick={() => onMode('day')}>日K</button>}
-              <button className="ghost active">分时</button>
-            </span>
           </div>
           <div className="kline-empty">分时数据暂无（非交易时段，A股/港股 9:30-15:00，美股 21:30-04:00 北京时间）</div>
         </div>
@@ -183,12 +187,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           <span className="kline-price" style={{ color: trend }}>
             {lastP.price.toFixed(2)} <small>{trend === UP ? '▲' : '▼'} {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%</small>
           </span>
-          <span className="kline-range">
-            {onMode && <button className="ghost" onClick={() => onMode('day')}>日K</button>}
-            <button className="ghost active">分时</button>
-            <button className="ghost" onClick={() => setFullscreen(!fullscreen)} title="全屏">{fullscreen ? '退出全屏' : '全屏'}</button>
-          </span>
-        </div>
+          </div>
         <svg
           viewBox={`0 0 ${W} ${MH}`}
           width="100%"
@@ -442,21 +441,22 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         <span className="kline-price" style={{ color: trend }}>
           {last.close} <small>{trend === UP ? '▲' : '▼'}</small>
         </span>
-        <span className="kline-range">
-          {onMode && <button className="ghost" onClick={() => onMode('minute')}>分时</button>}
-          {zoom > 1 && (
-            <>
-              <span className="zoom-hint">滚轮缩放 · 拖动平移 · 双击重置</span>
-              <button className="ghost zoom-ind" onClick={resetZoom} title="重置缩放（或双击图表）">{zoom.toFixed(0)}x ⇲</button>
-            </>
-          )}
-          {zoom <= 1 && rawLen > 200 && (
+        {fullscreen && (
+          <span className="kline-range">
+            <button className="ghost" onClick={() => onFullscreen?.(false)}>退出全屏</button>
+          </span>
+        )}
+        {!fullscreen && zoom > 1 && (
+          <span className="kline-range">
+            <span className="zoom-hint">滚轮缩放 · 拖动平移 · 双击重置</span>
+            <button className="ghost zoom-ind" onClick={resetZoom} title="重置缩放（或双击图表）">{zoom.toFixed(0)}x ⇲</button>
+          </span>
+        )}
+        {!fullscreen && zoom <= 1 && rawLen > 200 && (
+          <span className="kline-range">
             <span className="zoom-hint">滚轮缩放查看细节</span>
-          )}
-          <button className="ghost" onClick={() => setFullscreen(!fullscreen)} title="全屏">{fullscreen ? '退出全屏' : '全屏'}</button>
-          <button className={`ghost ${subIndicator === 'macd' ? 'active' : ''}`} onClick={() => setSubIndicator('macd')} title="MACD副图">MACD</button>
-          <button className={`ghost ${subIndicator === 'kdj' ? 'active' : ''}`} onClick={() => setSubIndicator('kdj')} title="KDJ副图">KDJ</button>
-        </span>
+          </span>
+        )}
       </div>
       <svg
         ref={svgRef}

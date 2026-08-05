@@ -26,6 +26,9 @@ export default function QuotePage() {
   const [news, setNews] = useState<NewsItem[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
   const [period, setPeriod] = useState<string>('day')
+  const [multiDay, setMultiDay] = useState<number>(0)
+  const [subIndicator, setSubIndicator] = useState<'macd' | 'kdj'>('macd')
+  const [klineFullscreen, setKlineFullscreen] = useState(false)
   const [live, setLive] = useState(false)
   const [err, setErr] = useState('')
   const [searching, setSearching] = useState(false)
@@ -49,6 +52,33 @@ export default function QuotePage() {
       setErr('')
     } catch {
       setErr('行情加载失败')
+    }
+  }, [])
+
+  // 加载多日分时（2日/3日/4日/5日）：用5分钟K线模拟
+  const loadMultiDay = useCallback(async (code: string, days: number) => {
+    try {
+      setAllBars([])
+      const token = localStorage.getItem('financecrew_token')
+      // 5分钟K线 每天48根 x N天
+      const count = 48 * days
+      const r = await fetch(`/api/kline/${code}?period=5min&count=${count}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      const d = await r.json()
+      if (d.bars) {
+        // 转成分时格式（price折线）
+        const minutePoints = d.bars.map((b: any) => ({ time: b.date, price: b.close, avg: null }))
+        setData(prev => ({
+          brief: prev?.brief ?? {},
+          kline: minutePoints,
+          tech: {},
+          last_close: d.bars[d.bars.length - 1]?.close ?? null,
+        }))
+      }
+      setErr('')
+    } catch {
+      setErr('多日分时加载失败')
     }
   }, [])
 
@@ -223,15 +253,30 @@ export default function QuotePage() {
               <button className={`live-btn ${live ? 'on' : ''}`} onClick={() => setLive((v) => !v)}>
                 {live ? '● 实时' : '○ 实时'}
               </button>
-              <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
-              <button className={`mode-btn ${period === 'week' ? 'active' : ''}`} onClick={() => { setPeriod('week'); setMode('day'); loadPeriod(selected.code, 'week') }}>周K</button>
-              <button className={`mode-btn ${period === 'month' ? 'active' : ''}`} onClick={() => { setPeriod('month'); setMode('day'); loadPeriod(selected.code, 'month') }}>月K</button>
-              <button className={`mode-btn ${mode === 'minute' ? 'active' : ''}`} onClick={() => { setMode('minute'); setPeriod(''); load(selected.code, 'minute', 0) }}>分时</button>
-              <button className={`mode-btn ${period === '5min' ? 'active' : ''}`} onClick={() => { setPeriod('5min'); setMode('day'); loadPeriod(selected.code, '5min') }}>5分</button>
-              <button className={`mode-btn ${period === '15min' ? 'active' : ''}`} onClick={() => { setPeriod('15min'); setMode('day'); loadPeriod(selected.code, '15min') }}>15分</button>
-              <button className={`mode-btn ${period === '30min' ? 'active' : ''}`} onClick={() => { setPeriod('30min'); setMode('day'); loadPeriod(selected.code, '30min') }}>30分</button>
-              <button className={`mode-btn ${period === '60min' ? 'active' : ''}`} onClick={() => { setPeriod('60min'); setMode('day'); loadPeriod(selected.code, '60min') }}>60分</button>
             </div>
+          </div>
+
+          {/* 周期切换工具栏 - 单独一行 */}
+          <div className="qp-toolbar">
+            <button className={`mode-btn ${mode === 'minute' && !multiDay ? 'active' : ''}`} onClick={() => { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }}>分时</button>
+            <button className={`mode-btn ${mode === 'minute' && multiDay === 2 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(2); setPeriod(''); loadMultiDay(selected.code, 2) }}>2日</button>
+            <button className={`mode-btn ${mode === 'minute' && multiDay === 3 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(3); setPeriod(''); loadMultiDay(selected.code, 3) }}>3日</button>
+            <button className={`mode-btn ${mode === 'minute' && multiDay === 4 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(4); setPeriod(''); loadMultiDay(selected.code, 4) }}>4日</button>
+            <button className={`mode-btn ${mode === 'minute' && multiDay === 5 ? 'active' : ''}`} onClick={() => { setMode('minute'); setMultiDay(5); setPeriod(''); loadMultiDay(selected.code, 5) }}>5日</button>
+            <span className="toolbar-sep" />
+            <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
+            <button className={`mode-btn ${period === 'week' ? 'active' : ''}`} onClick={() => { setPeriod('week'); setMode('day'); loadPeriod(selected.code, 'week') }}>周K</button>
+            <button className={`mode-btn ${period === 'month' ? 'active' : ''}`} onClick={() => { setPeriod('month'); setMode('day'); loadPeriod(selected.code, 'month') }}>月K</button>
+            <span className="toolbar-sep" />
+            <button className={`mode-btn ${period === '5min' ? 'active' : ''}`} onClick={() => { setPeriod('5min'); setMode('day'); loadPeriod(selected.code, '5min') }}>5分</button>
+            <button className={`mode-btn ${period === '15min' ? 'active' : ''}`} onClick={() => { setPeriod('15min'); setMode('day'); loadPeriod(selected.code, '15min') }}>15分</button>
+            <button className={`mode-btn ${period === '30min' ? 'active' : ''}`} onClick={() => { setPeriod('30min'); setMode('day'); loadPeriod(selected.code, '30min') }}>30分</button>
+            <button className={`mode-btn ${period === '60min' ? 'active' : ''}`} onClick={() => { setPeriod('60min'); setMode('day'); loadPeriod(selected.code, '60min') }}>60分</button>
+            <span className="toolbar-sep" />
+            <button className={`mode-btn ${subIndicator === 'macd' ? 'active' : ''}`} onClick={() => setSubIndicator('macd')}>MACD</button>
+            <button className={`mode-btn ${subIndicator === 'kdj' ? 'active' : ''}`} onClick={() => setSubIndicator('kdj')}>KDJ</button>
+            <span className="toolbar-sep" />
+            <button className="mode-btn" onClick={() => setKlineFullscreen(true)}>全屏</button>
           </div>
 
           <div className="qp-meta">
@@ -303,6 +348,10 @@ export default function QuotePage() {
               onMode={(m) => { setMode(m); load(selected.code, m, 0) }}
               dataDate={data.data_date}
               isToday={data.is_today}
+              subIndicator={subIndicator}
+              onSubIndicator={setSubIndicator}
+              fullscreen={klineFullscreen}
+              onFullscreen={setKlineFullscreen}
             />
           </div>
 
