@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from './api'
 import type { BacktestResult } from './types'
+import BacktestAnalysis from './BacktestAnalysis'
 
 const STRATEGIES = [
   { key: 'ma_cross', label: 'MA均线交叉' },
@@ -9,7 +10,10 @@ const STRATEGIES = [
   { key: 'ai', label: 'AI增强策略' },
 ]
 
+type PageTab = 'basic' | 'analysis'
+
 export default function BacktestPage() {
+  const [pageTab, setPageTab] = useState<PageTab>('basic')
   const [symbol, setSymbol] = useState('')
   const [strategy, setStrategy] = useState('ma_cross')
   const [days, setDays] = useState(120)
@@ -31,8 +35,16 @@ export default function BacktestPage() {
     <div className="pane">
       <div className="pane-head">
         <h2>策略回测</h2>
+        <div className="bt-tabs">
+          <button className={pageTab === 'basic' ? 'active' : ''} onClick={() => setPageTab('basic')}>基础回测</button>
+          <button className={pageTab === 'analysis' ? 'active' : ''} onClick={() => setPageTab('analysis')}>深度分析</button>
+        </div>
       </div>
 
+      {pageTab === 'analysis' ? (
+        <BacktestAnalysis />
+      ) : (
+      <>
       <div className="backtest-controls">
         <input className="alert-input" placeholder="股票代码（如 600519）"
           value={symbol} onChange={e => setSymbol(e.target.value)} />
@@ -116,6 +128,8 @@ export default function BacktestPage() {
             </div>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   )

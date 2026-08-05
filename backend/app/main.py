@@ -526,6 +526,38 @@ def transactions_api(user: dict[str, Any] = Depends(get_current_user)) -> list[d
 
 # ---------- 回测系统 ----------
 
+@app.get("/api/backtest/analysis/{symbol}")
+def backtest_analysis_api(
+    symbol: str,
+    strategy: str = "ma_cross",
+    days: int = 120,
+    analysis_type: str = "full",
+) -> dict[str, Any]:
+    """回测深度分析：PF/RF/综合评分 + 蒙特卡洛 + 分层测试 + 参数敏感度。
+
+    analysis_type: full / monte_carlo / layered / sensitivity / score
+    """
+    from . import backtest_analysis as ba
+    sym = datalayer._norm_symbol(symbol)
+
+    if analysis_type == "monte_carlo":
+        return ba.run_monte_carlo(sym, strategy=strategy, days=days)
+    elif analysis_type == "layered":
+        return ba.run_layered_test(sym, days=days)
+    elif analysis_type == "sensitivity":
+        return ba.run_parameter_sensitivity(sym, strategy=strategy, days=days)
+    elif analysis_type == "score":
+        r = backtest.run_backtest(sym, strategy=strategy, days=days)
+        if not r:
+            return {"error": "数据不足"}
+        pf = ba.calc_profit_factor(r["trades_log"])
+        rf = ba.calc_recovery_factor(r["final_value"] - 100000, r["max_drawdown"])
+        score = ba.calc_comprehensive_score(r["total_return"], r["max_drawdown"], pf, rf, r["trades"])
+        return {"profit_factor": pf, "recovery_factor": rf, "score": score}
+    else:
+        return ba.run_full_analysis(sym, strategy=strategy, days=days)
+
+
 @app.get("/api/backtest/{symbol}")
 def backtest_api(symbol: str, strategy: str = "ma_cross", days: int = 120, record_signals: int = 0) -> dict[str, Any]:
     """策略回测：在历史K线上模拟交易策略。
