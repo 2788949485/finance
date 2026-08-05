@@ -576,6 +576,29 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         })()}
         {/* MACD 零轴 */}
         <line x1={PAD.l} x2={W - PAD.r} y1={macdTop + macdH / 2} y2={macdTop + macdH / 2} stroke="#334155" strokeWidth="0.5" />
+        {/* MACD Y轴刻度 */}
+        {(() => {
+          const ticks = [-macdMax, -macdMax / 2, 0, macdMax / 2, macdMax]
+          const labels = [macdMax.toFixed(2), (macdMax / 2).toFixed(2), '0.00', (macdMax / 2).toFixed(2), macdMax.toFixed(2)]
+          return ticks.map((v, i) => (
+            <g key={'ytick'+i}>
+              <line x1={PAD.l} x2={W - PAD.r} y1={macdY(v)} y2={macdY(v)} stroke="#1e293b" strokeWidth="0.5" strokeDasharray="1 3" />
+              <text x={W - PAD.r + 3} y={macdY(v) + 3} fontSize="9" fill="#475569">{labels[i]}</text>
+            </g>
+          ))
+        })()}
+        {/* MACD 鼠标跟随虚线 */}
+        {crosshair && (() => {
+          const cx = Math.min(W - PAD.r, Math.max(PAD.l, crosshair.x))
+          const idx = Math.min(data.length - 1, Math.max(0, Math.round((cx - PAD.l) / step - 0.5)))
+          const dVal = dif[idx] ?? 0
+          return (
+            <g pointerEvents="none">
+              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
+              <circle cx={cx} cy={macdY(dVal)} r="2" fill="#f59e0b" />
+            </g>
+          )
+        })()}
         {/* MACD 柱状图 */}
         {macdBars.map((v, i) => {
           if (v == null) return null
@@ -613,6 +636,18 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             <text x={W - PAD.r + 2} y={kdjY(lvl) + 3} fontSize="8" fill="#475569">{lvl}</text>
           </g>
         ))}
+        {/* KDJ 鼠标跟随虚线 */}
+        {crosshair && (() => {
+          const cx = Math.min(W - PAD.r, Math.max(PAD.l, crosshair.x))
+          const idx = Math.min(data.length - 1, Math.max(0, Math.round((cx - PAD.l) / step - 0.5)))
+          const kv = kdj.k[idx] ?? 0
+          return (
+            <g pointerEvents="none">
+              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
+              <circle cx={cx} cy={kdjY(kv)} r="2" fill="#a855f7" />
+            </g>
+          )
+        })()}
         {/* K 线 */}
         <polyline points={kdj.k.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#a855f7" strokeWidth="1" opacity="0.85" />
         {/* D 线 */}
