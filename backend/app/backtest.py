@@ -82,7 +82,7 @@ def apply_sell_cost(cash: float, price: float, shares: int) -> tuple[float, floa
     return cash + price * shares - cost["total"], cost["total"]
 
 
-# ==================== 滑点/仓位 辅助 ====================
+# ==================== 滑点/仓位/A股规则 辅助 ====================
 
 def _buy_price(price: float, slippage: float) -> float:
     """含滑点的买入价：收盘价*(1+slippage)。"""
@@ -92,6 +92,30 @@ def _buy_price(price: float, slippage: float) -> float:
 def _sell_price(price: float, slippage: float) -> float:
     """含滑点的卖出价：收盘价*(1-slippage)。"""
     return price * (1.0 - slippage)
+
+
+def _is_limit_up(row, prev_close: float) -> bool:
+    """A股涨停判断（涨幅>=9.9%）。"""
+    if prev_close <= 0:
+        return False
+    return (float(row["close"]) - prev_close) / prev_close >= 0.099
+
+
+def _is_limit_down(row, prev_close: float) -> bool:
+    """A股跌停判断（跌幅>=9.9%）。"""
+    if prev_close <= 0:
+        return False
+    return (prev_close - float(row["close"])) / prev_close >= 0.099
+
+
+def _can_buy(row, prev_close: float) -> bool:
+    """涨停时不能买入。"""
+    return not _is_limit_up(row, prev_close)
+
+
+def _can_sell(row, prev_close: float) -> bool:
+    """跌停时不能卖出。"""
+    return not _is_limit_down(row, prev_close)
 
 
 def _calc_metrics(
@@ -119,8 +143,9 @@ def _calc_metrics(
     s = pd.Series(values, dtype="float64")
     daily_returns = s.pct_change().dropna()
 
-    trading_days = len(values)
-    # 年化收益率
+    # 年化收益率 — 用真实回测区间天数（含warm-up期）
+    # 修正：之前用len(values)是策略生效后天数，MA策略dropna丢了前20天导致年化高估
+    trading_days = len(daily_returns)
     if trading_days > 0 and (1.0 + total_return / 100.0) > 0:
         annual_return = (1.0 + total_return / 100.0) ** (TRADING_DAYS_PER_YEAR / trading_days) - 1.0
     else:
@@ -132,21 +157,36 @@ def _calc_metrics(
     else:
         annual_volatility = 0.0
 
-    # 下行偏差（仅取负收益率）
-    downside = daily_returns[daily_returns < 0]
-    downside_deviation = float(downside.std()) if len(downside) > 1 else 0.0
+    # 无风险利率降频：年化3% -> 日级
+    daily_rf = (1.0 + risk_free) ** (1.0 / TRADING_DAYS_PER_YEAR) - 1.0
 
-    # 夏普比率
+    # 下行偏差（Sortino标准算法）：sqrt(mean(min(r-target,0)^2))
+    # 修正：之前用downside.std()只对负收益取std，系统性高估Sortino
+    downside_diff = daily_returns.apply(lambda r: min(r - daily_rf, 0.0))
+    downside_deviation = math.sqrt(float((downside_diff ** 2).mean())) if len(daily_returns) > 0 else 0.0
+
+    # 夏普比率（rf从年化降到日级再年化）
     if annual_volatility > 0:
         sharpe_ratio = (annual_return - risk_free) / annual_volatility
     else:
         sharpe_ratio = 0.0
 
-    # Sortino比率（用日级下行偏差年化）
-    if downside_deviation > 0:
-        sortino_ratio = (annual_return - risk_free) / (downside_deviation * math.sqrt(TRADING_DAYS_PER_YEAR))
+    # EWMA夏普比率（指数加权，近期权重更高，识别策略失效）
+    if len(daily_returns) > 30 and annual_volatility > 0:
+        ewm_returns = daily_returns.ewm(halflife=20).mean()
+        ewm_std = daily_returns.ewm(halflife=20).std()
+        if ewm_std.iloc[-1] > 0:
+            ewm_sharpe = (ewm_returns.iloc[-1] * TRADING_DAYS_PER_YEAR - risk_free) / (ewm_std.iloc[-1] * math.sqrt(TRADING_DAYS_PER_YEAR))
+        else:
+            ewm_sharpe = 0.0
     else:
-        # 没有下行波动时，给出一个较大的正数上界避免除零；保留两位
+        ewm_sharpe = 0.0
+
+    # Sortino比率（用标准下行偏差年化）
+    annual_downside = downside_deviation * math.sqrt(TRADING_DAYS_PER_YEAR)
+    if annual_downside > 0:
+        sortino_ratio = (annual_return - risk_free) / annual_downside
+    else:
         sortino_ratio = 0.0 if annual_return <= risk_free else 10.0
 
     # Calmar比率（max_drawdown 传入单位是百分比）
@@ -158,21 +198,66 @@ def _calc_metrics(
     # ---- 基于交易记录的最大连续亏损次数 ----
     max_consecutive_losses = _max_consecutive_losses(trades_log)
 
+    # ---- CVaR(95%) 条件风险价值：最差5%日子的平均损失 ----
+    if len(daily_returns) > 20:
+        sorted_returns = daily_returns.sort_values()
+        var_5_pct_idx = max(1, int(len(sorted_returns) * 0.05))
+        worst_5_pct = sorted_returns.iloc[:var_5_pct_idx]
+        cvar_95 = float(worst_5_pct.mean()) * 100  # 转百分比
+    else:
+        cvar_95 = 0.0
+
+    # ---- 收益偏度/峰度 ----
+    if len(daily_returns) > 10:
+        skewness = float(daily_returns.skew())
+        kurtosis = float(daily_returns.kurtosis())
+    else:
+        skewness = 0.0
+        kurtosis = 0.0
+
+    # ---- 最大回撤恢复时间 ----
+    # 从权益曲线计算：峰值到恢复（回到峰值）的最大天数
+    max_dd_duration = _calc_max_dd_duration(values)
+
     return {
         "annual_return": round(annual_return * 100, 2),          # 百分比展示
         "annual_volatility": round(annual_volatility * 100, 2),  # 百分比展示
         "sharpe_ratio": round(sharpe_ratio, 3),
         "sortino_ratio": round(sortino_ratio, 3),
         "calmar_ratio": round(calmar_ratio, 3),
+        "ewm_sharpe": round(ewm_sharpe, 3),
         "max_consecutive_losses": max_consecutive_losses,
+        "cvar_95": round(cvar_95, 2),            # CVaR(95%) 百分比
+        "skewness": round(skewness, 3),          # 偏度
+        "kurtosis": round(kurtosis, 3),          # 峰度
+        "max_dd_duration": max_dd_duration,       # 最大回撤恢复天数
     }
 
 
-def _max_consecutive_losses(trades_log: list[dict]) -> int:
-    """统计已完成交易中，按"买入->紧随的卖出"配对的最大连续亏损笔数。
+def _calc_max_dd_duration(equity_values: list[float]) -> int:
+    """计算最大回撤恢复时间（从峰值跌到回新高的最大天数）。"""
+    if len(equity_values) < 2:
+        return 0
+    peak = equity_values[0]
+    dd_start = -1
+    max_duration = 0
+    for i, v in enumerate(equity_values):
+        if v >= peak:
+            if dd_start >= 0:
+                max_duration = max(max_duration, i - dd_start)
+            peak = v
+            dd_start = -1
+        else:
+            if dd_start < 0:
+                dd_start = i
+    # 如果还在回撤中（没恢复）
+    if dd_start >= 0:
+        max_duration = max(max_duration, len(equity_values) - dd_start)
+    return max_duration
 
-    若无法配对，则按SELL条目无法判定盈亏，返回0。
-    """
+
+def _max_consecutive_losses(trades_log: list[dict]) -> int:
+    """统计已完成交易中，按"买入->紧随的卖出"配对的最大连续亏损笔数。"""
     if not trades_log:
         return 0
 

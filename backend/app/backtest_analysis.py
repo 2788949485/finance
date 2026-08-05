@@ -557,7 +557,8 @@ def run_parameter_sensitivity(
 
     results = []
     for fast, slow in ma_combos:
-        r = bt.run_backtest(sym, strategy=strategy, days=days, initial_capital=initial_capital)
+        r = bt.run_backtest(sym, strategy=strategy, days=days, initial_capital=initial_capital,
+                           fast_period=fast, slow_period=slow)
         if r and r.get("trades_log"):
             pf = calc_profit_factor(r["trades_log"])
             results.append({
