@@ -627,14 +627,13 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </g>
           ))
         })()}
-        {/* MACD 鼠标跟随虚线 */}
+        {/* MACD 鼠标跟随圆点（竖虚线已由主图crosshair贯穿） */}
         {crosshair && (() => {
           const cx = Math.min(W - PAD.r, Math.max(PAD.l, crosshair.x))
           const idx = Math.min(data.length - 1, Math.max(0, Math.round((cx - PAD.l) / step - 0.5)))
           const dVal = dif[idx] ?? 0
           return (
             <g pointerEvents="none">
-              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#10b981" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
               <circle cx={cx} cy={macdY(dVal)} r="2" fill="#f59e0b" />
             </g>
           )
@@ -676,14 +675,13 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             <text x={PAD.l - 6} y={kdjY(lvl) + 3} textAnchor="end" fontSize="8" fill="#475569">{lvl}</text>
           </g>
         ))}
-        {/* KDJ 鼠标跟随虚线 */}
+        {/* KDJ 鼠标跟随圆点（竖虚线已由主图crosshair贯穿） */}
         {crosshair && (() => {
           const cx = Math.min(W - PAD.r, Math.max(PAD.l, crosshair.x))
           const idx = Math.min(data.length - 1, Math.max(0, Math.round((cx - PAD.l) / step - 0.5)))
           const kv = kdj.k[idx] ?? 0
           return (
             <g pointerEvents="none">
-              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#10b981" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
               <circle cx={cx} cy={kdjY(kv)} r="2" fill="#a855f7" />
             </g>
           )
