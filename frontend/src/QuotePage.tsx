@@ -218,25 +218,13 @@ export default function QuotePage() {
                 {live ? '● 实时' : '○ 实时'}
               </button>
               <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
+              <button className={`mode-btn ${period === 'week' ? 'active' : ''}`} onClick={() => { setPeriod('week'); setMode('day'); loadPeriod(selected.code, 'week') }}>周K</button>
+              <button className={`mode-btn ${period === 'month' ? 'active' : ''}`} onClick={() => { setPeriod('month'); setMode('day'); loadPeriod(selected.code, 'month') }}>月K</button>
               <button className={`mode-btn ${mode === 'minute' ? 'active' : ''}`} onClick={() => { setMode('minute'); setPeriod(''); load(selected.code, 'minute', 0) }}>分时</button>
-              <select className="mode-btn period-select" value={period} onChange={(e) => {
-                const p = e.target.value
-                setPeriod(p)
-                setMode('day')
-                if (p === 'day') {
-                  load(selected.code, 'day', 0)
-                } else {
-                  loadPeriod(selected.code, p)
-                }
-              }}>
-                <option value="day">日K</option>
-                <option value="week">周K</option>
-                <option value="month">月K</option>
-                <option value="5min">5分钟</option>
-                <option value="15min">15分钟</option>
-                <option value="30min">30分钟</option>
-                <option value="60min">60分钟</option>
-              </select>
+              <button className={`mode-btn ${period === '5min' ? 'active' : ''}`} onClick={() => { setPeriod('5min'); setMode('day'); loadPeriod(selected.code, '5min') }}>5分</button>
+              <button className={`mode-btn ${period === '15min' ? 'active' : ''}`} onClick={() => { setPeriod('15min'); setMode('day'); loadPeriod(selected.code, '15min') }}>15分</button>
+              <button className={`mode-btn ${period === '30min' ? 'active' : ''}`} onClick={() => { setPeriod('30min'); setMode('day'); loadPeriod(selected.code, '30min') }}>30分</button>
+              <button className={`mode-btn ${period === '60min' ? 'active' : ''}`} onClick={() => { setPeriod('60min'); setMode('day'); loadPeriod(selected.code, '60min') }}>60分</button>
             </div>
           </div>
 
