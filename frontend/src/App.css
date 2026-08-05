@@ -494,6 +494,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .zoom-hint { font-size: 10px; color: var(--text-3); opacity: 0.7; margin-left: 6px; }
 
 /* Markdown */
+@import url('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css');
 .md-body { font-size: 14px; line-height: 1.65; }
 .md-body > *:first-child { margin-top: 0; }
 .md-body > *:last-child { margin-bottom: 0; }
@@ -511,6 +512,8 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .md-body th, .md-table th { background: var(--muted); color: var(--text-2); font-weight: 600; }
 .md-body blockquote { border-left: 3px solid var(--accent); background: var(--surface); padding: 8px 14px; margin: 10px 0; color: var(--text-2); }
 .md-body hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+.md-math { margin: 8px 0; overflow-x: auto; text-align: center; }
+.md-math .katex-display { margin: 0; }
 
 /* 打印 */
 @media print {
