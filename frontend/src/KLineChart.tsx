@@ -312,7 +312,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
       const rect = svg.getBoundingClientRect()
       const sx = (e.clientX - rect.left) / rect.width * W
       const sy = (e.clientY - rect.top) / rect.height * H
-      if (!drag && sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= PAD.t + priceH) {
+      // 鼠标在整个图表区域（主图+副图）都响应十字光标
+      if (!drag && sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= H - PAD.b) {
         setCrosshair({ x: sx, y: sy })
       }
     }
@@ -584,14 +585,14 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         })()}
         {/* MACD 零轴 */}
         <line x1={PAD.l} x2={W - PAD.r} y1={macdTop + macdH / 2} y2={macdTop + macdH / 2} stroke="#334155" strokeWidth="0.5" />
-        {/* MACD Y轴刻度 */}
+        {/* MACD Y轴刻度（左侧） */}
         {(() => {
           const ticks = [-macdMax, -macdMax / 2, 0, macdMax / 2, macdMax]
           const labels = [macdMax.toFixed(2), (macdMax / 2).toFixed(2), '0.00', (macdMax / 2).toFixed(2), macdMax.toFixed(2)]
           return ticks.map((v, i) => (
             <g key={'ytick'+i}>
               <line x1={PAD.l} x2={W - PAD.r} y1={macdY(v)} y2={macdY(v)} stroke="#1e293b" strokeWidth="0.5" strokeDasharray="1 3" />
-              <text x={W - PAD.r + 3} y={macdY(v) + 3} fontSize="9" fill="#475569">{labels[i]}</text>
+              <text x={PAD.l - 6} y={macdY(v) + 3} textAnchor="end" fontSize="9" fill="#475569">{labels[i]}</text>
             </g>
           ))
         })()}
@@ -637,11 +638,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </text>
           )
         })()}
-        {/* KDJ 20/50/80 参考线 */}
+        {/* KDJ 20/50/80 参考线（左侧标签） */}
         {[20, 50, 80].map((lvl) => (
           <g key={lvl}>
             <line x1={PAD.l} x2={W - PAD.r} y1={kdjY(lvl)} y2={kdjY(lvl)} stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 4" />
-            <text x={W - PAD.r + 2} y={kdjY(lvl) + 3} fontSize="8" fill="#475569">{lvl}</text>
+            <text x={PAD.l - 6} y={kdjY(lvl) + 3} textAnchor="end" fontSize="8" fill="#475569">{lvl}</text>
           </g>
         ))}
         {/* KDJ 鼠标跟随虚线 */}
