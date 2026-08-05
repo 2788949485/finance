@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 import type { LLMConfig, UserProfile } from './types'
 
-type Section = 'llm' | 'profile' | 'password'
+type Section = 'llm' | 'profile' | 'analysts' | 'password'
 
 export default function ProfilePage() {
   const [section, setSection] = useState<Section>('llm')
@@ -17,12 +17,14 @@ export default function ProfilePage() {
         <div className="profile-nav">
           <button className={section === 'llm' ? 'active' : ''} onClick={() => setSection('llm')}>模型配置</button>
           <button className={section === 'profile' ? 'active' : ''} onClick={() => setSection('profile')}>用户画像</button>
+          <button className={section === 'analysts' ? 'active' : ''} onClick={() => setSection('analysts')}>分析师配置</button>
           <button className={section === 'password' ? 'active' : ''} onClick={() => setSection('password')}>修改密码</button>
         </div>
 
         <div className="profile-content">
           {section === 'llm' && <LLMConfigSection />}
           {section === 'profile' && <UserProfileSection />}
+          {section === 'analysts' && <AnalystConfigSection />}
           {section === 'password' && <PasswordSection />}
         </div>
       </div>
@@ -201,6 +203,67 @@ function PasswordSection() {
         <button className="btn-primary" onClick={submit} disabled={busy}>{busy ? '修改中...' : '修改密码'}</button>
         {msg && <span className="ok-msg">{msg}</span>}
         {err && <span className="err-msg">{err}</span>}
+      </div>
+    </div>
+  )
+}
+
+function AnalystConfigSection() {
+  const [analysts, setAnalysts] = useState<{role:string;title:string}[]>([])
+  const [enabled, setEnabled] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/analysts').then(r => r.json()),
+      fetch('/api/auth/profile', { headers: { Authorization: 'Bearer ' + localStorage.getItem('financecrew_token') } }).then(r => r.json()),
+    ]).then(([aList, profile]) => {
+      setAnalysts(aList || [])
+      const config = profile?.analyst_config
+      setEnabled(Array.isArray(config) && config.length > 0 ? config : (aList || []).map((a:any) => a.role))
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const toggle = (role: string) => {
+    setEnabled(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role])
+  }
+
+  const save = async () => {
+    if (enabled.length === 0) { setMsg('至少保留一个分析师'); return }
+    setSaving(true); setMsg('')
+    try {
+      const r = await fetch('/api/auth/analyst-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + localStorage.getItem('financecrew_token') },
+        body: JSON.stringify({ enabled_analysts: enabled }),
+      })
+      if (r.ok) { setMsg('保存成功') } else { setMsg('保存失败') }
+    } catch { setMsg('网络错误') } finally { setSaving(false) }
+  }
+
+  if (loading) return <div style={{ padding: 20, color: '#888' }}>加载中...</div>
+
+  return (
+    <div className="config-section">
+      <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
+        选择投研分析时启用的分析师。未启用的分析师不会参与分析和投票。
+      </p>
+      <div className="analyst-list">
+        {analysts.map(a => (
+          <label key={a.role} className="analyst-item">
+            <input type="checkbox" checked={enabled.includes(a.role)} onChange={() => toggle(a.role)} />
+            <span className="analyst-title">{a.title}</span>
+            <span className="analyst-role">{a.role}</span>
+          </label>
+        ))}
+      </div>
+      <div className="config-actions">
+        <button className="btn-primary" onClick={save} disabled={saving}>
+          {saving ? '保存中...' : '保存配置'}
+        </button>
+        {msg && <span className={msg === '保存成功' ? 'ok-msg' : 'err-msg'}>{msg}</span>}
       </div>
     </div>
   )

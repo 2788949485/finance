@@ -1051,6 +1051,18 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 }
 .bt-cost-toggle input { cursor: pointer; }
 
+/* 分析师配置 */
+.analyst-list { display: flex; flex-direction: column; gap: 8px; }
+.analyst-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px; border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s;
+}
+.analyst-item:hover { border-color: var(--blue); }
+.analyst-item input { width: 16px; height: 16px; cursor: pointer; }
+.analyst-title { font-size: 14px; font-weight: 500; }
+.analyst-role { font-size: 12px; color: var(--muted); margin-left: auto; font-family: monospace; }
+
 /* ==================== 回测深度分析 ==================== */
 .bt-tabs { display: flex; gap: 4px; }
 .bt-tabs button {
