@@ -52,6 +52,25 @@ export default function QuotePage() {
     }
   }, [])
 
+  // 加载多周期K线（周K/月K/分钟级）
+  const loadPeriod = useCallback(async (code: string, p: string) => {
+    try {
+      const r = await fetch(`/api/kline/${code}?period=${p}&count=250`)
+      const d = await r.json()
+      if (d.bars) {
+        setData(prev => ({
+          brief: prev?.brief ?? {},
+          kline: d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
+          tech: d.tech ?? {},
+          last_close: d.tech?.price ?? null,
+        }))
+      }
+      setErr('')
+    } catch {
+      setErr('周期数据加载失败')
+    }
+  }, [])
+
   // 选中变化时加载行情 + 新闻 + 全量K线
   useEffect(() => {
     setMode('day')
@@ -68,9 +87,12 @@ export default function QuotePage() {
   // 实时轮询
   useEffect(() => {
     if (!live) return
+    // 切到非日K周期时停掉轮询，避免覆盖数据
+    const effectiveLive = live && period === 'day'
+    if (!effectiveLive) { if (timerRef.current) window.clearInterval(timerRef.current); return }
     timerRef.current = window.setInterval(() => load(selected.code, mode, 1), 15000)
     return () => { if (timerRef.current) window.clearInterval(timerRef.current) }
-  }, [live, mode, selected.code, load])
+  }, [live, mode, period, selected.code, load])
 
   // 搜索防抖
   const doSearch = useCallback(async (q: string) => {
@@ -196,20 +218,16 @@ export default function QuotePage() {
                 {live ? '● 实时' : '○ 实时'}
               </button>
               <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
-              <button className={`mode-btn ${mode === 'minute' ? 'active' : ''}`} onClick={() => { setMode('minute'); load(selected.code, 'minute', 0) }}>分时</button>
-              <select className="mode-btn period-select" value={period} onChange={async (e) => {
+              <button className={`mode-btn ${mode === 'minute' ? 'active' : ''}`} onClick={() => { setMode('minute'); setPeriod(''); load(selected.code, 'minute', 0) }}>分时</button>
+              <select className="mode-btn period-select" value={period} onChange={(e) => {
                 const p = e.target.value
                 setPeriod(p)
                 setMode('day')
-                if (p === 'day') { load(selected.code, 'day', 0); return }
-                try {
-                  const r = await fetch(`/api/kline/${selected.code}?period=${p}&count=250`)
-                  const d = await r.json()
-                  if (d.bars) {
-                    const klineBars = d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume }))
-                    setData({ brief: data?.brief ?? {}, kline: klineBars, tech: d.tech ?? {}, last_close: d.tech?.price ?? null })
-                  }
-                } catch { /* ignore */ }
+                if (p === 'day') {
+                  load(selected.code, 'day', 0)
+                } else {
+                  loadPeriod(selected.code, p)
+                }
               }}>
                 <option value="day">日K</option>
                 <option value="week">周K</option>
