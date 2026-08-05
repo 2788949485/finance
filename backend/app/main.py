@@ -526,6 +526,14 @@ def transactions_api(user: dict[str, Any] = Depends(get_current_user)) -> list[d
 
 # ---------- 回测系统 ----------
 
+@app.get("/api/multi-period/{symbol}")
+def multi_period_api(symbol: str) -> dict[str, Any]:
+    """多周期共振分析：日线/周线/月线趋势是否一致。"""
+    from .multi_period import get_multi_period_analysis
+    result = get_multi_period_analysis(symbol)
+    return result or {"error": "数据不足（需要至少60个交易日）"}
+
+
 @app.get("/api/backtest/analysis/{symbol}")
 def backtest_analysis_api(
     symbol: str,
