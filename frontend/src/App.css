@@ -1058,8 +1058,8 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   color: var(--text-2, #c8d0da); cursor: pointer;
   outline: none; -webkit-appearance: auto; appearance: auto;
 }
-.period-select:hover { border-color: var(--accent, #0d9488); }
-.period-select:focus { border-color: var(--accent, #0d9488); }
+.period-select:hover { border-color: var(--accent, #10b981); }
+.period-select:focus { border-color: var(--accent, #10b981); }
 .period-select option { background: var(--bg1); color: var(--text-2, #c8d0da); }
 
 /* 分析师配置 */
