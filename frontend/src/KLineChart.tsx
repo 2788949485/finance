@@ -542,17 +542,25 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         )}
         {crosshair && !drag && (() => {
           const cy = crosshair.y
-          const val = maxV - ((cy - PAD.t) / vh) * span
           const cx = crosshair.x
           // 找最近的K线索引
           const idx = Math.min(data.length - 1, Math.max(0, Math.round((cx - PAD.l) / step - 0.5)))
           const barX = PAD.l + idx * step + step / 2
+          // 判断鼠标是否在主图区域
+          const inMainChart = cy >= PAD.t && cy <= PAD.t + priceH
+          const val = inMainChart ? maxV - ((cy - PAD.t) / vh) * span : null
           return (
             <g pointerEvents="none">
-              <line x1={PAD.l} y1={cy} x2={W - PAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-              <line x1={barX} y1={PAD.t} x2={barX} y2={PAD.t + priceH} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-              <rect x={PAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
-              <text x={PAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill="#e2e8f0" fontWeight="bold">{val.toFixed(2)}</text>
+              {/* 竖虚线贯穿主图+副图 */}
+              <line x1={barX} y1={PAD.t} x2={barX} y2={H - PAD.b} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+              {/* 水平虚线+价格标签只在主图区域 */}
+              {inMainChart && val !== null && (
+                <>
+                  <line x1={PAD.l} y1={cy} x2={W - PAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+                  <rect x={PAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
+                  <text x={PAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill="#e2e8f0" fontWeight="bold">{val.toFixed(2)}</text>
+                </>
+              )}
             </g>
           )
         })()}
