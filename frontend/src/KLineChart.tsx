@@ -566,7 +566,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         })()}
         {hover && (
           <g>
-            <line x1={PAD.l} x2={W - PAD.r} y1={y(hover.close)} y2={y(hover.close)} stroke="#64748b" strokeWidth="0.6" strokeDasharray="3 3" />
             <text x={W - PAD.r} y={y(hover.close) - 4} textAnchor="end" fontSize="10" fill="#94a3b8">
               {hover.close.toFixed(2)}
             </text>
