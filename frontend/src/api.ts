@@ -205,8 +205,8 @@ export const api = {
     request<TransactionItem[]>(`/api/portfolio/transactions`),
 
   // 回测
-  getBacktest: (symbol: string, strategy: string, days: number) =>
-    request<BacktestResult>(`/api/backtest/${symbol}?strategy=${strategy}&days=${days}`),
+  getBacktest: (symbol: string, strategy: string, days: number, enable_cost: number = 1) =>
+    request<BacktestResult>(`/api/backtest/${symbol}?strategy=${strategy}&days=${days}&enable_cost=${enable_cost}`),
 
   // 多LLM对比
   compareLLM: (prompt: string, models: { name: string; base_url: string; api_key: string; model: string }[]) =>

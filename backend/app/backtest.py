@@ -14,12 +14,65 @@ from typing import Any, Optional
 from .data import fetcher as datalayer
 
 
+# ==================== 交易成本模型 ====================
+# A股交易成本：印花税 + 佣金 + 过户费
+# 可配置，默认值参考主流券商费率
+
+STAMP_TAX_RATE = 0.0005      # 印花税 0.05%（仅卖出）
+COMMISSION_RATE = 0.00025    # 佣金 万2.5（买卖双向）
+COMMISSION_MIN = 5.0         # 佣金最低5元/笔
+TRANSFER_FEE_RATE = 0.00001  # 过户费 万0.1（买卖双向）
+
+
+def calc_trade_cost(
+    price: float,
+    shares: int,
+    is_buy: bool,
+    stamp_tax_rate: float = STAMP_TAX_RATE,
+    commission_rate: float = COMMISSION_RATE,
+    commission_min: float = COMMISSION_MIN,
+    transfer_fee_rate: float = TRANSFER_FEE_RATE,
+) -> dict[str, float]:
+    """计算单笔交易成本。
+
+    返回 {
+        stamp_tax: 印花税（卖出时收取）
+        commission: 佣金（买卖双向，最低5元）
+        transfer_fee: 过户费（买卖双向）
+        total: 总成本
+    }
+    """
+    amount = price * shares
+    commission = max(amount * commission_rate, commission_min)
+    transfer_fee = amount * transfer_fee_rate
+    stamp_tax = amount * stamp_tax_rate if not is_buy else 0.0
+    return {
+        "stamp_tax": round(stamp_tax, 2),
+        "commission": round(commission, 2),
+        "transfer_fee": round(transfer_fee, 2),
+        "total": round(stamp_tax + commission + transfer_fee, 2),
+    }
+
+
+def apply_buy_cost(cash: float, price: float, shares: int) -> tuple[float, float]:
+    """买入扣成本。返回 (扣除成本后的cash, 总成本)。"""
+    cost = calc_trade_cost(price, shares, is_buy=True)
+    return cash - price * shares - cost["total"], cost["total"]
+
+
+def apply_sell_cost(cash: float, price: float, shares: int) -> tuple[float, float]:
+    """卖出扣成本。返回 (扣除成本后的cash, 总成本)。"""
+    cost = calc_trade_cost(price, shares, is_buy=False)
+    return cash + price * shares - cost["total"], cost["total"]
+
+
 def run_backtest(
     symbol: str,
     strategy: str = "ma_cross",
     days: int = 120,
     initial_capital: float = 100000.0,
     record_signals: bool = False,
+    enable_cost: bool = True,
     **kwargs: Any,
 ) -> Optional[dict[str, Any]]:
     """运行策略回测。
@@ -55,14 +108,14 @@ def run_backtest(
     # 执行策略
     signal_log: list[dict[str, Any]] = []
     if strategy == "ma_cross":
-        result = _backtest_ma_cross(df, initial_capital, symbol=symbol, record_signals=record_signals, signal_log=signal_log)
+        result = _backtest_ma_cross(df, initial_capital, symbol=symbol, record_signals=record_signals, signal_log=signal_log, enable_cost=enable_cost)
     elif strategy == "grid":
         grid_pct = kwargs.get("grid_pct", 0.05)  # 5%网格间距
-        result = _backtest_grid(df, initial_capital, grid_pct)
+        result = _backtest_grid(df, initial_capital, grid_pct, enable_cost=enable_cost)
     elif strategy == "hold":
-        result = _backtest_hold(df, initial_capital)
+        result = _backtest_hold(df, initial_capital, enable_cost=enable_cost)
     elif strategy == "ai":
-        result = _backtest_ai(df, initial_capital, sym, record_signals=record_signals, signal_log=signal_log)
+        result = _backtest_ai(df, initial_capital, sym, record_signals=record_signals, signal_log=signal_log, enable_cost=enable_cost)
     else:
         return None
 
@@ -94,7 +147,7 @@ def run_backtest(
     return result
 
 
-def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: bool = False, signal_log: list = None) -> dict[str, Any]:
+def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: bool = False, signal_log: list = None, enable_cost: bool = True) -> dict[str, Any]:
     """MA5/MA20均线交叉策略。"""
     shares = 0.0
     cash = capital
@@ -124,7 +177,10 @@ def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: boo
             buy_shares = cash // price
             if buy_shares > 0:
                 shares = buy_shares
-                cash -= shares * price
+                if enable_cost:
+                    cash, _ = apply_buy_cost(cash, price, int(shares))
+                else:
+                    cash -= shares * price
                 buy_price = price
                 trades_log.append({"date": date, "action": "BUY", "price": price, "shares": int(shares)})
 
@@ -140,7 +196,10 @@ def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: boo
             total_sells += 1
             if price > buy_price:
                 wins += 1
-            cash += shares * price
+            if enable_cost:
+                cash, _ = apply_sell_cost(cash, price, int(shares))
+            else:
+                cash += shares * price
             trades_log.append({"date": date, "action": "SELL", "price": price, "shares": int(shares)})
             shares = 0
 
@@ -156,7 +215,10 @@ def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: boo
     # 如果还持仓，用最后价格模拟平仓补全交易对
     final_price = float(df.iloc[-1]["close"])
     if shares > 0:
-        cash += shares * final_price
+        if enable_cost:
+            cash, _ = apply_sell_cost(cash, final_price, int(shares))
+        else:
+            cash += shares * final_price
         trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL", "price": final_price, "shares": int(shares)})
     final_value = cash
 
@@ -174,7 +236,7 @@ def _backtest_ma_cross(df, capital: float, symbol: str = "", record_signals: boo
 # ==================== 网格策略 ====================
 
 
-def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
+def _backtest_grid(df, capital: float, grid_pct: float, enable_cost: bool = True) -> dict[str, Any]:
     """简易网格策略：价格每跌grid_pct买入一份，每涨grid_pct卖出一份。"""
     shares = 0.0
     cash = capital
@@ -197,7 +259,10 @@ def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
             buy_shares = (capital * 0.1) // price  # 每次用10%资金
             if buy_shares > 0:
                 shares += buy_shares
-                cash -= buy_shares * price
+                if enable_cost:
+                    cash, _ = apply_buy_cost(cash, price, buy_shares)
+                else:
+                    cash -= buy_shares * price
                 last_grid_price = price
                 trades_log.append({"date": date, "action": "BUY", "price": price, "shares": int(buy_shares)})
 
@@ -206,7 +271,10 @@ def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
             sell_shares = min(shares, capital * 0.1 // price)
             if sell_shares > 0:
                 shares -= sell_shares
-                cash += sell_shares * price
+                if enable_cost:
+                    cash, _ = apply_sell_cost(cash, price, int(sell_shares))
+                else:
+                    cash += sell_shares * price
                 last_grid_price = price
                 trades_log.append({"date": date, "action": "SELL", "price": price, "shares": int(sell_shares)})
 
@@ -220,7 +288,10 @@ def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
 
     final_price = float(df.iloc[-1]["close"])
     if shares > 0:
-        cash += shares * final_price
+        if enable_cost:
+            cash, _ = apply_sell_cost(cash, final_price, int(shares))
+        else:
+            cash += shares * final_price
         trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL", "price": final_price, "shares": int(shares)})
     final_value = cash
 
@@ -235,11 +306,13 @@ def _backtest_grid(df, capital: float, grid_pct: float) -> dict[str, Any]:
     }
 
 
-def _backtest_hold(df, capital: float) -> dict[str, Any]:
+def _backtest_hold(df, capital: float, enable_cost: bool = True) -> dict[str, Any]:
     """买入持有策略（基准）。回测结束时自动平仓补全交易对。"""
     first_price = float(df.iloc[0]["close"])
     shares = capital // first_price
     cash = capital - shares * first_price
+    if enable_cost:
+        cash -= calc_trade_cost(first_price, int(shares), is_buy=True)["total"]
     equity_curve = []
     peak_value = capital
     max_dd = 0.0
@@ -260,6 +333,8 @@ def _backtest_hold(df, capital: float) -> dict[str, Any]:
     last_date = df.iloc[-1]["date"].strftime("%Y-%m-%d")
     first_date = df.iloc[0]["date"].strftime("%Y-%m-%d")
     final_value = cash + shares * last_price
+    if enable_cost and shares > 0:
+        final_value -= calc_trade_cost(last_price, int(shares), is_buy=False)["total"]
 
     # 完整的交易记录：买入 + 期末平仓
     trades_log = [
@@ -369,7 +444,7 @@ def _ai_decision(context: dict[str, Any], position_info: dict[str, Any]) -> tupl
     return "HOLD", ""
 
 
-def _backtest_ai(df, capital: float, symbol: str = "", record_signals: bool = False, signal_log: list = None) -> dict[str, Any]:
+def _backtest_ai(df, capital: float, symbol: str = "", record_signals: bool = False, signal_log: list = None, enable_cost: bool = True) -> dict[str, Any]:
     """AI增强策略：大模型每隔3个交易日决策一次，综合技术指标做买卖。
 
     交易频率：每3个交易日调一次LLM（平衡速度和响应度）。
@@ -424,14 +499,20 @@ def _backtest_ai(df, capital: float, symbol: str = "", record_signals: bool = Fa
                     else:
                         avg_cost = price
                     shares += buy_shares
-                    cash -= buy_shares * price
+                    if enable_cost:
+                        cash, _ = apply_buy_cost(cash, price, buy_shares)
+                    else:
+                        cash -= buy_shares * price
                     trades_log.append({"date": date, "action": "BUY", "price": price, "shares": buy_shares, "reason": reason})
 
             elif action == "SELL" and shares > 0:
                 total_sells += 1
                 if price > avg_cost:
                     wins += 1
-                cash += shares * price
+                if enable_cost:
+                    cash, _ = apply_sell_cost(cash, price, int(shares))
+                else:
+                    cash += shares * price
                 trades_log.append({"date": date, "action": "SELL", "price": price, "shares": int(shares), "reason": reason})
                 shares = 0
                 avg_cost = 0
@@ -447,7 +528,10 @@ def _backtest_ai(df, capital: float, symbol: str = "", record_signals: bool = Fa
 
     final_price = float(df.iloc[-1]["close"])
     if shares > 0:
-        cash += shares * final_price
+        if enable_cost:
+            cash, _ = apply_sell_cost(cash, final_price, int(shares))
+        else:
+            cash += shares * final_price
         trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL", "price": final_price, "shares": int(shares)})
     final_value = cash
 

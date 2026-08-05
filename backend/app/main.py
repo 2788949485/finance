@@ -559,13 +559,14 @@ def backtest_analysis_api(
 
 
 @app.get("/api/backtest/{symbol}")
-def backtest_api(symbol: str, strategy: str = "ma_cross", days: int = 120, record_signals: int = 0) -> dict[str, Any]:
+def backtest_api(symbol: str, strategy: str = "ma_cross", days: int = 120, record_signals: int = 0, enable_cost: int = 1) -> dict[str, Any]:
     """策略回测：在历史K线上模拟交易策略。
     strategy: ma_cross / grid / hold / ai
     record_signals: 1=记录ML信号特征快照（生成CSV供训练用）
+    enable_cost: 1=含A股交易成本(印花税+佣金+过户费), 0=不含
     """
     sym = datalayer._norm_symbol(symbol)
-    result = backtest.run_backtest(sym, strategy=strategy, days=days, record_signals=bool(record_signals))
+    result = backtest.run_backtest(sym, strategy=strategy, days=days, record_signals=bool(record_signals), enable_cost=bool(enable_cost))
     return result or {"error": "回测数据不足（需要至少30个交易日）"}
 
 

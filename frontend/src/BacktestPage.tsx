@@ -17,6 +17,7 @@ export default function BacktestPage() {
   const [symbol, setSymbol] = useState('')
   const [strategy, setStrategy] = useState('ma_cross')
   const [days, setDays] = useState(120)
+  const [enableCost, setEnableCost] = useState(true)
   const [result, setResult] = useState<BacktestResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -25,7 +26,7 @@ export default function BacktestPage() {
     if (!symbol.trim()) { setError('请输入股票代码'); return }
     setLoading(true); setError('')
     try {
-      const r = await api.getBacktest(symbol.trim(), strategy, days)
+      const r = await api.getBacktest(symbol.trim(), strategy, days, enableCost ? 1 : 0)
       setResult(r)
     } catch (e: any) { setError(e.message || '回测失败') }
     finally { setLoading(false) }
@@ -56,6 +57,10 @@ export default function BacktestPage() {
           <option value={120}>120天</option>
           <option value={250}>250天</option>
         </select>
+        <label className="bt-cost-toggle">
+          <input type="checkbox" checked={enableCost} onChange={e => setEnableCost(e.target.checked)} />
+          <span>含手续费</span>
+        </label>
         <button className="btn-primary" onClick={run} disabled={loading}>
           {loading ? (strategy === 'ai' ? 'AI分析中(较慢)...' : '回测中...') : '开始回测'}
         </button>

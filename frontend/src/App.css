@@ -1045,6 +1045,12 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   }
 }
 
+.bt-cost-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; color: var(--text, #c8d0da); cursor: pointer;
+}
+.bt-cost-toggle input { cursor: pointer; }
+
 /* ==================== 回测深度分析 ==================== */
 .bt-tabs { display: flex; gap: 4px; }
 .bt-tabs button {
