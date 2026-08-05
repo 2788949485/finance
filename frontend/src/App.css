@@ -20,7 +20,8 @@
   --down-bg: rgba(246, 70, 93, 0.08);
   --neutral: #f0b90b;
   --neutral-bg: rgba(240, 185, 11, 0.08);
-  --accent: #0d9488;
+  --accent: #10b981;
+  --accent-soft: rgba(16, 185, 129, 0.12);
   --radius: 2px;
   --shadow: none;
   --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
