@@ -55,24 +55,34 @@ export default function QuotePage() {
     }
   }, [])
 
-  // 加载多日分时（2日/3日/4日/5日）：用5分钟K线展示
+  // 加载多日分时（2日/3日/4日/5日）：按交易日截取，每天的分时折线
   const loadMultiDay = useCallback(async (code: string, days: number) => {
     try {
       setAllBars([])
       const token = localStorage.getItem('financecrew_token')
-      // 5分钟K线 每天48根 x N天
-      const count = 48 * days
+      // 多取一些确保覆盖N个交易日(考虑周末)
+      const count = 48 * (days + 3)
       const r = await fetch(`/api/kline/${code}?period=5min&count=${count}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       const d = await r.json()
       if (d.bars) {
-        // 走日K模式展示5分钟K线蜡烛图（不用分时折线）
+        // 按交易日分组，只保留最近N个交易日
+        const dayMap = new Map<string, any[]>()
+        for (const b of d.bars) {
+          const day = b.date.split(' ')[0]
+          if (!dayMap.has(day)) dayMap.set(day, [])
+          dayMap.get(day)!.push(b)
+        }
+        const allDays = Array.from(dayMap.keys()).sort()
+        const recentDays = allDays.slice(-days)
+        const filtered = d.bars.filter((b: any) => recentDays.includes(b.date.split(' ')[0]))
+        // 走日K模式展示5分钟K线蜡烛图
         setData(prev => ({
           brief: prev?.brief ?? {},
-          kline: d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
+          kline: filtered.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
           tech: {},
-          last_close: d.bars[d.bars.length - 1]?.close ?? null,
+          last_close: filtered[filtered.length - 1]?.close ?? null,
         }))
       }
       setErr('')
