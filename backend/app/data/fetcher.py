@@ -197,6 +197,41 @@ def _fetch_us_kline_aggregated(sym: str, period: str, count: int) -> Optional[di
     return {"bars": bars} if bars else None
 
 
+def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[dict[str, Any]]:
+    """美股分钟级K线（yfinance，国内直连）。
+
+    m_param: m5/m15/m30/m60
+    """
+    try:
+        import yfinance as yf
+        interval_map = {"m5": "5m", "m15": "15m", "m30": "30m", "m60": "60m"}
+        interval = interval_map.get(m_param, "5m")
+        period = "5d" if count <= 390 else "60d"
+        df = yf.download(ticker, period=period, interval=interval, progress=False)
+        if df is None or len(df) == 0:
+            return None
+        # yfinance返回MultiIndex列名，扁平化
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        bars = []
+        for idx, row in df.tail(count).iterrows():
+            dt_str = str(idx)[:16]
+            try:
+                bars.append({
+                    "date": dt_str,
+                    "open": round(float(row["Open"]), 4),
+                    "close": round(float(row["Close"]), 4),
+                    "high": round(float(row["High"]), 4),
+                    "low": round(float(row["Low"]), 4),
+                    "volume": int(float(row["Volume"])),
+                })
+            except (ValueError, TypeError):
+                continue
+        return {"bars": bars} if bars else None
+    except Exception:
+        return None
+
+
 def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
     """前复权日线行情（腾讯 K 线接口），缓存 1 小时。"""
     sym = _norm_symbol(symbol)
@@ -274,12 +309,18 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
     def _fetch() -> Optional[dict[str, Any]]:
         code = f"{_market_prefix(sym)}{sym}"
         try:
-            # 美股: 腾讯不支持周K/月K，用新浪日K聚合
-            if sym.startswith("us") and period_info["type"] == "fqkline" and period_info["param"] != "day":
-                return _fetch_us_kline_aggregated(sym, period_info["param"], count)
-            # 美股日K也走新浪
-            if sym.startswith("us") and period_info["param"] == "day":
-                return _fetch_us_kline(sym, count)
+            # 美股: 腾讯不支持周K/月K/分钟K，用不同接口
+            if sym.startswith("us"):
+                ticker = sym[2:]  # usAAPL -> AAPL
+                if period_info["type"] == "fqkline" and period_info["param"] != "day":
+                    # 周K/月K：从新浪日K聚合
+                    return _fetch_us_kline_aggregated(sym, period_info["param"], count)
+                if period_info["type"] == "fqkline" and period_info["param"] == "day":
+                    # 日K：新浪
+                    return _fetch_us_kline(sym, count)
+                if period_info["type"] == "mkline":
+                    # 分钟级：yfinance
+                    return _fetch_us_minute_kline(ticker, period_info["param"], count)
             if period_info["type"] == "fqkline":
                 # 日/周/月K线
                 url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},{period_info['param']},,,{count},qfq"

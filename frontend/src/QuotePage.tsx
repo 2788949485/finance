@@ -55,30 +55,12 @@ export default function QuotePage() {
     }
   }, [])
 
-  // 加载多日分时（2日/3日/4日/5日）：A股用5分钟K线，美股用日K按天数截取
+  // 加载多日分时（2日/3日/4日/5日）：5分钟K线按交易日截取
   const loadMultiDay = useCallback(async (code: string, days: number) => {
     try {
       setAllBars([])
       const token = localStorage.getItem('financecrew_token')
-      const isUS = code.toLowerCase().startsWith('us')
-      if (isUS) {
-        // 美股没有分钟K线，用日K按天数截取
-        const r = await fetch(`/api/kline/${code}?period=day&count=${days}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-        const d = await r.json()
-        if (d.bars) {
-          setData(prev => ({
-            brief: prev?.brief ?? {},
-            kline: d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
-            tech: {},
-            last_close: d.bars[d.bars.length - 1]?.close ?? null,
-          }))
-        }
-        setErr('')
-        return
-      }
-      // A股用5分钟K线按交易日截取
+      // A股用腾讯5分钟，美股用yfinance 5分钟（后端自动选择）
       const count = 48 * (days + 3)
       const r = await fetch(`/api/kline/${code}?period=5min&count=${count}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
