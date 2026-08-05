@@ -55,6 +55,7 @@ def _init_db() -> None:
                 user_id INTEGER PRIMARY KEY,
                 risk_preference TEXT DEFAULT 'balanced',
                 watchlist TEXT DEFAULT '[]',
+                analyst_config TEXT DEFAULT '',
                 updated_at TEXT
             )"""
         )
@@ -494,19 +495,29 @@ def get_profile(user_id: int) -> dict[str, Any]:
     with _connect() as conn:
         row = conn.execute("SELECT * FROM user_profiles WHERE user_id=?", (user_id,)).fetchone()
     if row is None:
-        return {"risk_preference": "balanced", "watchlist": []}
+        return {"risk_preference": "balanced", "watchlist": [], "analyst_config": {}}
     try:
         watchlist = json.loads(row["watchlist"])
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, TypeError):
         watchlist = []
+    try:
+        analyst_config = json.loads(row["analyst_config"]) if "analyst_config" in row.keys() and row["analyst_config"] else {}
+    except (json.JSONDecodeError, TypeError):
+        analyst_config = {}
     return {
         "risk_preference": row["risk_preference"],
         "watchlist": watchlist,
+        "analyst_config": analyst_config,
         "updated_at": row["updated_at"],
     }
 
 
-def update_profile(user_id: int, risk_preference: Optional[str] = None, watchlist: Optional[list[str]] = None) -> dict[str, Any]:
+def update_profile(
+    user_id: int,
+    risk_preference: Optional[str] = None,
+    watchlist: Optional[list[str]] = None,
+    analyst_config: Optional[list[str]] = None,
+) -> dict[str, Any]:
     _init_db()
     cur = get_profile(user_id)
     if risk_preference is not None:
@@ -515,11 +526,14 @@ def update_profile(user_id: int, risk_preference: Optional[str] = None, watchlis
         cur["risk_preference"] = risk_preference
     if watchlist is not None:
         cur["watchlist"] = [str(w).zfill(6) if str(w).isdigit() else str(w) for w in watchlist][:30]
+    if analyst_config is not None:
+        cur["analyst_config"] = analyst_config
     with _connect() as conn:
         conn.execute(
-            """INSERT OR REPLACE INTO user_profiles (user_id, risk_preference, watchlist, updated_at)
-               VALUES (?, ?, ?, ?)""",
+            """INSERT OR REPLACE INTO user_profiles (user_id, risk_preference, watchlist, analyst_config, updated_at)
+               VALUES (?, ?, ?, ?, ?)""",
             (user_id, cur["risk_preference"], json.dumps(cur["watchlist"], ensure_ascii=False),
+             json.dumps(cur.get("analyst_config", []), ensure_ascii=False),
              datetime.now().isoformat(timespec="seconds")),
         )
     return get_profile(user_id)

@@ -526,6 +526,26 @@ def transactions_api(user: dict[str, Any] = Depends(get_current_user)) -> list[d
 
 # ---------- 回测系统 ----------
 
+@app.get("/api/analysts")
+def list_analysts() -> list[dict[str, str]]:
+    """返回所有可用分析师列表。"""
+    from .agents.analysts import ALL_ANALYSTS
+    return [{"role": cls.role, "title": cls.title, "description": getattr(cls, "__doc__", "")} for cls in ALL_ANALYSTS]
+
+
+@app.put("/api/auth/analyst-config")
+def save_analyst_config(body: dict[str, Any], user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """保存用户分析师配置（启用哪些分析师）。"""
+    enabled = body.get("enabled_analysts")
+    if not isinstance(enabled, list):
+        raise HTTPException(status_code=400, detail="enabled_analysts must be a list")
+    from .agents.analysts import ALL_ANALYSTS
+    valid_roles = {cls.role for cls in ALL_ANALYSTS}
+    enabled = [r for r in enabled if r in valid_roles]
+    auth.update_profile(user["id"], analyst_config=enabled)
+    return {"enabled_analysts": enabled}
+
+
 @app.get("/api/multi-period/{symbol}")
 def multi_period_api(symbol: str) -> dict[str, Any]:
     """多周期共振分析：日线/周线/月线趋势是否一致。"""

@@ -105,10 +105,20 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 # ---------- 2. 分析师并行（Send fan-out）----------
 
 def fan_out_analysts(state: AgentState) -> list[Send]:
-    """Map 阶段：为每个分析师角色分发一个 Send 任务（LangGraph 并行执行）。"""
+    """Map 阶段：为每个分析师角色分发一个 Send 任务（LangGraph 并行执行）。
+
+    支持用户配置：从 context 中的 enabled_analysts 过滤，
+    如果未配置则默认全部启用。
+    """
+    ctx = state.get("context", {})
+    enabled = ctx.get("enabled_analysts")
+    if enabled and isinstance(enabled, list):
+        roles = [r for r in ANALYST_ORDER if r in enabled]
+    else:
+        roles = ANALYST_ORDER
     return [
-        Send("run_analyst", {"context": state["context"], "role": role})
-        for role in ANALYST_ORDER
+        Send("run_analyst", {"context": ctx, "role": role})
+        for role in roles
     ]
 
 
