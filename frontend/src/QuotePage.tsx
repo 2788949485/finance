@@ -55,7 +55,7 @@ export default function QuotePage() {
     }
   }, [])
 
-  // 加载多日分时（2日/3日/4日/5日）：用5分钟K线模拟
+  // 加载多日分时（2日/3日/4日/5日）：用5分钟K线展示
   const loadMultiDay = useCallback(async (code: string, days: number) => {
     try {
       setAllBars([])
@@ -67,11 +67,10 @@ export default function QuotePage() {
       })
       const d = await r.json()
       if (d.bars) {
-        // 转成分时格式（price折线）
-        const minutePoints = d.bars.map((b: any) => ({ time: b.date, price: b.close, avg: null }))
+        // 走日K模式展示5分钟K线蜡烛图（不用分时折线）
         setData(prev => ({
           brief: prev?.brief ?? {},
-          kline: minutePoints,
+          kline: d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume })),
           tech: {},
           last_close: d.bars[d.bars.length - 1]?.close ?? null,
         }))
@@ -261,7 +260,7 @@ export default function QuotePage() {
             <select className="period-select" value={multiDay ? `day${multiDay}` : (mode === 'minute' ? 'minute' : '')} onChange={(e) => {
               const v = e.target.value
               if (v === 'minute') { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }
-              else if (v.startsWith('day')) { const n = parseInt(v.slice(3)); setMode('minute'); setMultiDay(n); setPeriod(''); loadMultiDay(selected.code, n) }
+              else if (v.startsWith('day')) { const n = parseInt(v.slice(3)); setMode('day'); setMultiDay(n); setPeriod(''); loadMultiDay(selected.code, n) }
             }}>
               <option value="minute">分时</option>
               <option value="day2">2日</option>
