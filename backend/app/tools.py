@@ -148,14 +148,15 @@ def get_kline(symbol: str, days: int = 120) -> str:
 
 @tool
 def get_financials(symbol: str) -> str:
-    """查询A股财务摘要：最新报告期营收、净利润及同比增速、ROE、毛利率、资产负债率。
-    参数 symbol: 6位A股代码或公司名。仅支持A股，港股美股无财务数据。"""
+    """查询财务摘要：A股用同花顺接口，港股/美股用yfinance。
+    返回最新报告期营收、净利润及同比增速、ROE、毛利率、资产负债率。
+    参数 symbol: A股6位代码、港股hk代码、美股us代码或公司名。"""
     resolved = resolve_symbol(symbol)
-    if not resolved.isdigit() or len(resolved) != 6:
-        return f"{symbol} 的财务数据暂不支持（当前仅支持A股，请提供6位A股代码）"
+    if not resolved:
+        return f"无法识别股票代码: {symbol}"
     fin = datalayer.get_financials(resolved)
     if fin is None:
-        return "未获取到财务数据"
+        return "未获取到财务数据（港股/美股需要代理访问yfinance）"
     return _j(fin)
 
 
@@ -276,10 +277,10 @@ def get_stock_news(symbol: str) -> str:
 def run_research(symbol: str, topic: str = "") -> str:
     """运行完整多智能体投研分析：5位分析师（宏观/基本面/技术面/情绪面/资金面）独立研判、
     多空辩论、共识评分、风控审查、交易计划。返回结构化报告JSON。
-    参数 symbol: 6位A股代码或公司名；topic: 可选分析主题。耗时较长（约1-2分钟）。仅支持A股。"""
+    参数 symbol: 股票代码或公司名（A股6位/港股hk代码/美股us代码）；topic: 可选分析主题。耗时较长（约1-2分钟）。"""
     resolved = resolve_symbol(symbol)
-    if not resolved.isdigit() or len(resolved) != 6:
-        return f"{symbol} 的深度投研暂不支持（当前仅支持A股，港股可查询行情/K线）"
+    if not resolved:
+        return f"无法识别股票代码: {symbol}"
     try:
         result = run_analysis(resolved, topic or None)
         return _j(result)
