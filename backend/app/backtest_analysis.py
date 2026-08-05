@@ -836,6 +836,42 @@ def _optimize_params_on_train(
     return best_params, (best_return if best_return > -math.inf else 0.0)
 
 
+def _equity_curve_period_return(
+    equity_curve: list[dict],
+    start_idx: int,
+) -> float:
+    """从权益曲线提取从 start_idx 到末尾的区间收益率（百分比）。
+
+    用于把 train+test 合并回测的 equity_curve 切出样本外（test）段收益。
+    """
+    if not equity_curve or start_idx >= len(equity_curve) - 1:
+        return 0.0
+    v0 = float(equity_curve[start_idx]["value"])
+    v1 = float(equity_curve[-1]["value"])
+    if v0 <= 0:
+        return 0.0
+    return round((v1 / v0 - 1.0) * 100.0, 2)
+
+
+def _equity_curve_segment(
+    equity_curve: list[dict],
+    start_idx: int,
+) -> list[dict]:
+    """返回 equity_curve 从 start_idx 到末尾的切片（归一化起点为 100000）。"""
+    if not equity_curve or start_idx >= len(equity_curve):
+        return []
+    base = float(equity_curve[start_idx]["value"])
+    if base <= 0:
+        base = 100000.0
+    seg = []
+    for pt in equity_curve[start_idx:]:
+        seg.append({
+            "date": pt["date"],
+            "value": round(float(pt["value"]) / base * 100000.0, 2),
+        })
+    return seg
+
+
 def run_walk_forward(
     symbol: str,
     strategy: str = "ma_cross",
@@ -848,6 +884,13 @@ def run_walk_forward(
 
     用过去 train_window 天优化参数 → 交易未来 test_window 天 → 平移窗口。
     输出每个窗口的样本内/样本外表现，评估策略稳定性与防过拟合能力。
+
+    实现要点：
+      - 训练段（60天）做参数网格搜索找最优参数
+      - 测试段用最优参数回测；为避免指标 warm-up 不足，测试段的指标
+        在 train+test 合并窗口上预热，仅取 test 区间的权益曲线计算收益
+      - 滚动平移 test_window 天，逐窗口记录样本内/外表现
+      - 样本外累计权益曲线由各窗口 test 收益复利链接
 
     参数:
         symbol: 股票代码
@@ -891,22 +934,26 @@ def run_walk_forward(
     window_idx = 0
     while start + train_window + test_window <= n:
         train_df = df.iloc[start: start + train_window]
-        test_df = df.iloc[start + train_window: start + train_window + test_window]
+        # 合并 train+test 用于回测（指标可从 train 段 warm-up 到 test 段）
+        full_window_df = df.iloc[start: start + train_window + test_window]
+        # test 段的原始行数（dropna 前的 K 线数）
+        test_klines = test_window
 
-        if len(train_df) < 30 or len(test_df) < 5:
+        if len(train_df) < 30 or len(full_window_df) < train_window + 5:
             break
 
         train_start = str(train_df.iloc[0]["date"].date()) if hasattr(train_df.iloc[0]["date"], "date") else str(train_df.iloc[0]["date"])
         train_end = str(train_df.iloc[-1]["date"].date()) if hasattr(train_df.iloc[-1]["date"], "date") else str(train_df.iloc[-1]["date"])
-        test_start = str(test_df.iloc[0]["date"].date()) if hasattr(test_df.iloc[0]["date"], "date") else str(test_df.iloc[0]["date"])
-        test_end = str(test_df.iloc[-1]["date"].date()) if hasattr(test_df.iloc[-1]["date"], "date") else str(test_df.iloc[-1]["date"])
+        test_df_raw = df.iloc[start + train_window: start + train_window + test_window]
+        test_start = str(test_df_raw.iloc[0]["date"].date()) if hasattr(test_df_raw.iloc[0]["date"], "date") else str(test_df_raw.iloc[0]["date"])
+        test_end = str(test_df_raw.iloc[-1]["date"].date()) if hasattr(test_df_raw.iloc[-1]["date"], "date") else str(test_df_raw.iloc[-1]["date"])
 
         # ---- 训练段：网格搜索最优参数 ----
         best_params, train_return = _optimize_params_on_train(
             train_df, strategy, 100000.0, param_grid,
         )
 
-        # 训练段 Sharpe（用最优参数重算，便于记录）
+        # 训练段 Sharpe（用最优参数重算）
         train_sharpe = 0.0
         if best_params:
             train_res = _run_strategy_on_df(
@@ -917,34 +964,36 @@ def run_walk_forward(
             if train_res:
                 train_sharpe = _sharpe_from_equity(train_res.get("equity_curve", []))
 
-        # ---- 测试段：用最优参数交易（样本外）----
-        if best_params:
-            test_res = _run_strategy_on_df(
-                test_df, strategy, oos_capital,
-                enable_cost=enable_cost, percentage=percentage, slippage=slippage,
-                **best_params,
-            )
-        else:
-            # 训练段无有效参数 → 测试段用默认参数
-            test_res = _run_strategy_on_df(
-                test_df, strategy, oos_capital,
-                enable_cost=enable_cost, percentage=percentage, slippage=slippage,
-            )
+        # ---- 测试段：在 train+test 合并窗口上回测，取 test 区间权益 ----
+        # 这样指标从 train 段预热，test 段真正反映样本外表现。
+        run_params = best_params or {}
+        window_res = _run_strategy_on_df(
+            full_window_df, strategy, oos_capital,
+            enable_cost=enable_cost, percentage=percentage, slippage=slippage,
+            **run_params,
+        )
 
-        if test_res:
-            test_return = float(test_res.get("total_return", 0.0))
-            test_sharpe = _sharpe_from_equity(test_res.get("equity_curve", []))
+        if window_res and window_res.get("equity_curve"):
+            eq = window_res["equity_curve"]
+            # test 段起点：eq 末尾 test_klines 行（dropna 后近似对齐）
+            # 用倒数 test_klines 作为样本外起点（最多取到 len-1）
+            seg_start = max(len(eq) - test_klines, 1)
+            test_return = _equity_curve_period_return(eq, seg_start)
+            test_seg = _equity_curve_segment(eq, seg_start)
+            test_sharpe = _sharpe_from_equity(test_seg) if len(test_seg) >= 3 else 0.0
             # 链接样本外累计权益
             oos_capital *= (1.0 + test_return / 100.0)
-            last_date = test_df.iloc[-1]["date"]
-            oos_values.append({
-                "window": window_idx,
-                "date": str(last_date.date()) if hasattr(last_date, "date") else str(last_date),
-                "value": round(oos_capital, 2),
-            })
         else:
             test_return = 0.0
             test_sharpe = 0.0
+
+        # 记录该窗口末尾的样本外累计权益（每窗口一点，构成简洁 OOS 曲线）
+        last_date = test_df_raw.iloc[-1]["date"]
+        oos_values.append({
+            "window": window_idx,
+            "date": str(last_date.date()) if hasattr(last_date, "date") else str(last_date),
+            "value": round(oos_capital, 2),
+        })
 
         windows.append({
             "window": window_idx,
@@ -954,7 +1003,7 @@ def run_walk_forward(
             "test_end": test_end,
             "best_params": best_params,
             "train_return": round(train_return, 2),
-            "test_return": round(test_return, 2),
+            "test_return": test_return,
             "train_sharpe": round(train_sharpe, 3),
             "test_sharpe": round(test_sharpe, 3),
         })
@@ -968,15 +1017,11 @@ def run_walk_forward(
     # ---- 汇总 ----
     test_returns = [w["test_return"] for w in windows]
     train_returns = [w["train_return"] for w in windows]
-    test_sharpes = [w["test_sharpe"] for w in windows]
     positive_test = sum(1 for r in test_returns if r > 0)
 
     avg_test_return = float(np.mean(test_returns)) if test_returns else 0.0
     consistency_score = (positive_test / len(test_returns) * 100.0) if test_returns else 0.0
-    oos_sharpe = _sharpe_from_equity(
-        [{"value": v["value"]} for v in oos_values] if len(oos_values) >= 3
-        else [{"value": 100000.0}, {"value": oos_capital}]
-    )
+    oos_sharpe = _sharpe_from_equity(oos_values) if len(oos_values) >= 3 else 0.0
 
     summary = {
         "avg_test_return": round(avg_test_return, 2),
