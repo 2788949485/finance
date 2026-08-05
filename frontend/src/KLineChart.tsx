@@ -481,7 +481,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         />
         <polyline
           points={ma20.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')}
-          fill="none" stroke="#3b82f6" strokeWidth="1.2" opacity="0.9"
+          fill="none" stroke="#0d9488" strokeWidth="1.2" opacity="0.9"
         />
         {/* BOLL 上轨 */}
         <polyline points={boll.upper.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')} fill="none" stroke="#64748b" strokeWidth="0.8" opacity="0.5" strokeDasharray="3 2" />
@@ -590,7 +590,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           return (
             <text x={PAD.l + 90} y={macdTop + 11} fontSize="9" fill="#64748b">
               <tspan fill="#f59e0b">DIF {d.toFixed(3)}</tspan>
-              <tspan dx="6" fill="#3b82f6">DEA {e.toFixed(3)}</tspan>
+              <tspan dx="6" fill="#0d9488">DEA {e.toFixed(3)}</tspan>
               <tspan dx="6" fill={m >= 0 ? UP : DOWN}>MACD {m.toFixed(3)}</tspan>
             </text>
           )
@@ -615,7 +615,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const dVal = dif[idx] ?? 0
           return (
             <g pointerEvents="none">
-              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
+              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#0d9488" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
               <circle cx={cx} cy={macdY(dVal)} r="2" fill="#f59e0b" />
             </g>
           )
@@ -632,7 +632,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         {/* DIF 线 */}
         <polyline points={dif.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#f59e0b" strokeWidth="1" opacity="0.85" />
         {/* DEA 线 */}
-        <polyline points={dea.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.85" />
+        <polyline points={dea.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#0d9488" strokeWidth="1" opacity="0.85" />
           </>
         ) : (
           <>
@@ -645,7 +645,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           return (
             <text x={PAD.l + 70} y={macdTop + 11} fontSize="9" fill="#64748b">
               <tspan fill="#a855f7">K {kv.toFixed(1)}</tspan>
-              <tspan dx="6" fill="#3b82f6">D {dv.toFixed(1)}</tspan>
+              <tspan dx="6" fill="#0d9488">D {dv.toFixed(1)}</tspan>
               <tspan dx="6" fill="#f59e0b">J {jv.toFixed(1)}</tspan>
             </text>
           )
@@ -664,7 +664,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const kv = kdj.k[idx] ?? 0
           return (
             <g pointerEvents="none">
-              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#3b82f6" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
+              <line x1={cx} x2={cx} y1={macdTop} y2={macdTop + macdH} stroke="#0d9488" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
               <circle cx={cx} cy={kdjY(kv)} r="2" fill="#a855f7" />
             </g>
           )
@@ -672,7 +672,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         {/* K 线 */}
         <polyline points={kdj.k.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#a855f7" strokeWidth="1" opacity="0.85" />
         {/* D 线 */}
-        <polyline points={kdj.d.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#3b82f6" strokeWidth="1" opacity="0.85" />
+        <polyline points={kdj.d.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#0d9488" strokeWidth="1" opacity="0.85" />
         {/* J 线 */}
         <polyline points={kdj.j.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#f59e0b" strokeWidth="1" opacity="0.85" />
           </>
@@ -687,7 +687,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           <div className="kline-tooltip">
             {hover.date} 开 {hover.open} 高 {hover.high} 低 {hover.low} 收 {hover.close}
             <span style={{ marginLeft: 12, color: '#f59e0b' }}>DIF {d.toFixed(3)}</span>
-            <span style={{ marginLeft: 6, color: '#3b82f6' }}>DEA {e.toFixed(3)}</span>
+            <span style={{ marginLeft: 6, color: '#0d9488' }}>DEA {e.toFixed(3)}</span>
             <span style={{ marginLeft: 6, color: m >= 0 ? '#22c55e' : '#ef4444' }}>MACD {m.toFixed(3)}</span>
           </div>
         )

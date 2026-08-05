@@ -20,7 +20,7 @@
   --down-bg: rgba(246, 70, 93, 0.08);
   --neutral: #f0b90b;
   --neutral-bg: rgba(240, 185, 11, 0.08);
-  --accent: #3b82f6;
+  --accent: #0d9488;
   --radius: 2px;
   --shadow: none;
   --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
@@ -1057,8 +1057,8 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   color: var(--text-2, #c8d0da); cursor: pointer;
   outline: none; -webkit-appearance: auto; appearance: auto;
 }
-.period-select:hover { border-color: var(--blue, #3b82f6); }
-.period-select:focus { border-color: var(--blue, #3b82f6); }
+.period-select:hover { border-color: var(--accent, #0d9488); }
+.period-select:focus { border-color: var(--accent, #0d9488); }
 .period-select option { background: var(--bg1); color: var(--text-2, #c8d0da); }
 
 /* 分析师配置 */
@@ -1068,7 +1068,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   padding: 10px 16px; border: 1px solid var(--border);
   cursor: pointer; transition: all 0.15s;
 }
-.analyst-item:hover { border-color: var(--blue); }
+.analyst-item:hover { border-color: var(--accent); }
 .analyst-item input { width: 16px; height: 16px; cursor: pointer; }
 .analyst-title { font-size: 14px; font-weight: 500; }
 .analyst-role { font-size: 12px; color: var(--muted); margin-left: auto; font-family: monospace; }
@@ -1090,9 +1090,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   color: var(--text, #c8d0da); cursor: pointer; font-size: 13px;
   transition: all 0.15s;
 }
-.bt-tabs button:hover { color: var(--blue); border-color: var(--blue); }
+.bt-tabs button:hover { color: var(--accent); border-color: var(--accent); }
 .bt-tabs button.active {
-  color: var(--blue); border-color: var(--blue);
+  color: var(--accent); border-color: var(--accent);
   background: rgba(59,130,246,0.08);
 }
 .bt-analysis { padding: 0; }
@@ -1124,7 +1124,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 }
 .bt-sensitivity-verdict {
   padding: 8px 12px; margin-bottom: 8px;
-  border-left: 3px solid var(--blue); background: var(--bg1);
+  border-left: 3px solid var(--accent); background: var(--bg1);
   font-size: 13px;
 }
 .bt-sensitivity-stats {
