@@ -153,6 +153,50 @@ def _fetch_us_kline(sym: str, days: int) -> Optional[dict[str, Any]]:
         return None
 
 
+def _fetch_us_kline_aggregated(sym: str, period: str, count: int) -> Optional[dict[str, Any]]:
+    """美股周K/月K：从新浪日K数据聚合。
+
+    period: 'week' 或 'month'
+    """
+    # 多取数据确保聚合后有足够的周/月
+    need_days = count * 7 if period == "week" else count * 31
+    raw = _fetch_us_kline(sym, min(need_days, 5000))
+    if raw is None or not raw.get("bars"):
+        return None
+
+    df = pd.DataFrame(raw["bars"])
+    df["date"] = pd.to_datetime(df["date"])
+
+    if period == "week":
+        # 按周聚合：取每周第一天的日期，OHLC聚合
+        df["period_key"] = df["date"].dt.to_period("W")
+    else:
+        df["period_key"] = df["date"].dt.to_period("M")
+
+    agg = df.groupby("period_key").agg(
+        date=("date", "first"),
+        open=("open", "first"),
+        close=("close", "last"),
+        high=("high", "max"),
+        low=("low", "min"),
+        volume=("volume", "sum"),
+    ).reset_index(drop=True)
+
+    agg = agg.sort_values("date").tail(count)
+
+    bars = []
+    for _, row in agg.iterrows():
+        bars.append({
+            "date": row["date"].strftime("%Y-%m-%d"),
+            "open": float(row["open"]),
+            "close": float(row["close"]),
+            "high": float(row["high"]),
+            "low": float(row["low"]),
+            "volume": float(row["volume"]),
+        })
+    return {"bars": bars} if bars else None
+
+
 def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
     """前复权日线行情（腾讯 K 线接口），缓存 1 小时。"""
     sym = _norm_symbol(symbol)
@@ -230,6 +274,12 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
     def _fetch() -> Optional[dict[str, Any]]:
         code = f"{_market_prefix(sym)}{sym}"
         try:
+            # 美股: 腾讯不支持周K/月K，用新浪日K聚合
+            if sym.startswith("us") and period_info["type"] == "fqkline" and period_info["param"] != "day":
+                return _fetch_us_kline_aggregated(sym, period_info["param"], count)
+            # 美股日K也走新浪
+            if sym.startswith("us") and period_info["param"] == "day":
+                return _fetch_us_kline(sym, count)
             if period_info["type"] == "fqkline":
                 # 日/周/月K线
                 url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},{period_info['param']},,,{count},qfq"

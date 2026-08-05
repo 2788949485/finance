@@ -119,6 +119,8 @@ export default function QuotePage() {
   // 选中变化时加载行情 + 新闻 + 全量K线
   useEffect(() => {
     setMode('day')
+    setPeriod('day')
+    setMultiDay(0)
     setLive(false)
     load(selected.code, 'day', 0)
     api.getQuote(selected.code, 60, 'day', 0, 1).then((q) => {
