@@ -525,14 +525,27 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             const idx = Math.min(data.length - 1, i * interval)
             const d = data[idx]
             const x = PAD.l + idx * step + step / 2
-            // 日期格式化：本年显示 MM-DD，往年显示 YY-MM-DD
+            // 日期格式化：根据数据类型智能显示
             const dateStr = d.date || ''
-            const year = dateStr.slice(0, 4)
-            const thisYear = String(new Date().getFullYear())
-            const short = dateStr.length >= 10
-              ? (year === thisYear ? dateStr.slice(5) : dateStr.slice(2))
-              : dateStr
-            labels.push({ x, label: short })
+            const hasTime = dateStr.includes(' ') || dateStr.includes(':')
+            let label: string
+            if (hasTime) {
+              // 分钟级K线：显示 MM-DD HH:MM
+              const parts = dateStr.split(' ')
+              const datePart = parts[0] || ''
+              const timePart = parts[1] || ''
+              const md = datePart.length >= 10 ? datePart.slice(5) : datePart
+              const hm = timePart.length >= 5 ? timePart.slice(0, 5) : timePart
+              label = `${md} ${hm}`
+            } else {
+              // 日K/周K/月K：本年显示 MM-DD，往年显示 YY-MM-DD
+              const year = dateStr.slice(0, 4)
+              const thisYear = String(new Date().getFullYear())
+              label = dateStr.length >= 10
+                ? (year === thisYear ? dateStr.slice(5) : dateStr.slice(2))
+                : dateStr
+            }
+            labels.push({ x, label })
           }
           return labels.map((l, i) => (
             <text key={i} x={l.x} y={H - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{l.label}</text>
