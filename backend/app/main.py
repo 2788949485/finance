@@ -22,6 +22,7 @@ setup_logging()
 logger = get_logger("main")
 from .pipeline import run_analysis, _GRAPH
 from .config import PROVIDER_PRESETS, get_config, save_config
+from .cache import cached, TTL
 from .data import fetcher as datalayer
 from .models import AnalysisRequest, LLMConfig
 
@@ -419,46 +420,53 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
 @app.get("/api/search/{q}")
 def search(q: str) -> dict[str, Any]:
     """股票搜索（代码/名称/拼音，A股/港股/美股）。"""
-    items = datalayer.search_stocks(q, limit=8)
-    return {"query": q, "results": items or []}
+    cache_key = f"search:{q}"
+    result = cached(cache_key, 3600, lambda: {"query": q, "results": datalayer.search_stocks(q, limit=8) or []})
+    return result
 
 
 @app.get("/api/news/{symbol}")
 def news(symbol: str) -> dict[str, Any]:
     """个股新闻（实时快讯过滤 + 东财兜底）。"""
     sym = datalayer._norm_symbol(symbol)
-    items = datalayer.get_news(sym)
-    return {"symbol": sym, "news": items or []}
+    cache_key = f"news:{sym}"
+    result = cached(cache_key, TTL["news"], lambda: {"symbol": sym, "news": datalayer.get_news(sym) or []})
+    return result
 
 
 @app.get("/api/hot")
 def hot_stocks() -> list[dict[str, Any]]:
     """每日热门股票（涨幅排序，动态变化）。"""
-    return datalayer.get_hot_stocks()
+    cache_key = "hot_stocks"
+    result = cached(cache_key, 300, lambda: datalayer.get_hot_stocks())
+    return result or []
 
 
 @app.get("/api/industry/{symbol}")
 def industry_compare(symbol: str) -> dict[str, Any]:
     """行业对比：同行 PE/PB 均值。"""
     sym = datalayer._norm_symbol(symbol)
-    data = datalayer.get_industry_compare(sym)
-    return data or {"peers": [], "avg_pe": None, "avg_pb": None}
+    cache_key = f"industry:{sym}"
+    result = cached(cache_key, TTL["financials"], lambda: datalayer.get_industry_compare(sym) or {"peers": [], "avg_pe": None, "avg_pb": None})
+    return result
 
 
 @app.get("/api/sentiment/{symbol}")
 def sentiment_data(symbol: str) -> dict[str, Any]:
     """社交情绪面数据：东财人气榜+雪球关注+主力资金流+情绪评分。"""
     sym = datalayer._norm_symbol(symbol)
-    data = datalayer.get_social_sentiment(sym)
-    return data or {"error": "暂无情绪数据（可能为港股美股或数据获取失败）"}
+    cache_key = f"sentiment:{sym}"
+    result = cached(cache_key, 900, lambda: datalayer.get_social_sentiment(sym) or {"error": "暂无情绪数据"})
+    return result
 
 
 @app.get("/api/dcf/{symbol}")
 def dcf_valuation(symbol: str) -> dict[str, Any]:
     """DCF现金流折现估值。"""
     sym = datalayer._norm_symbol(symbol)
-    data = valuation.compute_dcf(sym)
-    return data or {"error": "无法计算估值（财务数据不足）"}
+    cache_key = f"dcf:{sym}"
+    result = cached(cache_key, TTL["financials"], lambda: valuation.compute_dcf(sym) or {"error": "无法计算估值（财务数据不足）"})
+    return result
 
 
 # ---------- 投资组合 ----------

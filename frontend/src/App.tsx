@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { api, getToken, setToken } from './api'
 import type { AuthResponse } from './types'
 import LoginPage from './LoginPage'
-import ChatPage from './ChatPage'
-import QuotePage from './QuotePage'
-import AnalyzePane from './AnalyzePage'
-import HistoryPane from './HistoryPage'
 import AlertBell from './AlertBell'
-import PortfolioPage from './PortfolioPage'
-import BacktestPage from './BacktestPage'
-import ProfilePage from './ProfilePage'
-import AdminPage from './AdminPage'
 import './App.css'
+
+// 懒加载页面组件 - 首屏只加载ChatPage，其他按需加载
+const ChatPage = lazy(() => import('./ChatPage'))
+const QuotePage = lazy(() => import('./QuotePage'))
+const AnalyzePane = lazy(() => import('./AnalyzePage'))
+const HistoryPane = lazy(() => import('./HistoryPage'))
+const PortfolioPage = lazy(() => import('./PortfolioPage'))
+const BacktestPage = lazy(() => import('./BacktestPage'))
+const ProfilePage = lazy(() => import('./ProfilePage'))
+const AdminPage = lazy(() => import('./AdminPage'))
 
 type Tab = 'chat' | 'quote' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'profile' | 'admin'
 
@@ -85,14 +87,16 @@ function App() {
         </div>
       </header>
       <main>
-        {tab === 'chat' && <ChatPage />}
-        {tab === 'quote' && <QuotePage />}
-        {tab === 'analyze' && <AnalyzePane />}
-        {tab === 'portfolio' && <PortfolioPage />}
-        {tab === 'backtest' && <BacktestPage />}
-        {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
-        {tab === 'profile' && <ProfilePage />}
-        {tab === 'admin' && <AdminPage />}
+        <Suspense fallback={<div style={{padding:'40px',textAlign:'center',color:'var(--text-2)'}}>加载中...</div>}>
+          {tab === 'chat' && <ChatPage />}
+          {tab === 'quote' && <QuotePage />}
+          {tab === 'analyze' && <AnalyzePane />}
+          {tab === 'portfolio' && <PortfolioPage />}
+          {tab === 'backtest' && <BacktestPage />}
+          {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
+          {tab === 'profile' && <ProfilePage />}
+          {tab === 'admin' && <AdminPage />}
+        </Suspense>
       </main>
     </div>
   )
