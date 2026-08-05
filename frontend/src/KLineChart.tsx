@@ -446,7 +446,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         </span>
         <span className="kline-range">
           {[30, 60, 120].map((n) => (
-            <button key={n} className={`ghost ${range === n ? 'active' : ''}`} onClick={() => switchRange(n)}>{n}日</button>
+            <button key={n} className={`ghost ${range === n ? 'active' : ''}`} onClick={() => switchRange(n)}>{n}根</button>
           ))}
           <button className={`ghost ${range === 'all' ? 'active' : ''}`} onClick={() => switchRange('all')}>全部</button>
           {onMode && <button className="ghost" onClick={() => onMode('minute')}>分时</button>}

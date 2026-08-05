@@ -55,7 +55,11 @@ export default function QuotePage() {
   // 加载多周期K线（周K/月K/分钟级）
   const loadPeriod = useCallback(async (code: string, p: string) => {
     try {
-      const r = await fetch(`/api/kline/${code}?period=${p}&count=250`)
+      setAllBars([]) // 清空旧日K全量数据，避免覆盖周期数据
+      const token = localStorage.getItem('financecrew_token')
+      const r = await fetch(`/api/kline/${code}?period=${p}&count=250`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       const d = await r.json()
       if (d.bars) {
         setData(prev => ({
@@ -64,6 +68,8 @@ export default function QuotePage() {
           tech: d.tech ?? {},
           last_close: d.tech?.price ?? null,
         }))
+      } else if (d.detail) {
+        setErr(d.detail)
       }
       setErr('')
     } catch {
