@@ -174,6 +174,22 @@ export default function BacktestPage() {
               <span className="kpi-label">最大连亏</span>
               <span className="kpi-value">{result.max_consecutive_losses ?? '-'}次</span>
             </div>
+            <div className="kpi-card">
+              <span className="kpi-label">EWMA夏普</span>
+              <span className="kpi-value">{(result.ewm_sharpe ?? 0).toFixed(2)}</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">CVaR(95%)</span>
+              <span className="kpi-value down">{(result.cvar_95 ?? 0).toFixed(2)}%</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">偏度/峰度</span>
+              <span className="kpi-value">{(result.skewness ?? 0).toFixed(2)}/{(result.kurtosis ?? 0).toFixed(2)}</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">回撤恢复</span>
+              <span className="kpi-value">{result.max_dd_duration ?? '-'}天</span>
+            </div>
           </div>
 
           <div className="backtest-period">

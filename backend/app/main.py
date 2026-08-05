@@ -626,6 +626,42 @@ def em_proxy(url: str) -> Any:
         return {"error": "proxy failed"}
 
 
+@app.get("/api/ic-evaluate/{symbol}")
+def ic_evaluate_api(symbol: str, forward_days: int = 5) -> dict[str, Any]:
+    """IC/Rank IC信号评估：评估技术指标对未来收益的预测力。"""
+    from .ic_evaluator import evaluate_strategy_signals
+    sym = datalayer._norm_symbol(symbol)
+    hist = datalayer.get_history(sym, days=250)
+    if hist is None or len(hist) < 60:
+        return {"error": "数据不足"}
+    df = hist.copy()
+    # 构建常见指标
+    df["ma_signal"] = (df["close"].rolling(5).mean() - df["close"].rolling(20).mean()) / df["close"]
+    df["rsi"] = _calc_rsi(df["close"], 14)
+    df["macd_hist"] = _calc_macd_hist(df["close"])
+    df["volume_ratio"] = df["volume"] / df["volume"].rolling(20).mean()
+    df["boll_position"] = (df["close"] - df["close"].rolling(20).mean()) / (df["close"].rolling(20).std() + 0.001)
+    df = df.dropna()
+    result = evaluate_strategy_signals(df, forward_days=forward_days)
+    return result
+
+
+def _calc_rsi(close: pd.Series, period: int = 14) -> pd.Series:
+    delta = close.diff()
+    gain = delta.where(delta > 0, 0.0).rolling(period).mean()
+    loss = (-delta.where(delta < 0, 0.0)).rolling(period).mean()
+    rs = gain / (loss + 0.001)
+    return 100 - (100 / (1 + rs))
+
+
+def _calc_macd_hist(close: pd.Series) -> pd.Series:
+    ema12 = close.ewm(span=12).mean()
+    ema26 = close.ewm(span=26).mean()
+    dif = ema12 - ema26
+    dea = dif.ewm(span=9).mean()
+    return dif - dea
+
+
 @app.get("/api/backtest/analysis/{symbol}")
 def backtest_analysis_api(
     symbol: str,

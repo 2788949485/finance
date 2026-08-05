@@ -233,6 +233,11 @@ export interface BacktestResult {
   calmar_ratio?: number
   volatility?: number
   max_consecutive_losses?: number
+  ewm_sharpe?: number
+  cvar_95?: number
+  skewness?: number
+  kurtosis?: number
+  max_dd_duration?: number
   trades_log: { date: string; action: string; price: number; shares: number; reason?: string }[]
   equity_curve: { date: string; value: number }[]
   error?: string
