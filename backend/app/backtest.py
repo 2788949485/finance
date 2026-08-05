@@ -94,28 +94,40 @@ def _sell_price(price: float, slippage: float) -> float:
     return price * (1.0 - slippage)
 
 
-def _is_limit_up(row, prev_close: float) -> bool:
-    """A股涨停判断（涨幅>=9.9%）。"""
+def _is_limit_up(row, prev_close: float, symbol: str = "") -> bool:
+    """涨停判断。A股10%（科创/创业板20%），美股无涨停，港股无涨停。"""
     if prev_close <= 0:
         return False
-    return (float(row["close"]) - prev_close) / prev_close >= 0.099
+    sym = symbol.replace("sh", "").replace("sz", "").replace("us", "").replace("hk", "")
+    # 美股/港股无涨停
+    if symbol.startswith("us") or symbol.startswith("hk"):
+        return False
+    # A股: 科创板(688)/创业板(300)涨20%, 其他涨10%
+    limit_pct = 0.199 if (sym.startswith("688") or sym.startswith("300") or sym.startswith("301")) else 0.099
+    return (float(row["close"]) - prev_close) / prev_close >= limit_pct
 
 
-def _is_limit_down(row, prev_close: float) -> bool:
-    """A股跌停判断（跌幅>=9.9%）。"""
+def _is_limit_down(row, prev_close: float, symbol: str = "") -> bool:
+    """跌停判断。A股10%（科创/创业板20%），美股有熔断，港股无跌停。"""
     if prev_close <= 0:
         return False
-    return (prev_close - float(row["close"])) / prev_close >= 0.099
+    sym = symbol.replace("sh", "").replace("sz", "").replace("us", "").replace("hk", "")
+    # 美股: 个股无跌停（只有大盘熔断），港股无跌停
+    if symbol.startswith("us") or symbol.startswith("hk"):
+        return False
+    # A股: 科创板/创业板跌20%, 其他跌10%
+    limit_pct = 0.199 if (sym.startswith("688") or sym.startswith("300") or sym.startswith("301")) else 0.099
+    return (prev_close - float(row["close"])) / prev_close >= limit_pct
 
 
-def _can_buy(row, prev_close: float) -> bool:
-    """涨停时不能买入。"""
-    return not _is_limit_up(row, prev_close)
+def _can_buy(row, prev_close: float, symbol: str = "") -> bool:
+    """涨停时不能买入（A股规则）。"""
+    return not _is_limit_up(row, prev_close, symbol)
 
 
-def _can_sell(row, prev_close: float) -> bool:
-    """跌停时不能卖出。"""
-    return not _is_limit_down(row, prev_close)
+def _can_sell(row, prev_close: float, symbol: str = "") -> bool:
+    """跌停时不能卖出（A股规则）。"""
+    return not _is_limit_down(row, prev_close, symbol)
 
 
 def _calc_metrics(
