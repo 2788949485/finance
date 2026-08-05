@@ -361,74 +361,119 @@ def run_backtest(
     signal_log: list[dict[str, Any]] = []
     result: Optional[dict[str, Any]] = None
 
-    if strategy in ("ma_cross", "dual_ma"):
-        result = _backtest_ma_cross(
-            df, initial_capital,
-            symbol=symbol,
-            record_signals=record_signals,
-            signal_log=signal_log,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            **common,
-        )
-    elif strategy == "macd":
-        result = _backtest_macd(
-            df, initial_capital,
-            symbol=symbol,
-            record_signals=record_signals,
-            signal_log=signal_log,
-            fastperiod=kwargs.get("fastperiod", 12),
-            slowperiod=kwargs.get("slowperiod", 26),
-            signalperiod=kwargs.get("signalperiod", 9),
-            **common,
-        )
-    elif strategy == "kdj":
-        result = _backtest_kdj(
-            df, initial_capital,
-            symbol=symbol,
-            record_signals=record_signals,
-            signal_log=signal_log,
-            k_period=kwargs.get("k_period", 9),
-            d_period=kwargs.get("d_period", 3),
-            **common,
-        )
-    elif strategy == "boll":
-        result = _backtest_boll(
-            df, initial_capital,
-            symbol=symbol,
-            record_signals=record_signals,
-            signal_log=signal_log,
-            boll_period=kwargs.get("boll_period", 20),
-            boll_std=kwargs.get("boll_std", 2.0),
-            **common,
-        )
-    elif strategy == "rsi":
-        result = _backtest_rsi(
-            df, initial_capital,
-            symbol=symbol,
-            record_signals=record_signals,
-            signal_log=signal_log,
-            rsi_period=kwargs.get("rsi_period", 14),
-            rsi_oversold=kwargs.get("rsi_oversold", 30),
-            rsi_overbought=kwargs.get("rsi_overbought", 70),
-            **common,
-        )
-    elif strategy == "grid":
-        grid_pct = kwargs.get("grid_pct", 0.05)
-        result = _backtest_grid(df, initial_capital, grid_pct, **common)
-    elif strategy == "hold":
-        result = _backtest_hold(df, initial_capital, **common)
-    elif strategy == "ai":
-        result = _backtest_ai(
-            df, initial_capital,
-            sym=sym,
-            symbol=symbol,
-            record_signals=record_signals,
-            signal_log=signal_log,
-            **common,
-        )
-    else:
-        return None
+    # ---- 优先走信号-执行解耦架构（AlphaModel 重构）----
+    # 所有支持信号生成器的策略走统一执行器 _execute_signals；
+    # 信号生成器构建失败（如 ai 策略）则 fallback 到原 _backtest_* 函数。
+    gen_kwargs = dict(kwargs)
+    gen_kwargs["fast_period"] = fast_period
+    gen_kwargs["slow_period"] = slow_period
+
+    generator = _build_signal_generator(strategy, **gen_kwargs)
+
+    if generator is not None:
+        try:
+            # 预计算指标（dropna）—— 对齐原 _backtest_* 各自的 dropna 行为
+            df_prepared = generator.prepare(df)
+            if len(df_prepared) < max(generator.min_rows(), 5):
+                result = _empty_result()
+            else:
+                # 自定义执行（如 grid 多仓位策略）
+                custom = generator.execute(
+                    df_prepared, initial_capital,
+                    symbol=symbol,
+                    record_signals=record_signals,
+                    signal_log=signal_log,
+                    enable_cost=enable_cost,
+                    percentage=percentage,
+                    slippage=slippage,
+                )
+                if custom is not None:
+                    result = custom
+                else:
+                    # 统一执行器
+                    result = _execute_signals(
+                        generator, df_prepared, initial_capital,
+                        symbol=symbol,
+                        record_signals=record_signals,
+                        signal_log=signal_log,
+                        enable_cost=enable_cost,
+                        percentage=percentage,
+                        slippage=slippage,
+                    )
+        except Exception:
+            # 任何异常 → 回退到原 _backtest_* 保证向后兼容
+            result = None
+
+    # ---- Fallback：原 _backtest_* 函数（完全向后兼容）----
+    if result is None:
+        if strategy in ("ma_cross", "dual_ma"):
+            result = _backtest_ma_cross(
+                df, initial_capital,
+                symbol=symbol,
+                record_signals=record_signals,
+                signal_log=signal_log,
+                fast_period=fast_period,
+                slow_period=slow_period,
+                **common,
+            )
+        elif strategy == "macd":
+            result = _backtest_macd(
+                df, initial_capital,
+                symbol=symbol,
+                record_signals=record_signals,
+                signal_log=signal_log,
+                fastperiod=kwargs.get("fastperiod", 12),
+                slowperiod=kwargs.get("slowperiod", 26),
+                signalperiod=kwargs.get("signalperiod", 9),
+                **common,
+            )
+        elif strategy == "kdj":
+            result = _backtest_kdj(
+                df, initial_capital,
+                symbol=symbol,
+                record_signals=record_signals,
+                signal_log=signal_log,
+                k_period=kwargs.get("k_period", 9),
+                d_period=kwargs.get("d_period", 3),
+                **common,
+            )
+        elif strategy == "boll":
+            result = _backtest_boll(
+                df, initial_capital,
+                symbol=symbol,
+                record_signals=record_signals,
+                signal_log=signal_log,
+                boll_period=kwargs.get("boll_period", 20),
+                boll_std=kwargs.get("boll_std", 2.0),
+                **common,
+            )
+        elif strategy == "rsi":
+            result = _backtest_rsi(
+                df, initial_capital,
+                symbol=symbol,
+                record_signals=record_signals,
+                signal_log=signal_log,
+                rsi_period=kwargs.get("rsi_period", 14),
+                rsi_oversold=kwargs.get("rsi_oversold", 30),
+                rsi_overbought=kwargs.get("rsi_overbought", 70),
+                **common,
+            )
+        elif strategy == "grid":
+            grid_pct = kwargs.get("grid_pct", 0.05)
+            result = _backtest_grid(df, initial_capital, grid_pct, **common)
+        elif strategy == "hold":
+            result = _backtest_hold(df, initial_capital, **common)
+        elif strategy == "ai":
+            result = _backtest_ai(
+                df, initial_capital,
+                sym=sym,
+                symbol=symbol,
+                record_signals=record_signals,
+                signal_log=signal_log,
+                **common,
+            )
+        else:
+            return None
 
     # ---- 基准：买入持有 ----
     first_price = float(df.iloc[0]["close"])
@@ -534,6 +579,405 @@ def _equity_and_drawdown(records: list[dict]) -> tuple[list[dict], float, float]
             max_dd = dd
         eq.append({"date": r["date"], "value": round(v, 2)})
     return eq, round(max_dd, 2), peak
+
+
+# ==================== 信号-执行解耦架构（AlphaModel 重构）====================
+# 设计参考 AI Hedge Fund 的 AlphaModel：策略只产出信号(BUY/SELL/HOLD)，
+# 执行器统一处理滑点/仓位/涨跌停/手续费/权益曲线/交易日志。
+# 所有原有 _backtest_* 函数保留作为 fallback，保证完全向后兼容。
+
+
+class SignalGenerator:
+    """信号生成器抽象基类（AlphaModel 架构）。
+
+    核心思想：策略只产出信号，执行器统一处理交易。
+    子类实现 generate() 返回 'BUY' / 'SELL' / 'HOLD'。
+    可选重写 prepare() 预计算指标、execute() 提供自定义执行逻辑。
+    """
+
+    #: 策略名（用于信号特征记录）
+    name: str = ""
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        """预计算指标，返回增强后的 df（含 dropna）。默认无操作。"""
+        return df
+
+    def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
+        """返回交易信号。position=True 表示当前持仓。
+
+        Returns:
+            'BUY' | 'SELL' | 'HOLD'
+        """
+        raise NotImplementedError
+
+    def execute(self, df: pd.DataFrame, capital: float, **opts) -> Optional[dict]:
+        """自定义执行逻辑。返回 None 表示使用默认执行器 _execute_signals。"""
+        return None
+
+    def min_rows(self) -> int:
+        """策略所需最小有效行数（prepare/dropna 后）。默认 5。"""
+        return 5
+
+
+def _execute_signals(
+    generator: SignalGenerator,
+    df: pd.DataFrame,
+    capital: float,
+    *,
+    symbol: str = "",
+    record_signals: bool = False,
+    signal_log: Optional[list] = None,
+    enable_cost: bool = True,
+    percentage: float = 100.0,
+    slippage: float = 0.001,
+    apply_limit_filter: bool = True,
+    **opts,
+) -> dict[str, Any]:
+    """统一信号执行器：遍历 K 线，按 generator 产生的信号执行交易。
+
+    处理：
+      - 滑点 (_buy_price / _sell_price)
+      - 仓位管理 (percentage)
+      - 涨跌停过滤 (_can_buy / _can_sell)
+      - 手续费 (apply_buy_cost / apply_sell_cost)
+      - 权益曲线记录
+      - 交易日志（末 20 条）
+      - 最大回撤
+      - 期末自动平仓
+
+    返回与 _backtest_* 同构的 dict（向后兼容）。
+    """
+    capital = float(capital)
+    pct = max(min(float(percentage), 100.0), 0.0) / 100.0
+    strat_name = getattr(generator, "name", "")
+
+    shares = 0.0
+    cash = capital
+    buy_price = 0.0
+    trades_log: list[dict] = []
+    equity_curve: list[dict] = []
+    wins = 0
+    total_sells = 0
+    peak_value = capital
+    max_dd = 0.0
+
+    for i in range(1, len(df)):
+        row = df.iloc[i]
+        prev = df.iloc[i - 1]
+        close = float(row["close"])
+        date = row["date"].strftime("%Y-%m-%d")
+        prev_close = float(prev["close"])
+
+        position = shares > 0
+        try:
+            sig = generator.generate(df, i, position)
+        except Exception:
+            sig = "HOLD"
+
+        # ---- BUY ----
+        if sig == "BUY" and not position and cash > 0:
+            # 涨跌停过滤（涨停无法买入）
+            if apply_limit_filter and not _can_buy(row, prev_close, symbol):
+                pass
+            else:
+                if record_signals and signal_log is not None:
+                    from .signal_features import build_signal_features
+                    feat = build_signal_features(df, i, symbol, 1, strat_name)
+                    if feat:
+                        signal_log.append(feat)
+                buy_px = _buy_price(close, slippage)
+                buy_amount = cash * pct
+                buy_shares = int(buy_amount // buy_px) if buy_px > 0 else 0
+                if buy_shares > 0:
+                    shares = buy_shares
+                    if enable_cost:
+                        cash, _ = apply_buy_cost(cash, buy_px, int(shares))
+                    else:
+                        cash -= shares * buy_px
+                    buy_price = buy_px
+                    trades_log.append({"date": date, "action": "BUY", "price": round(buy_px, 4), "shares": int(shares)})
+
+        # ---- SELL ----
+        elif sig == "SELL" and position:
+            # 涨跌停过滤（跌停无法卖出）
+            if apply_limit_filter and not _can_sell(row, prev_close, symbol):
+                pass
+            else:
+                if record_signals and signal_log is not None:
+                    from .signal_features import build_signal_features
+                    feat = build_signal_features(df, i, symbol, -1, strat_name)
+                    if feat:
+                        signal_log.append(feat)
+                sell_px = _sell_price(close, slippage)
+                total_sells += 1
+                if sell_px > buy_price:
+                    wins += 1
+                if enable_cost:
+                    cash, _ = apply_sell_cost(cash, sell_px, int(shares))
+                else:
+                    cash += shares * sell_px
+                trades_log.append({"date": date, "action": "SELL", "price": round(sell_px, 4), "shares": int(shares)})
+                shares = 0
+                buy_price = 0.0
+
+        # ---- 权益 & 回撤 ----
+        value = cash + shares * close
+        equity_curve.append({"date": date, "value": round(value, 2)})
+        if value > peak_value:
+            peak_value = value
+        dd = (peak_value - value) / peak_value * 100.0 if peak_value > 0 else 0.0
+        if dd > max_dd:
+            max_dd = dd
+
+    # ---- 期末平仓 ----
+    final_price = float(df.iloc[-1]["close"])
+    if shares > 0:
+        sell_px = _sell_price(final_price, slippage)
+        if enable_cost:
+            cash, _ = apply_sell_cost(cash, sell_px, int(shares))
+        else:
+            cash += shares * sell_px
+        trades_log.append({"date": df.iloc[-1]["date"].strftime("%Y-%m-%d"), "action": "SELL",
+                           "price": round(sell_px, 4), "shares": int(shares)})
+        shares = 0
+    final_value = cash
+
+    return {
+        "final_value": round(final_value, 2),
+        "total_return": round((final_value / capital - 1) * 100, 2),
+        "max_drawdown": round(max_dd, 2),
+        "trades": len(trades_log),
+        "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
+        "trades_log": trades_log[-20:],
+        "equity_curve": equity_curve,
+    }
+
+
+# ==================== 信号生成器：各策略 ====================
+
+
+class MACrossSignal(SignalGenerator):
+    """快/慢均线交叉：金叉买入，死叉卖出。"""
+
+    name = "ma_cross"
+
+    def __init__(self, fast_period: int = 5, slow_period: int = 20):
+        self.fast_period = max(int(fast_period), 2)
+        self.slow_period = max(int(slow_period), self.fast_period + 1)
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df["ma_fast"] = df["close"].rolling(self.fast_period).mean()
+        df["ma_slow"] = df["close"].rolling(self.slow_period).mean()
+        df = df.dropna(subset=["ma_fast", "ma_slow"]).reset_index(drop=True)
+        return df
+
+    def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
+        if i < 1:
+            return "HOLD"
+        prev, row = df.iloc[i - 1], df.iloc[i]
+        golden = prev["ma_fast"] <= prev["ma_slow"] and row["ma_fast"] > row["ma_slow"]
+        death = prev["ma_fast"] >= prev["ma_slow"] and row["ma_fast"] < row["ma_slow"]
+        if golden and not position:
+            return "BUY"
+        if death and position:
+            return "SELL"
+        return "HOLD"
+
+
+class DualMASignal(MACrossSignal):
+    """双均线策略（ma_cross 别名，独立类名以满足架构约束）。"""
+
+    name = "dual_ma"
+
+
+class MACDSignal(SignalGenerator):
+    """MACD 金叉买入/死叉卖出。"""
+
+    name = "macd"
+
+    def __init__(self, fastperiod: int = 12, slowperiod: int = 26, signalperiod: int = 9):
+        self.fastperiod = int(fastperiod)
+        self.slowperiod = int(slowperiod)
+        self.signalperiod = int(signalperiod)
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        dif, dea, _ = _calc_macd(df["close"], self.fastperiod, self.slowperiod, self.signalperiod)
+        df["dif"], df["dea"] = dif, dea
+        df = df.dropna(subset=["dif", "dea"]).reset_index(drop=True)
+        return df
+
+    def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
+        if i < 1:
+            return "HOLD"
+        prev, row = df.iloc[i - 1], df.iloc[i]
+        golden = prev["dif"] <= prev["dea"] and row["dif"] > row["dea"]
+        death = prev["dif"] >= prev["dea"] and row["dif"] < row["dea"]
+        if golden and not position:
+            return "BUY"
+        if death and position:
+            return "SELL"
+        return "HOLD"
+
+
+class KDJSignal(SignalGenerator):
+    """KDJ 金叉买入/死叉卖出。"""
+
+    name = "kdj"
+
+    def __init__(self, k_period: int = 9, d_period: int = 3):
+        self.k_period = int(k_period)
+        self.d_period = int(d_period)
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        k, d, _ = _calc_kdj(df, k_period=self.k_period, d_period=self.d_period)
+        df["k"], df["d"] = k, d
+        df = df.dropna(subset=["k", "d"]).reset_index(drop=True)
+        return df
+
+    def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
+        if i < 1:
+            return "HOLD"
+        prev, row = df.iloc[i - 1], df.iloc[i]
+        golden = prev["k"] <= prev["d"] and row["k"] > row["d"]
+        death = prev["k"] >= prev["d"] and row["k"] < row["d"]
+        if golden and not position:
+            return "BUY"
+        if death and position:
+            return "SELL"
+        return "HOLD"
+
+
+class BOLLSignal(SignalGenerator):
+    """布林带：跌破下轨买入，突破上轨卖出。"""
+
+    name = "boll"
+
+    def __init__(self, boll_period: int = 20, boll_std: float = 2.0):
+        self.boll_period = int(boll_period)
+        self.boll_std = float(boll_std)
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        upper, _, lower = _calc_boll(df["close"], period=self.boll_period, std=self.boll_std)
+        df["boll_upper"], df["boll_lower"] = upper, lower
+        df = df.dropna(subset=["boll_upper", "boll_lower"]).reset_index(drop=True)
+        return df
+
+    def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
+        row = df.iloc[i]
+        close = float(row["close"])
+        if close <= row["boll_lower"] and not position:
+            return "BUY"
+        if close >= row["boll_upper"] and position:
+            return "SELL"
+        return "HOLD"
+
+
+class RSISignal(SignalGenerator):
+    """RSI 超买超卖：RSI<超卖线买入，RSI>超买线卖出。"""
+
+    name = "rsi"
+
+    def __init__(self, rsi_period: int = 14, rsi_oversold: float = 30.0, rsi_overbought: float = 70.0):
+        self.rsi_period = int(rsi_period)
+        self.rsi_oversold = float(rsi_oversold)
+        self.rsi_overbought = float(rsi_overbought)
+
+    def prepare(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        df["rsi"] = _calc_rsi(df["close"], period=self.rsi_period)
+        df = df.dropna(subset=["rsi"]).reset_index(drop=True)
+        return df
+
+    def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
+        rsi_val = float(df.iloc[i]["rsi"])
+        if rsi_val < self.rsi_oversold and not position:
+            return "BUY"
+        if rsi_val > self.rsi_overbought and position:
+            return "SELL"
+        return "HOLD"
+
+
+class GridSignal(SignalGenerator):
+    """网格交易信号生成器。
+
+    网格是多仓位、部分买卖策略，与单仓位执行器不兼容，
+    因此 execute() 委托给保留的 _backtest_grid（精确向后兼容）。
+    """
+
+    name = "grid"
+
+    def __init__(self, grid_pct: float = 0.05):
+        self.grid_pct = float(grid_pct)
+
+    def execute(self, df: pd.DataFrame, capital: float, **opts) -> Optional[dict]:
+        return _backtest_grid(
+            df, capital, self.grid_pct,
+            enable_cost=opts.get("enable_cost", True),
+            percentage=opts.get("percentage", 100.0),
+            slippage=opts.get("slippage", 0.001),
+        )
+
+
+class HoldSignal(SignalGenerator):
+    """买入持有（基准）：首日建仓，末日平仓。"""
+
+    name = "hold"
+
+    def generate(self, df: pd.DataFrame, i: int, position: bool) -> str:
+        if i == 1 and not position:
+            return "BUY"
+        if i == len(df) - 1 and position:
+            return "SELL"
+        return "HOLD"
+
+
+def _build_signal_generator(strategy: str, **kwargs) -> Optional[SignalGenerator]:
+    """根据策略名构建信号生成器。
+
+    返回 None 表示该策略无信号生成器（如 ai 策略），应走原有 _backtest_* fallback。
+    """
+    s = strategy.lower()
+    if s == "ma_cross":
+        return MACrossSignal(
+            fast_period=kwargs.get("fast_period", 5),
+            slow_period=kwargs.get("slow_period", 20),
+        )
+    if s == "dual_ma":
+        return DualMASignal(
+            fast_period=kwargs.get("fast_period", 5),
+            slow_period=kwargs.get("slow_period", 20),
+        )
+    if s == "macd":
+        return MACDSignal(
+            fastperiod=kwargs.get("fastperiod", 12),
+            slowperiod=kwargs.get("slowperiod", 26),
+            signalperiod=kwargs.get("signalperiod", 9),
+        )
+    if s == "kdj":
+        return KDJSignal(
+            k_period=kwargs.get("k_period", 9),
+            d_period=kwargs.get("d_period", 3),
+        )
+    if s == "boll":
+        return BOLLSignal(
+            boll_period=kwargs.get("boll_period", 20),
+            boll_std=kwargs.get("boll_std", 2.0),
+        )
+    if s == "rsi":
+        return RSISignal(
+            rsi_period=kwargs.get("rsi_period", 14),
+            rsi_oversold=kwargs.get("rsi_oversold", 30.0),
+            rsi_overbought=kwargs.get("rsi_overbought", 70.0),
+        )
+    if s == "grid":
+        return GridSignal(grid_pct=kwargs.get("grid_pct", 0.05))
+    if s == "hold":
+        return HoldSignal()
+    return None  # ai 策略 & 未知策略走 fallback
 
 
 # ==================== MA均线交叉策略（可调参） ====================

@@ -735,6 +735,32 @@ def backtest_api(
     return result or {"error": "回测数据不足（需要至少30个交易日）"}
 
 
+@app.get("/api/backtest/walk-forward/{symbol}")
+def walk_forward_api(
+    symbol: str,
+    strategy: str = "ma_cross",
+    total_days: int = 500,
+    train_window: int = 60,
+    test_window: int = 20,
+) -> dict[str, Any]:
+    """Walk-Forward 滚动测试：用过去 train_window 天优化参数 → 交易未来 test_window 天 → 平移。
+
+    评估策略防过拟合能力与样本外稳定性。
+    返回每个窗口的 train/test 收益与 Sharpe，以及样本外累计权益曲线。
+    """
+    from . import backtest_analysis as ba
+    sym = datalayer._norm_symbol(symbol)
+    try:
+        return ba.run_walk_forward(
+            sym, strategy=strategy,
+            total_days=total_days,
+            train_window=train_window,
+            test_window=test_window,
+        )
+    except Exception as e:
+        return {"error": f"Walk-Forward 测试失败：{e}"}
+
+
 # ---------- 多LLM对比 ----------
 
 @app.post("/api/llm-compare")

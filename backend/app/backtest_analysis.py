@@ -268,6 +268,10 @@ def run_monte_carlo(
         "final_return_p5": round(np.percentile(all_final_returns, 5), 2) if all_final_returns else 0,
         "final_return_p50": round(np.percentile(all_final_returns, 50), 2) if all_final_returns else 0,
         "final_return_p95": round(np.percentile(all_final_returns, 95), 2) if all_final_returns else 0,
+        # 分布直方图数据（20个桶）
+        "histogram": _build_histogram(all_final_returns, 20),
+        # 回撤分布直方图
+        "drawdown_histogram": _build_histogram(all_max_drawdowns, 20),
     }
 
     # 仓位建议：基于95%分位回撤
@@ -276,6 +280,23 @@ def run_monte_carlo(
         results["suggested_position_ratio"] = round(suggested_risk, 2)
 
     return results
+
+
+def _build_histogram(data: list[float], bins: int = 20) -> list[dict]:
+    """构建直方图数据，返回[{bin_start, bin_end, count, label}, ...]"""
+    if not data or len(data) < 2:
+        return []
+    arr = np.array(data)
+    counts, edges = np.histogram(arr, bins=bins)
+    result = []
+    for i in range(len(counts)):
+        result.append({
+            "bin_start": round(float(edges[i]), 2),
+            "bin_end": round(float(edges[i + 1]), 2),
+            "count": int(counts[i]),
+            "label": f"{edges[i]:.1f}~{edges[i+1]:.1f}",
+        })
+    return result
 
 
 def _extract_trade_pnls(trades_log: list[dict]) -> list[float]:
@@ -656,4 +677,323 @@ def run_full_analysis(
         "monte_carlo": mc,
         "layered_test": layered,
         "sensitivity": sensitivity,
+    }
+
+
+# ==================== 6. Walk-Forward 滚动测试 ====================
+
+# Walk-Forward 参数搜索网格：快/慢均线组合（对 ma_cross/dual_ma/macd 类策略有效）
+_WF_PARAM_GRID = [
+    {"fast_period": 5, "slow_period": 10},
+    {"fast_period": 5, "slow_period": 20},
+    {"fast_period": 5, "slow_period": 30},
+    {"fast_period": 10, "slow_period": 20},
+    {"fast_period": 10, "slow_period": 30},
+    {"fast_period": 10, "slow_period": 40},
+    {"fast_period": 15, "slow_period": 30},
+    {"fast_period": 15, "slow_period": 60},
+    {"fast_period": 20, "slow_period": 40},
+    {"fast_period": 20, "slow_period": 60},
+]
+
+
+def _run_strategy_on_df(
+    df: pd.DataFrame,
+    strategy: str,
+    capital: float,
+    **params,
+) -> Optional[dict]:
+    """在给定的 DataFrame 切片上直接运行策略（不重新拉数据）。
+
+    复用 run_backtest 的指标/基准补全逻辑，但跳过数据获取，
+    便于 Walk-Forward 在历史子区间上回测。
+    """
+    if df is None or len(df) < 30:
+        return None
+
+    df = df.copy()
+    df["ma5"] = df["close"].rolling(5).mean()
+    df["ma20"] = df["close"].rolling(20).mean()
+    df = df.dropna(subset=["ma5", "ma20"]).reset_index(drop=True)
+    if len(df) < 10:
+        return None
+
+    common = {
+        "enable_cost": params.pop("enable_cost", True),
+        "percentage": params.pop("percentage", 100.0),
+        "slippage": params.pop("slippage", 0.001),
+    }
+    symbol = params.pop("symbol", "")
+    result: Optional[dict] = None
+
+    try:
+        if strategy in ("ma_cross", "dual_ma"):
+            result = bt._backtest_ma_cross(
+                df, capital, symbol=symbol,
+                fast_period=params.get("fast_period", 5),
+                slow_period=params.get("slow_period", 20),
+                **common,
+            )
+        elif strategy == "macd":
+            result = bt._backtest_macd(
+                df, capital, symbol=symbol,
+                fastperiod=params.get("fastperiod", 12),
+                slowperiod=params.get("slowperiod", 26),
+                signalperiod=params.get("signalperiod", 9),
+                **common,
+            )
+        elif strategy == "kdj":
+            result = bt._backtest_kdj(
+                df, capital, symbol=symbol,
+                k_period=params.get("k_period", 9),
+                d_period=params.get("d_period", 3),
+                **common,
+            )
+        elif strategy == "boll":
+            result = bt._backtest_boll(
+                df, capital, symbol=symbol,
+                boll_period=params.get("boll_period", 20),
+                boll_std=params.get("boll_std", 2.0),
+                **common,
+            )
+        elif strategy == "rsi":
+            result = bt._backtest_rsi(
+                df, capital, symbol=symbol,
+                rsi_period=params.get("rsi_period", 14),
+                rsi_oversold=params.get("rsi_oversold", 30),
+                rsi_overbought=params.get("rsi_overbought", 70),
+                **common,
+            )
+        elif strategy == "hold":
+            result = bt._backtest_hold(df, capital, **common)
+        else:
+            return None
+    except Exception:
+        return None
+
+    if not result:
+        return None
+
+    # 补全基准与风险指标（对齐 run_backtest 返回结构）
+    first_price = float(df.iloc[0]["close"])
+    last_price = float(df.iloc[-1]["close"])
+    benchmark_return = (last_price / first_price - 1) * 100
+    total_return = float(result.get("total_return", 0.0))
+    result["benchmark_return"] = round(benchmark_return, 2)
+    result["excess_return"] = round(total_return - benchmark_return, 2)
+
+    metrics = bt._calc_metrics(
+        equity_curve=result.get("equity_curve", []),
+        trades_log=result.get("trades_log", []),
+        total_return=total_return,
+        max_drawdown=float(result.get("max_drawdown", 0.0)),
+        initial_capital=capital,
+    )
+    result.update(metrics)
+    return result
+
+
+def _sharpe_from_equity(equity_curve: list[dict], risk_free: float = 0.03) -> float:
+    """从权益曲线计算年化 Sharpe 比率。"""
+    if not equity_curve or len(equity_curve) < 3:
+        return 0.0
+    values = [pt["value"] for pt in equity_curve]
+    s = pd.Series(values, dtype="float64")
+    daily_returns = s.pct_change().dropna()
+    if len(daily_returns) < 2:
+        return 0.0
+    annual_vol = float(daily_returns.std() * math.sqrt(252))
+    if annual_vol <= 0:
+        return 0.0
+    total_ret = (values[-1] / values[0] - 1) if values[0] > 0 else 0.0
+    n = len(daily_returns)
+    if n > 0 and (1.0 + total_ret) > 0:
+        annual_ret = (1.0 + total_ret) ** (252.0 / n) - 1.0
+    else:
+        annual_ret = 0.0
+    return round((annual_ret - risk_free) / annual_vol, 3)
+
+
+def _optimize_params_on_train(
+    train_df: pd.DataFrame,
+    strategy: str,
+    capital: float,
+    param_grid: list[dict],
+) -> tuple[Optional[dict], float]:
+    """在训练段上搜索最优参数（按 total_return）。
+
+    返回 (best_params, best_train_return)。无有效结果时返回 (None, 0.0)。
+    """
+    best_params = None
+    best_return = -math.inf
+    for params in param_grid:
+        r = _run_strategy_on_df(train_df, strategy, capital, **params)
+        if r and r.get("trades", 0) > 0:
+            ret = r.get("total_return", -math.inf)
+            if ret > best_return:
+                best_return = ret
+                best_params = dict(params)
+    return best_params, (best_return if best_return > -math.inf else 0.0)
+
+
+def run_walk_forward(
+    symbol: str,
+    strategy: str = "ma_cross",
+    total_days: int = 500,
+    train_window: int = 60,
+    test_window: int = 20,
+    **kwargs,
+) -> dict[str, Any]:
+    """滚动窗口 Walk-Forward 测试。
+
+    用过去 train_window 天优化参数 → 交易未来 test_window 天 → 平移窗口。
+    输出每个窗口的样本内/样本外表现，评估策略稳定性与防过拟合能力。
+
+    参数:
+        symbol: 股票代码
+        strategy: 策略名（ma_cross/dual_ma/macd/kdj/boll/rsi/hold）
+        total_days: 总回测天数（数据拉取范围）
+        train_window: 训练窗口（优化参数的天数）
+        test_window: 测试窗口（样本外交易天数）
+        **kwargs: 透传 enable_cost/percentage/slippage；param_grid 覆盖默认网格
+
+    返回:
+        {
+            windows: [{train_start, train_end, test_start, test_end,
+                       best_params, train_return, test_return,
+                       train_sharpe, test_sharpe}, ...],
+            summary: {avg_test_return, test_win_rate, consistency_score,
+                      oos_sharpe, total_windows, avg_train_return},
+            oos_equity_curve: [{window, date, value}, ...],
+        }
+    """
+    sym = datalayer._norm_symbol(symbol)
+    param_grid = kwargs.pop("param_grid", None) or _WF_PARAM_GRID
+    enable_cost = kwargs.pop("enable_cost", True)
+    percentage = kwargs.pop("percentage", 100.0)
+    slippage = kwargs.pop("slippage", 0.001)
+
+    # 拉取足够的历史数据（含 warm-up 缓冲）
+    fetch_days = min(max(total_days + 60, 90), 1000)
+    hist = datalayer.get_history(sym, days=fetch_days)
+    if hist is None or len(hist) < (train_window + test_window + 30):
+        return {"error": f"历史数据不足（需 ≥{train_window + test_window + 30} 行，实际 {0 if hist is None else len(hist)}）"}
+
+    df = hist.copy().reset_index(drop=True)
+    n = len(df)
+
+    step = test_window
+    windows: list[dict] = []
+    oos_values: list[dict] = []
+    oos_capital = 100000.0  # 样本外累计权益起点
+
+    start = 0
+    window_idx = 0
+    while start + train_window + test_window <= n:
+        train_df = df.iloc[start: start + train_window]
+        test_df = df.iloc[start + train_window: start + train_window + test_window]
+
+        if len(train_df) < 30 or len(test_df) < 5:
+            break
+
+        train_start = str(train_df.iloc[0]["date"].date()) if hasattr(train_df.iloc[0]["date"], "date") else str(train_df.iloc[0]["date"])
+        train_end = str(train_df.iloc[-1]["date"].date()) if hasattr(train_df.iloc[-1]["date"], "date") else str(train_df.iloc[-1]["date"])
+        test_start = str(test_df.iloc[0]["date"].date()) if hasattr(test_df.iloc[0]["date"], "date") else str(test_df.iloc[0]["date"])
+        test_end = str(test_df.iloc[-1]["date"].date()) if hasattr(test_df.iloc[-1]["date"], "date") else str(test_df.iloc[-1]["date"])
+
+        # ---- 训练段：网格搜索最优参数 ----
+        best_params, train_return = _optimize_params_on_train(
+            train_df, strategy, 100000.0, param_grid,
+        )
+
+        # 训练段 Sharpe（用最优参数重算，便于记录）
+        train_sharpe = 0.0
+        if best_params:
+            train_res = _run_strategy_on_df(
+                train_df, strategy, 100000.0,
+                enable_cost=enable_cost, percentage=percentage, slippage=slippage,
+                **best_params,
+            )
+            if train_res:
+                train_sharpe = _sharpe_from_equity(train_res.get("equity_curve", []))
+
+        # ---- 测试段：用最优参数交易（样本外）----
+        if best_params:
+            test_res = _run_strategy_on_df(
+                test_df, strategy, oos_capital,
+                enable_cost=enable_cost, percentage=percentage, slippage=slippage,
+                **best_params,
+            )
+        else:
+            # 训练段无有效参数 → 测试段用默认参数
+            test_res = _run_strategy_on_df(
+                test_df, strategy, oos_capital,
+                enable_cost=enable_cost, percentage=percentage, slippage=slippage,
+            )
+
+        if test_res:
+            test_return = float(test_res.get("total_return", 0.0))
+            test_sharpe = _sharpe_from_equity(test_res.get("equity_curve", []))
+            # 链接样本外累计权益
+            oos_capital *= (1.0 + test_return / 100.0)
+            last_date = test_df.iloc[-1]["date"]
+            oos_values.append({
+                "window": window_idx,
+                "date": str(last_date.date()) if hasattr(last_date, "date") else str(last_date),
+                "value": round(oos_capital, 2),
+            })
+        else:
+            test_return = 0.0
+            test_sharpe = 0.0
+
+        windows.append({
+            "window": window_idx,
+            "train_start": train_start,
+            "train_end": train_end,
+            "test_start": test_start,
+            "test_end": test_end,
+            "best_params": best_params,
+            "train_return": round(train_return, 2),
+            "test_return": round(test_return, 2),
+            "train_sharpe": round(train_sharpe, 3),
+            "test_sharpe": round(test_sharpe, 3),
+        })
+
+        window_idx += 1
+        start += step
+
+    if not windows:
+        return {"error": "数据不足以构成任何完整窗口，请减小 train_window/test_window 或增大 total_days"}
+
+    # ---- 汇总 ----
+    test_returns = [w["test_return"] for w in windows]
+    train_returns = [w["train_return"] for w in windows]
+    test_sharpes = [w["test_sharpe"] for w in windows]
+    positive_test = sum(1 for r in test_returns if r > 0)
+
+    avg_test_return = float(np.mean(test_returns)) if test_returns else 0.0
+    consistency_score = (positive_test / len(test_returns) * 100.0) if test_returns else 0.0
+    oos_sharpe = _sharpe_from_equity(
+        [{"value": v["value"]} for v in oos_values] if len(oos_values) >= 3
+        else [{"value": 100000.0}, {"value": oos_capital}]
+    )
+
+    summary = {
+        "avg_test_return": round(avg_test_return, 2),
+        "avg_train_return": round(float(np.mean(train_returns)), 2) if train_returns else 0.0,
+        "test_win_rate": round(consistency_score, 1),
+        "consistency_score": round(consistency_score, 1),
+        "oos_sharpe": round(oos_sharpe, 3),
+        "total_return": round((oos_capital / 100000.0 - 1) * 100, 2),
+        "total_windows": len(windows),
+        "best_window": max(windows, key=lambda w: w["test_return"])["window"] if windows else 0,
+        "worst_window": min(windows, key=lambda w: w["test_return"])["window"] if windows else 0,
+    }
+
+    return {
+        "symbol": sym,
+        "strategy": strategy,
+        "windows": windows,
+        "summary": summary,
+        "oos_equity_curve": oos_values,
     }

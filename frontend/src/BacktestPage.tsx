@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from './api'
 import type { BacktestResult } from './types'
 import BacktestAnalysis from './BacktestAnalysis'
+import { EquityChart, DrawdownChart, MonthlyHeatmap } from './BacktestCharts'
 
 const STRATEGIES = [
   { key: 'ma_cross', label: 'MA均线交叉', params: [
@@ -198,7 +199,17 @@ export default function BacktestPage() {
 
           <div className="backtest-equity">
             <h4>权益曲线</h4>
-            <EquityChart curve={result.equity_curve} />
+            <EquityChart curve={result.equity_curve} initialCapital={result.initial_capital} />
+          </div>
+
+          <div className="backtest-equity">
+            <h4>回撤水下图 (Underwater)</h4>
+            <DrawdownChart curve={result.equity_curve} />
+          </div>
+
+          <div className="backtest-equity">
+            <h4>月度收益热力图</h4>
+            <MonthlyHeatmap curve={result.equity_curve} />
           </div>
 
           {result.trades_log.length > 0 && (
@@ -227,39 +238,5 @@ export default function BacktestPage() {
       </>
       )}
     </div>
-  )
-}
-
-// 权益曲线 SVG
-function EquityChart({ curve }: { curve: { date: string; value: number }[] }) {
-  if (!curve || curve.length < 2) return null
-  const values = curve.map(p => p.value)
-  const minV = Math.min(...values)
-  const maxV = Math.max(...values)
-  const range = maxV - minV || 1
-  const W = 800, H = 160, PAD = { l: 50, r: 20, t: 10, b: 20 }
-
-  const points = curve.map((p, i) => {
-    const x = PAD.l + (i / (curve.length - 1)) * (W - PAD.l - PAD.r)
-    const y = PAD.t + (1 - (p.value - minV) / range) * (H - PAD.t - PAD.b)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
-  })
-
-  const baselineY = PAD.t + (1 - (100000 - minV) / range) * (H - PAD.t - PAD.b)
-
-  return (
-    <svg className="equity-svg" viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
-      {/* 基准线（10万） */}
-      {baselineY > PAD.t && baselineY < H - PAD.b && (
-        <line x1={PAD.l} y1={baselineY} x2={W - PAD.r} y2={baselineY}
-          stroke="var(--text-3)" strokeWidth="1" strokeDasharray="4 2" />
-      )}
-      {/* 权益曲线 */}
-      <polyline points={points.join(' ')}
-        fill="none" stroke="var(--accent)" strokeWidth="1.5" />
-      {/* Y轴标签 */}
-      <text x={PAD.l - 5} y={PAD.t + 4} textAnchor="end" className="axis-label">{maxV.toLocaleString()}</text>
-      <text x={PAD.l - 5} y={H - PAD.b} textAnchor="end" className="axis-label">{minV.toLocaleString()}</text>
-    </svg>
   )
 }

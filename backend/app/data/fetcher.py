@@ -872,12 +872,84 @@ def get_news(symbol: str) -> Optional[list[dict[str, str]]]:
     return uniq[:8] or None
 
 
+def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
+    """美股分时数据（东财trends2接口，curl_cffi绕过TLS封锁）。
+
+    返回与A股分时相同格式: {points, last_close, data_date, is_today}
+    """
+    sym = symbol.replace("us", "")
+    # secid: 105=纳斯达克, 106=纽交所
+    # 常见纳斯达克: AAPL/MSFT/GOOGL/AMZN/TSLA/NVDA/META
+    nasdaq = {"AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "TSLA", "NVDA", "META", "NFLX",
+              "AMD", "INTC", "CSCO", "ADBE", "PEP", "COST", "AVGO", "TXN", "QCOM",
+              "TMUS", "CMCSA", "SBUX", "PYPL"}
+    market = "105" if sym.upper() in {s.upper() for s in nasdaq} else "106"
+    secid = f"{market}.{sym}"
+
+    try:
+        from curl_cffi import requests as cffi_req
+        url = "https://push2his.eastmoney.com/api/qt/stock/trends2/get"
+        params = {
+            "fields1": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13",
+            "fields2": "f51,f52,f53,f54,f55,f56,f57,f58",
+            "iscr": "0",
+            "ndays": "1",
+            "secid": secid,
+        }
+        r = cffi_req.get(url, params=params, impersonate="chrome", timeout=10)
+        d = r.json()
+        trends = d.get("data", {}).get("trends", [])
+        if not trends:
+            return None
+
+        # 昨收
+        pre_close = d.get("data", {}).get("preClose", 0) or 0
+
+        points = []
+        total_vol = 0
+        total_amount = 0
+        for item in trends:
+            parts = item.split(",")
+            if len(parts) < 7:
+                continue
+            dt_str = parts[0]  # "2026-08-05 21:30"
+            price = float(parts[2])  # 收盘价
+            vol = int(float(parts[5]))  # 成交量
+            amount = float(parts[6])  # 成交额
+            total_vol += vol
+            total_amount += amount
+            # 提取时间部分 "2130"
+            time_part = dt_str.split(" ")[1].replace(":", "")[:4] if " " in dt_str else "0000"
+            avg_price = total_amount / total_vol if total_vol > 0 else price
+            points.append({"time": time_part, "price": round(price, 2), "avg": round(avg_price, 2), "vol": vol})
+
+        if not points:
+            return None
+
+        # 取最后一个交易日期
+        last_date = trends[-1].split(",")[0].split(" ")[0] if trends else ""
+
+        return {
+            "points": points,
+            "last_close": round(pre_close, 2) if pre_close else None,
+            "data_date": last_date,
+            "is_today": True,
+        }
+    except Exception:
+        return None
+
+
 def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
-    """当日分时数据（腾讯分钟接口），缓存 30 秒。
+    """当日分时数据。A股/港股用腾讯接口，美股用东财分时(curl_cffi)。
 
     返回 {points: [[时间, 价, 均价, 量], ...], last_close: 昨收}
     """
     sym = _norm_symbol(symbol)
+
+    # 美股：用东财分时接口(curl_cffi绕过TLS封锁)
+    if sym.startswith("us"):
+        return _us_minute_from_em(sym)
+
     code = f"{_market_prefix(sym)}{sym}"
 
     def _fetch() -> Optional[dict[str, Any]]:

@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { MonteCarloHistogram, SensitivityHeatmap } from './BacktestCharts'
 
-// 回测深度分析页面：PF/RF/评分 + 蒙特卡洛 + 分层测试 + 参数敏感度
+// 回测深度分析页面：PF/RF/评分 + 蒙特卡洛 + 分层测试 + 参数敏感度 + Walk-Forward
 
 type AnalysisType = 'score' | 'monte_carlo' | 'layered' | 'sensitivity'
 
@@ -124,6 +125,18 @@ function MonteCarloView({ data }: { data: AnyRecord }) {
           <div>建议仓位: <strong>{(data.suggested_position_ratio * 100).toFixed(0)}%</strong></div>
         )}
       </div>
+      {data.histogram && data.histogram.length > 0 && (
+        <div className="backtest-equity">
+          <h4>收益分布直方图</h4>
+          <MonteCarloHistogram histogram={data.histogram} originalReturn={data.original_return} />
+        </div>
+      )}
+      {data.drawdown_histogram && data.drawdown_histogram.length > 0 && (
+        <div className="backtest-equity">
+          <h4>回撤分布直方图</h4>
+          <MonteCarloHistogram histogram={data.drawdown_histogram} />
+        </div>
+      )}
     </div>
   )
 }
@@ -164,6 +177,13 @@ function SensitivityView({ data }: { data: AnyRecord }) {
         <span>中位数收益: {data.median_return}%</span>
         <span>盈利比例: {data.profitable_ratio}%</span>
       </div>
+      {/* 二维热力图 */}
+      {data.results && data.results.length > 1 && (
+        <div className="backtest-equity">
+          <h4>参数热力图</h4>
+          <SensitivityHeatmap results={data.results} />
+        </div>
+      )}
       <table className="portfolio-table">
         <thead><tr><th>快线</th><th>慢线</th><th>收益%</th><th>回撤%</th><th>交易数</th><th>PF</th></tr></thead>
         <tbody>
