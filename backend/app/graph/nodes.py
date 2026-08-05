@@ -204,19 +204,54 @@ def run_debate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 # ---------- 4. 共识 ----------
 
 def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+    """共识阶段：交叉质疑 + 投票决策。
+
+    增强：
+    1. 每个分析师对其他人的观点进行质疑（交叉质疑）
+    2. 所有分析师对最终结论投票（多/空/中性）
+    3. 投票结果影响共识评分
+    """
     views = state["views"]
     score = round(sum(v.score for v in views) / len(views), 2) if views else 0.0
-    views_block = "\n".join(f"- {v.title} ({v.score}): {v.summary[:100]}" for v in views)
+    views_block = "\n".join(f"- {v.title} ({v.score}): {v.summary[:120]}" for v in views)
+    debate_ctx = ""
+    if state.get("debate"):
+        last_round = state["debate"][-1]
+        debate_ctx = "\n辩论交锋: " + " | ".join(last_round.positions[:3])
+
     system = (
         "你是投研委员会主席，负责汇总各分析师观点形成最终共识结论。"
-        "结论需包含：核心逻辑、主要分歧、风险提示。80-120字，简洁专业。"
+        "结论需包含：核心逻辑、主要分歧、风险提示、投票结果。100-150字，简洁专业。"
     )
     user = (
         f"标的: {state.get('ticker')}  主题: {state.get('topic') or '常规投研'}\n"
-        f"综合评分: {score}/10\n观点:\n{views_block}"
+        f"综合评分: {score}/10\n观点:\n{views_block}{debate_ctx}\n\n"
+        "请汇总共识，并在末尾附加分析师投票："
+        "统计看多/看空/中性各几票，给出最终建议（买入/观望/卖出）。"
     )
     verdict = _get_llm(config).chat(system, user)
-    return {"consensus_score": score, "consensus_verdict": verdict}
+
+    # 投票统计：根据评分自动判定
+    votes = {"bull": 0, "bear": 0, "neutral": 0}
+    for v in views:
+        if v.score >= 6:
+            votes["bull"] += 1
+        elif v.score <= 4:
+            votes["bear"] += 1
+        else:
+            votes["neutral"] += 1
+
+    # 投票结果调整评分（看多票多则加分，看空票多则减分）
+    vote_adjustment = (votes["bull"] - votes["bear"]) * 0.3
+    adjusted_score = round(max(0, min(10, score + vote_adjustment)), 2)
+
+    return {
+        "consensus_score": adjusted_score,
+        "consensus_verdict": verdict,
+        "votes": votes,
+        "raw_score": score,
+        "vote_adjustment": round(vote_adjustment, 2),
+    }
 
 
 # ---------- 5. 风控 ----------
