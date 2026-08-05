@@ -590,6 +590,27 @@ def kline_multi_period_api(symbol: str, period: str = "day", count: int = 250) -
     return {"symbol": sym, "period": period, "bars": bars, "tech": tech}
 
 
+@app.get("/api/fund-flow/{symbol}")
+def fund_flow_api(symbol: str, days: int = 10) -> dict[str, Any]:
+    """个股资金流向：主力/超大单/大单净流入。"""
+    from .fund_flow import get_fund_flow
+    sym = datalayer._norm_symbol(symbol)
+    result = get_fund_flow(sym, days=days)
+    return result or {"error": "资金流向数据获取失败（可能为港股美股或东财接口超时）"}
+
+
+@app.get("/api/patterns/{symbol}")
+def patterns_api(symbol: str) -> dict[str, Any]:
+    """K线形态自动识别。"""
+    from .patterns import get_pattern_summary
+    sym = datalayer._norm_symbol(symbol)
+    df = datalayer.get_history(sym, days=30)
+    if df is None or len(df) < 3:
+        return {"error": "数据不足"}
+    result = get_pattern_summary(df)
+    return result or {"pattern": None, "description": "近期无明显K线形态"}
+
+
 @app.get("/api/backtest/analysis/{symbol}")
 def backtest_analysis_api(
     symbol: str,

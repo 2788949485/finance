@@ -1074,6 +1074,36 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .analyst-title { font-size: 14px; font-weight: 500; }
 .analyst-role { font-size: 12px; color: var(--muted); margin-left: auto; font-family: monospace; }
 
+/* 资金流向 + K线形态卡片 */
+.qp-cards { display: flex; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+.qp-card {
+  flex: 1; min-width: 200px; max-width: 320px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  padding: 10px 14px; border-radius: var(--radius);
+}
+.qp-card-title { font-size: 12px; color: var(--text-2); display: block; margin-bottom: 6px; }
+.qp-card-row { display: flex; align-items: center; gap: 12px; margin: 4px 0; font-size: 13px; }
+.qp-card-desc { font-size: 12px; color: var(--text-2); margin: 4px 0 0; }
+.qp-card-loading, .qp-card-empty { font-size: 12px; color: var(--text-3); }
+.qp-card-mini-chart { display: flex; align-items: flex-end; gap: 4px; margin-top: 8px; height: 32px; }
+.qp-bar-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.qp-bar { width: 10px; border-radius: 1px; }
+.qp-bar.up { background: var(--up); }
+.qp-bar.down { background: var(--down); }
+.qp-bar-date { font-size: 8px; color: var(--text-3); }
+.qp-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 2px; font-weight: 500;
+}
+.qp-badge.badge-up { background: var(--up-bg); color: var(--up); }
+.qp-badge.badge-down { background: var(--down-bg); color: var(--down); }
+.qp-badge.badge-neutral { background: var(--neutral-bg); color: var(--neutral); }
+.qp-pattern-list { margin-top: 6px; border-top: 1px solid var(--border); padding-top: 4px; }
+.qp-pattern-item { display: flex; gap: 8px; font-size: 11px; margin: 2px 0; }
+.qp-pattern-date { color: var(--text-3); min-width: 40px; }
+.text-up { color: var(--up); }
+.text-down { color: var(--down); }
+.text-neutral { color: var(--neutral); }
+
 /* 周期切换工具栏 */
 .qp-toolbar {
   display: flex; align-items: center; gap: 6px;

@@ -304,6 +304,14 @@ export default function QuotePage() {
             {b?.market_cap != null && <span>市值 {b.market_cap}亿</span>}
           </div>
 
+          {/* 资金流向 + K线形态 */}
+          {data && (
+            <div className="qp-cards">
+              <FundFlowCard code={selected.code} />
+              <PatternCard code={selected.code} />
+            </div>
+          )}
+
           {/* 对比表格 */}
           {compareData && compareData.brief && (() => {
             const cb = compareData.brief as any
@@ -384,6 +392,106 @@ export default function QuotePage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ========== 资金流向卡片 ==========
+function FundFlowCard({ code }: { code: string }) {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const token = localStorage.getItem('financecrew_token')
+    fetch(`/api/fund-flow/${code}?days=5`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.json())
+      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [code])
+
+  if (loading) return <div className="qp-card"><span className="qp-card-title">资金流向</span><span className="qp-card-loading">加载中...</span></div>
+  if (!data || data.error) return <div className="qp-card"><span className="qp-card-title">资金流向</span><span className="qp-card-empty">暂无数据</span></div>
+
+  const mainNet = data.latest_main_net ?? 0
+  const isPositive = mainNet >= 0
+  const history = (data.history ?? []).slice(-5).reverse()
+
+  return (
+    <div className="qp-card">
+      <span className="qp-card-title">资金流向 {data.latest_date}</span>
+      <div className="qp-card-row">
+        <span className={isPositive ? 'text-up' : 'text-down'}>
+          {isPositive ? '▲' : '▼'} 主力{isPositive ? '净流入' : '净流出'} {Math.abs(mainNet)}亿
+        </span>
+      </div>
+      <div className="qp-card-row">
+        <span>超大单 {data.latest_super_net >= 0 ? '+' : ''}{data.latest_super_net}亿</span>
+        <span>大单 {data.latest_large_net >= 0 ? '+' : ''}{data.latest_large_net}亿</span>
+      </div>
+      {history.length > 1 && (
+        <div className="qp-card-mini-chart">
+          {history.map((h: any, i: number) => (
+            <div key={i} className="qp-bar-item">
+              <div
+                className={`qp-bar ${h.main_net >= 0 ? 'up' : 'down'}`}
+                style={{ height: `${Math.min(Math.abs(h.main_net) * 8, 24)}px` }}
+                title={`${h.date}: ${h.main_net}亿`}
+              />
+              <span className="qp-bar-date">{h.date.slice(5)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ========== K线形态卡片 ==========
+function PatternCard({ code }: { code: string }) {
+  const [data, setData] = useState<any>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const token = localStorage.getItem('financecrew_token')
+    fetch(`/api/patterns/${code}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setData(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [code])
+
+  if (!data || !data.pattern) return null
+
+  const dir = data.direction
+  const dirClass = dir === '看涨' ? 'text-up' : dir === '看跌' ? 'text-down' : 'text-neutral'
+
+  return (
+    <div className="qp-card">
+      <span className="qp-card-title">K线形态</span>
+      <div className="qp-card-row">
+        <span className={dirClass}>{data.pattern}</span>
+        <span className={`qp-badge ${dir === '看涨' ? 'badge-up' : dir === '看跌' ? 'badge-down' : 'badge-neutral'}`}>{dir}</span>
+      </div>
+      <p className="qp-card-desc">{data.description}</p>
+      {data.all_patterns && data.all_patterns.length > 1 && (
+        <div className="qp-pattern-list">
+          {data.all_patterns.slice(0, 4).map((p: any, i: number) => (
+            <div key={i} className="qp-pattern-item">
+              <span className="qp-pattern-date">{p.date.slice(5)}</span>
+              <span className={p.direction === '看涨' ? 'text-up' : p.direction === '看跌' ? 'text-down' : 'text-neutral'}>
+                {p.name}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
