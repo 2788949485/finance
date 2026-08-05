@@ -197,6 +197,43 @@ def _fetch_us_kline_aggregated(sym: str, period: str, count: int) -> Optional[di
     return {"bars": bars} if bars else None
 
 
+def _fetch_a_share_minute_akshare(sym: str, m_param: str, count: int) -> Optional[dict[str, Any]]:
+    """A股分钟级K线（AKShare腾讯源，国内直连）。
+
+    m_param: m5/m15/m30/m60
+    sym: 6位A股代码(无前缀)
+    """
+    try:
+        import akshare as ak
+        # AKShare需要带市场前缀的代码: sh600519 / sz000001
+        prefix = "sh" if sym.startswith(("6", "9")) else "sz"
+        ak_code = f"{prefix}{sym}"
+        period_map = {"m5": "5", "m15": "15", "m30": "30", "m60": "60"}
+        ak_period = period_map.get(m_param, "5")
+        df = ak.stock_zh_a_minute(symbol=ak_code, period=ak_period, adjust="qfq")
+        if df is None or len(df) == 0:
+            return None
+        # AKShare列: day, open, high, low, close, volume, amount
+        df = df.tail(count)
+        bars = []
+        for _, row in df.iterrows():
+            dt_str = str(row["day"])[:16]  # YYYY-MM-DD HH:MM
+            try:
+                bars.append({
+                    "date": dt_str,
+                    "open": round(float(row["open"]), 4),
+                    "close": round(float(row["close"]), 4),
+                    "high": round(float(row["high"]), 4),
+                    "low": round(float(row["low"]), 4),
+                    "volume": int(float(row["volume"])),
+                })
+            except (ValueError, TypeError):
+                continue
+        return {"bars": bars} if bars else None
+    except Exception:
+        return None
+
+
 def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[dict[str, Any]]:
     """美股分钟级K线（yfinance，国内直连）。
 
@@ -297,11 +334,17 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
 
     period: day/week/month/5min/15min/30min/60min
     count: 返回的K线数量
+
+    数据源:
+    - A股日K/周K/月K: 腾讯fqkline
+    - A股分钟级: AKShare腾讯源(stock_zh_a_minute)
+    - 美股日K: AKShare新浪源(stock_us_daily)
+    - 美股周K/月K: 新浪日K聚合
+    - 美股分钟级: yfinance
     """
     sym = _norm_symbol(symbol)
     period_info = PERIOD_MAP.get(period)
     if period_info is None:
-        # 降级为日线
         period_info = PERIOD_MAP["day"]
 
     cache_key = f"kline:{sym}:{period}:{count}"
@@ -309,18 +352,21 @@ def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Opt
     def _fetch() -> Optional[dict[str, Any]]:
         code = f"{_market_prefix(sym)}{sym}"
         try:
-            # 美股: 腾讯不支持周K/月K/分钟K，用不同接口
+            # ===== 美股 =====
             if sym.startswith("us"):
-                ticker = sym[2:]  # usAAPL -> AAPL
+                ticker = sym[2:]
                 if period_info["type"] == "fqkline" and period_info["param"] != "day":
-                    # 周K/月K：从新浪日K聚合
                     return _fetch_us_kline_aggregated(sym, period_info["param"], count)
                 if period_info["type"] == "fqkline" and period_info["param"] == "day":
-                    # 日K：新浪
                     return _fetch_us_kline(sym, count)
                 if period_info["type"] == "mkline":
-                    # 分钟级：yfinance
                     return _fetch_us_minute_kline(ticker, period_info["param"], count)
+
+            # ===== A股分钟级: AKShare腾讯源 =====
+            if period_info["type"] == "mkline":
+                return _fetch_a_share_minute_akshare(sym, period_info["param"], count)
+
+            # ===== A股日K/周K/月K: 腾讯fqkline =====
             if period_info["type"] == "fqkline":
                 # 日/周/月K线
                 url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},{period_info['param']},,,{count},qfq"
