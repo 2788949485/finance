@@ -418,7 +418,12 @@ function FundFlowCard({ code }: { code: string }) {
   }, [code])
 
   if (loading) return <div className="qp-card"><span className="qp-card-title">资金流向</span><span className="qp-card-loading">加载中...</span></div>
-  if (!data || data.error || data.latest_main_net == null) return null
+  if (!data || data.error || data.latest_main_net == null) return (
+    <div className="qp-card">
+      <span className="qp-card-title">资金流向</span>
+      <span className="qp-card-empty">东财接口被代理拦截，服务器部署后可用</span>
+    </div>
+  )
 
   const mainNet = data.latest_main_net ?? 0
   const isPositive = mainNet >= 0
