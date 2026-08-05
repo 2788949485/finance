@@ -272,8 +272,8 @@ export default function QuotePage() {
               if (v === 'minute') { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }
               else if (v.startsWith('day')) { const n = parseInt(v.slice(3)); setMode('day'); setMultiDay(n); setPeriod(''); loadMultiDay(selected.code, n) }
             }}>
-              <option value="none" disabled>分时</option>
-              <option value="minute">1日</option>
+              <option value="none" disabled>选择分时</option>
+              <option value="minute">分时</option>
               <option value="day2">2日</option>
               <option value="day3">3日</option>
               <option value="day4">4日</option>
