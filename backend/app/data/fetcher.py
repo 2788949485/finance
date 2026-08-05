@@ -579,7 +579,20 @@ def get_minute_kline(symbol: str) -> Optional[dict[str, Any]]:
                 cum_amt += amt
                 cum_vol += vol
                 pt["avg"] = round(cum_amt / (cum_vol * vol_factor), 2) if cum_vol > 0 else None
-            return {"points": out, "last_close": last_close}
+            # 从 qt 数组提取数据日期
+            data_date = ""
+            is_today = True
+            try:
+                from datetime import datetime as _dt
+                today_str = _dt.now().strftime("%Y%m%d")
+                if isinstance(qt_arr, list) and len(qt_arr) > 30 and qt_arr[30]:
+                    raw_date = str(qt_arr[30])[:8]
+                    if raw_date.isdigit() and len(raw_date) == 8:
+                        data_date = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+                        is_today = (raw_date == today_str)
+            except Exception:
+                pass
+            return {"points": out, "last_close": last_close, "data_date": data_date, "is_today": is_today}
         except Exception:
             return None
 

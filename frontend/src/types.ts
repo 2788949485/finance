@@ -121,6 +121,8 @@ export interface QuoteResponse {
   kline: KlineBar[] | MinutePoint[]
   tech: Record<string, unknown>
   last_close?: number | null
+  data_date?: string
+  is_today?: boolean
 }
 
 export interface NewsItem {

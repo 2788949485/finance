@@ -178,6 +178,8 @@ export default function QuoteCard({ code }: { code: string }) {
         symbol={name}
         mode={mode}
         onMode={switchMode}
+        dataDate={data.data_date}
+        isToday={data.is_today}
       />
       {news.length > 0 && (
         <div className="quote-news">

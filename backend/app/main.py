@@ -380,6 +380,8 @@ def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: 
         if m:
             out["kline"] = m["points"]
             out["last_close"] = m["last_close"]
+            out["data_date"] = m.get("data_date", "")
+            out["is_today"] = m.get("is_today", True)
     elif all:
         hist = datalayer.get_history_all(sym)
         bars: list[dict[str, Any]] = []

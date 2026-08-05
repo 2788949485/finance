@@ -266,6 +266,8 @@ export default function QuotePage() {
               symbol={b?.name ?? selected.name}
               mode={mode}
               onMode={(m) => { setMode(m); load(selected.code, m, 0) }}
+              dataDate={data.data_date}
+              isToday={data.is_today}
             />
           </div>
 

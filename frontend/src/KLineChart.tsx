@@ -15,9 +15,11 @@ interface Props {
   symbol: string
   mode: 'day' | 'minute'
   onMode?: (m: 'day' | 'minute') => void
+  dataDate?: string
+  isToday?: boolean
 }
 
-export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode }: Props) {
+export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode, dataDate, isToday }: Props) {
   const [range, setRange] = useState<number | 'all'>(60)
   const [hover, setHover] = useState<KlineBar | null>(null)
   // 缩放：zoom 放大倍数（1=显示当前 range 全部），pan 0~1 窗口位置（0=最新端，1=最旧端）
@@ -166,7 +168,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     const timeLabels = []
     const labelCount = Math.min(5, allTimes.length)
     for (let k = 0; k < labelCount; k++) {
-      const idx = Math.min(allTimes.length - 1, Math.round(k * (allTimes.length - 1) / (labelCount - 1)))
+      const denom = labelCount > 1 ? (labelCount - 1) : 1
+      const idx = Math.min(allTimes.length - 1, Math.round(k * (allTimes.length - 1) / denom))
       const t = allTimes[idx]
       const label = `${parseInt(t.slice(0, 2))}:${t.slice(2, 4)}`
       timeLabels.push({ t, label })
@@ -178,7 +181,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     return (
       <div className={`kline-wrap ${fullscreen ? 'kline-fullscreen' : ''}`}>
         <div className="kline-head">
-          <span className="kline-symbol">{symbol} 分时</span>
+          <span className="kline-symbol">{symbol} 分时{dataDate && !isToday ? ` (${dataDate})` : ''}</span>
           <span className="kline-price" style={{ color: trend }}>
             {lastP.price.toFixed(2)} <small>{trend === UP ? '▲' : '▼'} {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%</small>
           </span>
