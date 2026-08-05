@@ -18,11 +18,8 @@ def _em_secid(symbol: str) -> str:
     return f"0.{sym}"
 
 
-def _fetch_with_retry(url: str, retries: int = 3) -> Optional[dict]:
-    """带重试的请求（走系统代理，让FiClash规则匹配DIRECT直连）"""
-    import os
-    # 清掉显式代理环境变量，让requests读系统注册表代理
-    # FiClash的DIRECT规则只对系统代理流量生效
+def _fetch_with_retry(url: str, retries: int = 2) -> Optional[dict]:
+    """带重试的请求（curl_cffi模拟Chrome TLS指纹绕过反爬）"""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "*/*",
@@ -30,7 +27,8 @@ def _fetch_with_retry(url: str, retries: int = 3) -> Optional[dict]:
     }
     for i in range(retries):
         try:
-            r = requests.get(url, timeout=10, headers=headers)
+            from curl_cffi import requests as cffi_req
+            r = cffi_req.get(url, impersonate="chrome", timeout=10, headers=headers)
             if r.status_code == 200 and r.text:
                 return r.json()
         except Exception:
@@ -50,7 +48,7 @@ def get_fund_flow(symbol: str, days: int = 10) -> Optional[dict[str, Any]]:
 
     def _fetch() -> Optional[dict[str, Any]]:
         url = (
-            f"https://push2.eastmoney.com/api/qt/stock/fflow/daykline/get?"
+            f"https://push2his.eastmoney.com/api/qt/stock/getFFlowDaykline/get?"
             f"secid={secid}&lmt={days}"
             f"&fields1=f1,f2,f3,f7&fields2=f51,f52,f53,f54,f55,f56,f57,f58"
         )
