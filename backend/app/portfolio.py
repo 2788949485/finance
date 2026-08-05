@@ -154,7 +154,7 @@ def get_portfolio(user_id: int) -> dict[str, Any]:
 
     for row in rows:
         pos = dict(row)
-        brief = datalayer.get_stock_brief(pos["symbol"])
+        brief = datalayer.get_stock_brief(pos["symbol"], fresh=True)
         current_price = brief.get("price") if brief else None
         if current_price:
             market_value = current_price * pos["shares"]

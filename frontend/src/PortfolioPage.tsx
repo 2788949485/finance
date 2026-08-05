@@ -21,6 +21,12 @@ export default function PortfolioPage() {
 
   useEffect(() => { load() }, [])
 
+  // 15秒定时刷新盈亏
+  useEffect(() => {
+    const timer = setInterval(load, 15000)
+    return () => clearInterval(timer)
+  }, [])
+
   const handleRemove = async (symbol: string) => {
     try { await api.removePosition(symbol); load() } catch { /* ignore */ }
   }
