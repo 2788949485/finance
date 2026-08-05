@@ -20,7 +20,7 @@ from .labels import triple_barrier_labels
 from .split import walk_forward_split, time_series_split, purge_overlap
 from .train import train_model, ModelTrainer
 from .evaluate import evaluate_predictions, evaluate_strategy
-from .pipeline import run_ml_pipeline
+from .pipeline import run_ml_pipeline, PipelineConfig, PipelineResult, diagnose_symbols
 
 __all__ = [
     "add_features",
@@ -34,4 +34,7 @@ __all__ = [
     "evaluate_predictions",
     "evaluate_strategy",
     "run_ml_pipeline",
+    "PipelineConfig",
+    "PipelineResult",
+    "diagnose_symbols",
 ]

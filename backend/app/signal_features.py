@@ -90,7 +90,7 @@ def build_signal_features(
     prev = df.iloc[i - 1]
     closes = df["close"].tolist()
     highs = df["high"].tolist()
-    lows = df["close"].tolist()
+    lows = df["low"].tolist()
     vols = df["volume"].tolist()
     price = float(row["close"])
 

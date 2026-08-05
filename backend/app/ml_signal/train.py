@@ -91,12 +91,14 @@ class ModelTrainer:
         X = np.asarray(X, dtype=float)
         if hasattr(self._clf, "predict_proba"):
             proba = self._clf.predict_proba(X)
-            # 对齐到 [-1, 0, 1]
+            # 对齐到 [-1, 0, 1]（列顺序固定为 3 列）
             classes = getattr(self._clf, "classes_", None)
             if classes is not None:
                 full = np.zeros((len(proba), 3))
                 for k, c in enumerate(classes):
-                    full[int(c) + 1] = proba[:, k]
+                    # 每个模型实际出现的类别映射到固定列
+                    if int(c) + 1 in (0, 1, 2):
+                        full[:, int(c) + 1] = proba[:, k]
                 return full
             return proba
         # 退化为 one-hot
