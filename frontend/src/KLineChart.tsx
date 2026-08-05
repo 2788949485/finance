@@ -20,7 +20,7 @@ interface Props {
 }
 
 export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode, dataDate, isToday }: Props) {
-  const [range, setRange] = useState<number | 'all'>(60)
+  const [range, setRange] = useState<number | 'all'>('all')
   const [hover, setHover] = useState<KlineBar | null>(null)
   // 缩放：zoom 放大倍数（1=显示当前 range 全部），pan 0~1 窗口位置（0=最新端，1=最旧端）
   const [zoom, setZoom] = useState(1)
@@ -445,9 +445,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           {last.close} <small>{trend === UP ? '▲' : '▼'}</small>
         </span>
         <span className="kline-range">
-          {[30, 60, 120].map((n) => (
-            <button key={n} className={`ghost ${range === n ? 'active' : ''}`} onClick={() => switchRange(n)}>{n}根</button>
-          ))}
           <button className={`ghost ${range === 'all' ? 'active' : ''}`} onClick={() => switchRange('all')}>全部</button>
           {onMode && <button className="ghost" onClick={() => onMode('minute')}>分时</button>}
           {zoom > 1 && (
