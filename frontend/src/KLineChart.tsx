@@ -579,19 +579,17 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const barX = PAD.l + idx * step + step / 2
           // 判断鼠标是否在主图区域
           const inMainChart = cy >= PAD.t && cy <= PAD.t + priceH
-          const val = inMainChart ? maxV - ((cy - PAD.t) / vh) * span : null
+          // 横线始终画在主图：主图时跟鼠标Y，副图时跟hover K线收盘价
+          const hY = inMainChart ? cy : y(data[idx]?.close ?? data[data.length - 1].close)
+          const val = maxV - ((hY - PAD.t) / vh) * span
           return (
             <g pointerEvents="none">
               {/* 竖虚线贯穿主图+副图 */}
               <line x1={barX} y1={PAD.t} x2={barX} y2={H - PAD.b} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-              {/* 水平虚线+价格标签只在主图区域 */}
-              {inMainChart && val !== null && (
-                <>
-                  <line x1={PAD.l} y1={cy} x2={W - PAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-                  <rect x={PAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
-                  <text x={PAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill="#e2e8f0" fontWeight="bold">{val.toFixed(2)}</text>
-                </>
-              )}
+              {/* 水平虚线始终在主图 */}
+              <line x1={PAD.l} y1={hY} x2={W - PAD.r} y2={hY} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+              <rect x={PAD.l - 54} y={hY - 8} width="50" height="16" rx="2" fill="#334155" />
+              <text x={PAD.l - 29} y={hY + 3} textAnchor="middle" fontSize="10" fill="#e2e8f0" fontWeight="bold">{val.toFixed(2)}</text>
             </g>
           )
         })()}
