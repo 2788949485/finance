@@ -4,9 +4,11 @@
   ma_cross   -- MA5/MA20金叉买入，死叉卖出
   grid       -- 网格交易（按百分比间距挂单）
   hold       -- 买入持有（基准对照）
+  ai         -- AI增强策略（大模型综合多维度信号决策买卖）
 """
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 
 from .data import fetcher as datalayer
@@ -57,6 +59,8 @@ def run_backtest(
         result = _backtest_grid(df, initial_capital, grid_pct)
     elif strategy == "hold":
         result = _backtest_hold(df, initial_capital)
+    elif strategy == "ai":
+        result = _backtest_ai(df, initial_capital, sym)
     else:
         return None
 
@@ -224,5 +228,179 @@ def _backtest_hold(df, capital: float) -> dict[str, Any]:
         "trades": 1,
         "win_rate": 100 if final_value > capital else 0,
         "trades_log": [{"date": df.iloc[0]["date"].strftime("%Y-%m-%d"), "action": "BUY", "price": first_price, "shares": int(shares)}],
+        "equity_curve": equity_curve,
+    }
+
+
+# ==================== AI增强策略 ====================
+
+
+def _build_market_context(df, i: int, lookback: int = 5) -> dict[str, Any]:
+    """构建给LLM的市场环境上下文。"""
+    if i < lookback:
+        lookback = i
+    recent = df.iloc[max(0, i - lookback) : i + 1]
+    closes = recent["close"].tolist()
+    vols = recent["volume"].tolist()
+
+    row = df.iloc[i]
+    # 计算技术指标
+    ret_5d = (closes[-1] / closes[0] - 1) * 100 if len(closes) > 1 and closes[0] > 0 else 0
+    vol_change = (vols[-1] / (sum(vols[:-1]) / max(len(vols) - 1, 1)) - 1) * 100 if len(vols) > 1 and sum(vols[:-1]) > 0 else 0
+    # 波动率（近5日收益率标准差）
+    if len(closes) >= 3:
+        rets = [(closes[j] / closes[j - 1] - 1) for j in range(1, len(closes)) if closes[j - 1] > 0]
+        volatility = (sum(r * r for r in rets) / max(len(rets), 1)) ** 0.5 * 100
+    else:
+        volatility = 0
+
+    # RSI（简化14日）
+    if i >= 14:
+        delta = df["close"].iloc[i - 14 : i + 1].diff()
+        gain = delta.clip(lower=0).mean()
+        loss = (-delta.clip(upper=0)).mean()
+        rsi = 100 - 100 / (1 + gain / loss) if loss > 0 else 100
+    else:
+        rsi = 50
+
+    return {
+        "date": row["date"].strftime("%Y-%m-%d"),
+        "price": float(row["close"]),
+        "ma5": round(float(row["ma5"]), 2) if row["ma5"] == row["ma5"] else None,  # NaN检查
+        "ma20": round(float(row["ma20"]), 2) if row["ma20"] == row["ma20"] else None,
+        "ma5_above_ma20": bool(row["ma5"] > row["ma20"]) if row["ma5"] == row["ma5"] and row["ma20"] == row["ma20"] else None,
+        "rsi14": round(rsi, 1),
+        "ret_5d_pct": round(ret_5d, 2),
+        "volatility_5d": round(volatility, 2),
+        "volume_change_pct": round(vol_change, 1),
+        "volume": int(row["volume"]),
+    }
+
+
+def _ai_decision(context: dict[str, Any], position_info: dict[str, Any]) -> tuple[str, str]:
+    """调用LLM做交易决策。返回 (action, reason)。
+
+    action: BUY / SELL / HOLD
+    """
+    from .llm import LLMClient
+
+    llm = LLMClient()
+    system = (
+        "你是一个量化交易AI，根据市场数据做买卖决策。只返回JSON，格式：\n"
+        '{"action":"BUY|SELL|HOLD","confidence":1-10,"reason":"一句话理由"}\n'
+        "决策原则：\n"
+        "1. BUY: 技术面超跌反弹、金叉、放量突破、RSI<30\n"
+        "2. SELL: 技术面超买、死叉、缩量破位、RSI>70、已有较大浮盈\n"
+        "3. HOLD: 信号不明确时观望\n"
+        "4. 不要频繁交易，信号不明确就HOLD\n"
+        "5. 已持仓时降低买入倾向，已空仓时降低卖出倾向"
+    )
+    user_msg = (
+        f"市场数据：{json.dumps(context, ensure_ascii=False)}\n"
+        f"当前持仓：{json.dumps(position_info, ensure_ascii=False)}\n"
+        "请做交易决策。"
+    )
+
+    try:
+        text = llm.chat(system, user_msg, temperature=0.1)
+        # 解析JSON
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+        # 找JSON
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start != -1 and end != -1:
+            d = json.loads(cleaned[start : end + 1])
+            action = d.get("action", "HOLD").upper()
+            if action not in ("BUY", "SELL", "HOLD"):
+                action = "HOLD"
+            reason = d.get("reason", "")[:100]
+            return action, reason
+    except Exception:
+        pass
+    return "HOLD", ""
+
+
+def _backtest_ai(df, capital: float, symbol: str) -> dict[str, Any]:
+    """AI增强策略：大模型每隔3个交易日决策一次，综合技术指标做买卖。
+
+    交易频率：每3个交易日调一次LLM（平衡速度和响应度）。
+    每次决策买入时用30%资金（分批建仓），卖出时清仓。
+    """
+    shares = 0.0
+    cash = capital
+    avg_cost = 0.0
+    trades_log: list[dict] = []
+    equity_curve: list[dict] = []
+    wins = 0
+    total_sells = 0
+    peak_value = capital
+    max_dd = 0.0
+    # AI决策频率：每3天一次
+    decision_interval = 3
+    last_decision_day = -decision_interval  # 确保第一天就决策
+
+    for i in range(len(df)):
+        row = df.iloc[i]
+        price = float(row["close"])
+        date = row["date"].strftime("%Y-%m-%d")
+
+        # 每N个交易日调LLM决策
+        if i - last_decision_day >= decision_interval:
+            last_decision_day = i
+            context = _build_market_context(df, i)
+            # 持仓信息
+            position_info = {
+                "shares": int(shares),
+                "avg_cost": round(avg_cost, 2) if shares > 0 else 0,
+                "current_pnl_pct": round((price / avg_cost - 1) * 100, 1) if shares > 0 and avg_cost > 0 else 0,
+                "cash": round(cash, 2),
+            }
+
+            action, reason = _ai_decision(context, position_info)
+
+            if action == "BUY" and cash > price * 100:
+                # 用30%剩余资金买入（分批建仓）
+                buy_amount = cash * 0.3
+                buy_shares = int(buy_amount // price)
+                if buy_shares > 0:
+                    if shares > 0:
+                        avg_cost = (shares * avg_cost + buy_shares * price) / (shares + buy_shares)
+                    else:
+                        avg_cost = price
+                    shares += buy_shares
+                    cash -= buy_shares * price
+                    trades_log.append({"date": date, "action": "BUY", "price": price, "shares": buy_shares, "reason": reason})
+
+            elif action == "SELL" and shares > 0:
+                total_sells += 1
+                if price > avg_cost:
+                    wins += 1
+                cash += shares * price
+                trades_log.append({"date": date, "action": "SELL", "price": price, "shares": int(shares), "reason": reason})
+                shares = 0
+                avg_cost = 0
+
+        # 记录权益
+        value = cash + shares * price
+        equity_curve.append({"date": date, "value": round(value, 2)})
+        if value > peak_value:
+            peak_value = value
+        dd = (peak_value - value) / peak_value * 100
+        if dd > max_dd:
+            max_dd = dd
+
+    final_price = float(df.iloc[-1]["close"])
+    final_value = cash + shares * final_price
+
+    return {
+        "final_value": round(final_value, 2),
+        "total_return": round((final_value / capital - 1) * 100, 2),
+        "max_drawdown": round(max_dd, 2),
+        "trades": len(trades_log),
+        "win_rate": round(wins / total_sells * 100, 1) if total_sells > 0 else 0,
+        "trades_log": trades_log[-20:],
         "equity_curve": equity_curve,
     }

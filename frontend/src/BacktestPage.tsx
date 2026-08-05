@@ -6,6 +6,7 @@ const STRATEGIES = [
   { key: 'ma_cross', label: 'MA均线交叉' },
   { key: 'grid', label: '网格交易' },
   { key: 'hold', label: '买入持有(基准)' },
+  { key: 'ai', label: 'AI增强策略' },
 ]
 
 export default function BacktestPage() {
@@ -44,7 +45,7 @@ export default function BacktestPage() {
           <option value={250}>250天</option>
         </select>
         <button className="btn-primary" onClick={run} disabled={loading}>
-          {loading ? '回测中...' : '开始回测'}
+          {loading ? (strategy === 'ai' ? 'AI分析中(较慢)...' : '回测中...') : '开始回测'}
         </button>
       </div>
       {error && <span className="alert-error">{error}</span>}
@@ -98,7 +99,7 @@ export default function BacktestPage() {
               <h4>交易记录（最近{result.trades_log.length}笔）</h4>
               <table className="portfolio-table">
                 <thead>
-                  <tr><th>日期</th><th>操作</th><th>价格</th><th>数量</th></tr>
+                  <tr><th>日期</th><th>操作</th><th>价格</th><th>数量</th>{strategy === 'ai' && <th>AI理由</th>}</tr>
                 </thead>
                 <tbody>
                   {result.trades_log.map((t, i) => (
@@ -107,6 +108,7 @@ export default function BacktestPage() {
                       <td className={t.action === 'BUY' ? 'up' : 'down'}>{t.action === 'BUY' ? '买入' : '卖出'}</td>
                       <td>{t.price}</td>
                       <td>{t.shares}</td>
+                      {strategy === 'ai' && <td className="pf-code">{(t as any).reason || ''}</td>}
                     </tr>
                   ))}
                 </tbody>
