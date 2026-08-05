@@ -20,7 +20,7 @@ interface Props {
 }
 
 export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMode, dataDate, isToday }: Props) {
-  const [range, setRange] = useState<number | 'all'>('all')
+  const [range] = useState<number | 'all'>('all')
   const [hover, setHover] = useState<KlineBar | null>(null)
   // 缩放：zoom 放大倍数（1=显示当前 range 全部），pan 0~1 窗口位置（0=最新端，1=最旧端）
   const [zoom, setZoom] = useState(1)
@@ -42,8 +42,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const W = 680, H = 320, PAD = { t: 14, r: 10, b: 22, l: 56 }
 
   const resetZoom = () => { setZoom(1); setPan(0) }
-
-  const switchRange = (n: number | 'all') => { setRange(n); resetZoom() }
 
   // 缩放：用 native event listener（passive: false 才能 preventDefault 阻止页面滚动）
   // 必须在所有 return 之前调用（React Hooks 规则）
@@ -445,7 +443,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           {last.close} <small>{trend === UP ? '▲' : '▼'}</small>
         </span>
         <span className="kline-range">
-          <button className={`ghost ${range === 'all' ? 'active' : ''}`} onClick={() => switchRange('all')}>全部</button>
           {onMode && <button className="ghost" onClick={() => onMode('minute')}>分时</button>}
           {zoom > 1 && (
             <>
@@ -453,7 +450,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
               <button className="ghost zoom-ind" onClick={resetZoom} title="重置缩放（或双击图表）">{zoom.toFixed(0)}x ⇲</button>
             </>
           )}
-          {zoom <= 1 && range === 'all' && rawLen > 200 && (
+          {zoom <= 1 && rawLen > 200 && (
             <span className="zoom-hint">滚轮缩放查看细节</span>
           )}
           <button className="ghost" onClick={() => setFullscreen(!fullscreen)} title="全屏">{fullscreen ? '退出全屏' : '全屏'}</button>
