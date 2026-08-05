@@ -692,7 +692,7 @@ def backtest_api(
     if rsi_oversold > 0: kwargs["rsi_oversold"] = rsi_oversold
     if rsi_overbought > 0: kwargs["rsi_overbought"] = rsi_overbought
     if slippage > 0: kwargs["slippage"] = slippage / 1000  # 前端传1表示0.1%
-    if position_pct > 0: kwargs["position_pct"] = position_pct / 100
+    if position_pct > 0: kwargs["percentage"] = position_pct  # 前端传100表示满仓
 
     result = backtest.run_backtest(sym, strategy=strategy, days=days,
                                    record_signals=bool(record_signals), enable_cost=bool(enable_cost), **kwargs)
