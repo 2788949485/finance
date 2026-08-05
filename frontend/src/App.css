@@ -104,7 +104,7 @@ button {
   cursor: pointer; transition: background 0.15s; font-family: var(--sans);
   border-radius: var(--radius);
 }
-button:hover:not(:disabled) { background: #2563eb; }
+button:hover:not(:disabled) { background: var(--accent); }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 button.ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border-strong); }
 button.ghost:hover { color: var(--text); border-color: var(--text-3); background: var(--surface-hover); }
