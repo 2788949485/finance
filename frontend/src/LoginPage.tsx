@@ -6,6 +6,7 @@ export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => v
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState(localStorage.getItem('fc_remember_user') || '')
   const [password, setPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [remember, setRemember] = useState(!!localStorage.getItem('fc_remember_user'))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -18,7 +19,9 @@ export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => v
     setBusy(true)
     setError('')
     try {
-      const r = mode === 'login' ? await api.login(username.trim(), password) : await api.register(username.trim(), password)
+      const r = mode === 'login'
+        ? await api.login(username.trim(), password)
+        : await api.register(username.trim(), password, inviteCode.trim())
       setToken(r.token)
       if (remember) {
         localStorage.setItem('fc_remember_user', username.trim())
@@ -48,6 +51,9 @@ export default function LoginPage({ onLogin }: { onLogin: (r: AuthResponse) => v
         </div>
         <input placeholder="用户名" value={username} onChange={(e) => setUsername(e.target.value)} />
         <input placeholder="密码（至少 6 位）" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        {mode === 'register' && (
+          <input placeholder="邀请码（如需要）" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} />
+        )}
         <label className="login-remember">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
           <span>记住账号密码</span>

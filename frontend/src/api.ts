@@ -97,8 +97,8 @@ export const api = {
   getHotStocks: () => request<{ code: string; name: string; change_pct: number }[]>('/api/hot'),
 
   // 认证
-  register: (username: string, password: string) =>
-    request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  register: (username: string, password: string, inviteCode?: string) =>
+    request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ username, password, invite_code: inviteCode || '' }) }),
 
   login: (username: string, password: string) =>
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
