@@ -406,58 +406,19 @@ function FundFlowCard({ code }: { code: string }) {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-
-    // 先试后端API（服务器环境无代理问题）
+    // 后端API获取资金流向（服务器环境直连东财，本地开发可能被代理拦截）
     const token = localStorage.getItem('financecrew_token')
     fetch(`/api/fund-flow/${code}?days=5`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => r.json())
-      .then(d => {
-        if (!cancelled) {
-          if (d && d.latest_main_net != null) {
-            setData(d)
-            setLoading(false)
-          } else {
-            // 后端Python被东财TLS封锁，前端浏览器直接fetch（浏览器能通）
-            const sym = code.replace(/^(sh|sz)/, '')
-            const market = sym.startsWith('6') || sym.startsWith('9') ? 1 : 0
-            const secid = `${market}.${sym}`
-            const emUrl = `https://push2his.eastmoney.com/api/qt/stock/getFFlowDaykline/get?secid=${secid}&lmt=5&fields1=f1,f2,f3,f7&fields2=f51,f52,f53,f54,f55,f56,f57,f58`
-            fetch(emUrl)
-              .then(r => r.json())
-              .then(em => {
-                if (!cancelled) {
-                  const klines = em?.data?.klines || []
-                  if (klines.length > 0) {
-                    const parsed = klines.map((k: string) => {
-                      const p = k.split(',')
-                      return { date: p[0], main_net: +(parseFloat(p[1])/1e8).toFixed(2), super_net: +(parseFloat(p[5])/1e8).toFixed(2), large_net: +(parseFloat(p[4])/1e8).toFixed(2), main_pct: parseFloat(p[6]||'0') }
-                    }).reverse()
-                    const latest = parsed[0]
-                    setData({
-                      latest_date: latest.date,
-                      latest_main_net: latest.main_net,
-                      latest_super_net: latest.super_net,
-                      latest_large_net: latest.large_net,
-                      latest_main_pct: latest.main_pct,
-                      summary: latest.main_net >= 0 ? `主力净流入${latest.main_net}亿元` : `主力净流出${Math.abs(latest.main_net)}亿元`,
-                      history: parsed,
-                    })
-                  }
-                  setLoading(false)
-                }
-              })
-              .catch(() => { if (!cancelled) setLoading(false) })
-          }
-        }
-      })
+      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [code])
 
   if (loading) return <div className="qp-card"><span className="qp-card-title">资金流向</span><span className="qp-card-loading">加载中...</span></div>
-  if (!data || data.error) return <div className="qp-card"><span className="qp-card-title">资金流向</span><span className="qp-card-empty">暂无数据</span></div>
+  if (!data || data.error || data.latest_main_net == null) return null
 
   const mainNet = data.latest_main_net ?? 0
   const isPositive = mainNet >= 0
