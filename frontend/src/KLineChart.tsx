@@ -489,20 +489,25 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         <polyline points={boll.mid.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')} fill="none" stroke="#64748b" strokeWidth="0.8" opacity="0.4" />
         {/* BOLL 下轨 */}
         <polyline points={boll.lower.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')} fill="none" stroke="#64748b" strokeWidth="0.8" opacity="0.5" strokeDasharray="3 2" />
-        {/* 交易日分隔虚线：检测日期变化画竖线 */}
-        {data.map((d, i) => {
-          if (i === 0) return null
-          const prevDate = data[i - 1].date.split(' ')[0]
-          const curDate = d.date.split(' ')[0]
-          if (prevDate === curDate) return null
-          const x = PAD.l + i * step
-          return (
-            <g key={`sep-${i}`}>
-              <line x1={x} y1={PAD.t} x2={x} y2={H - PAD.b} stroke="#334155" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
-              <text x={x + 2} y={PAD.t + 10} fontSize="9" fill="#565f70">{curDate.slice(5)}</text>
-            </g>
-          )
-        })}
+        {/* 交易日分隔虚线：仅分钟级/多日数据(同一天多根)才画 */}
+        {(() => {
+          // 检测是否是分钟级数据（同一天有多根K线）
+          const dayCount = new Set(data.map(d => d.date.split(' ')[0])).size
+          if (dayCount >= data.length) return null // 每根都是不同天，不画
+          return data.map((d, i) => {
+            if (i === 0) return null
+            const prevDate = data[i - 1].date.split(' ')[0]
+            const curDate = d.date.split(' ')[0]
+            if (prevDate === curDate) return null
+            const x = PAD.l + i * step
+            return (
+              <g key={`sep-${i}`}>
+                <line x1={x} y1={PAD.t} x2={x} y2={H - PAD.b} stroke="#334155" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.5" />
+                <text x={x + 2} y={PAD.t + 10} fontSize="9" fill="#565f70">{curDate.slice(5)}</text>
+              </g>
+            )
+          })
+        })()}
         {data.map((d, i) => {
           const x = PAD.l + i * step + step / 2
           const up = d.close >= d.open
