@@ -267,12 +267,13 @@ export default function QuotePage() {
 
           {/* 周期切换工具栏 - 单独一行 */}
           <div className="qp-toolbar">
-            <select className="period-select" value={multiDay ? `day${multiDay}` : (mode === 'minute' ? 'minute' : '')} onChange={(e) => {
+            <select className="period-select" value={multiDay ? `day${multiDay}` : (mode === 'minute' && !multiDay ? 'minute' : 'none')} onChange={(e) => {
               const v = e.target.value
               if (v === 'minute') { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }
               else if (v.startsWith('day')) { const n = parseInt(v.slice(3)); setMode('day'); setMultiDay(n); setPeriod(''); loadMultiDay(selected.code, n) }
             }}>
-              <option value="minute">分时</option>
+              <option value="none" disabled>分时</option>
+              <option value="minute">1日</option>
               <option value="day2">2日</option>
               <option value="day3">3日</option>
               <option value="day4">4日</option>
