@@ -315,6 +315,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
       // 鼠标在整个图表区域（主图+副图）都响应十字光标
       if (!drag && sx >= PAD.l && sx <= W - PAD.r && sy >= PAD.t && sy <= H - PAD.b) {
         setCrosshair({ x: sx, y: sy })
+        // 根据X坐标找到对应的K线，更新hover（副图移动时主图也跟着高亮）
+        const idx = Math.min(data.length - 1, Math.max(0, Math.round((sx - PAD.l) / step - 0.5)))
+        if (data[idx]) {
+          setHover(data[idx])
+        }
       }
     }
     // 拖动平移
