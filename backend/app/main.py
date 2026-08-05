@@ -554,6 +554,28 @@ def multi_period_api(symbol: str) -> dict[str, Any]:
     return result or {"error": "数据不足（需要至少60个交易日）"}
 
 
+@app.get("/api/kline/{symbol}")
+def kline_multi_period_api(symbol: str, period: str = "day", count: int = 250) -> dict[str, Any]:
+    """多周期K线数据。period: day/week/month/5min/15min/30min/60min"""
+    sym = datalayer._norm_symbol(symbol)
+    df = datalayer.get_history_multi(sym, period=period, count=count)
+    if df is None or len(df) == 0:
+        return {"error": "数据不足"}
+    bars = []
+    for _, row in df.iterrows():
+        bars.append({
+            "date": row["date"].strftime("%Y-%m-%d %H:%M") if period.endswith("min") else row["date"].strftime("%Y-%m-%d"),
+            "open": round(float(row["open"]), 4),
+            "close": round(float(row["close"]), 4),
+            "high": round(float(row["high"]), 4),
+            "low": round(float(row["low"]), 4),
+            "volume": int(row["volume"]),
+        })
+    # 技术指标
+    tech = datalayer.compute_tech_signals(df)
+    return {"symbol": sym, "period": period, "bars": bars, "tech": tech}
+
+
 @app.get("/api/backtest/analysis/{symbol}")
 def backtest_analysis_api(
     symbol: str,

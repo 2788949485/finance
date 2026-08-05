@@ -199,6 +199,104 @@ def get_history(symbol: str, days: int = 250) -> Optional[pd.DataFrame]:
     return df
 
 
+# ==================== 多周期K线 ====================
+
+# 支持的周期: 日/周/月 用fqkline接口, 分钟级用mkline接口
+PERIOD_MAP = {
+    "day": {"type": "fqkline", "param": "day"},
+    "week": {"type": "fqkline", "param": "week"},
+    "month": {"type": "fqkline", "param": "month"},
+    "5min": {"type": "mkline", "param": "m5"},
+    "15min": {"type": "mkline", "param": "m15"},
+    "30min": {"type": "mkline", "param": "m30"},
+    "60min": {"type": "mkline", "param": "m60"},
+}
+
+
+def get_history_multi(symbol: str, period: str = "day", count: int = 250) -> Optional[pd.DataFrame]:
+    """多周期K线数据。
+
+    period: day/week/month/5min/15min/30min/60min
+    count: 返回的K线数量
+    """
+    sym = _norm_symbol(symbol)
+    period_info = PERIOD_MAP.get(period)
+    if period_info is None:
+        # 降级为日线
+        period_info = PERIOD_MAP["day"]
+
+    cache_key = f"kline:{sym}:{period}:{count}"
+
+    def _fetch() -> Optional[dict[str, Any]]:
+        code = f"{_market_prefix(sym)}{sym}"
+        try:
+            if period_info["type"] == "fqkline":
+                # 日/周/月K线
+                url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},{period_info['param']},,,{count},qfq"
+                r = requests.get(url, timeout=15)
+                data = r.json()
+                node = data["data"][code]
+                key = f"qfq{period_info['param']}"
+                rows = node.get(key, node.get(period_info["param"], []))
+                if isinstance(rows, dict):
+                    rows = rows.get("data", [])
+            else:
+                # 分钟级K线
+                url = f"https://ifzq.gtimg.cn/appstock/app/kline/mkline?param={code},{period_info['param']},,{count}"
+                r = requests.get(url, timeout=15)
+                data = r.json()
+                node = data["data"][code]
+                rows = node.get(period_info["param"], {})
+                if isinstance(rows, dict):
+                    rows = rows.get("data", [])
+
+            bars = []
+            for row in rows:
+                try:
+                    if period_info["type"] == "fqkline":
+                        # 格式: ['2026-03-11', open, close, high, low, volume]
+                        bars.append({
+                            "date": str(row[0]),
+                            "open": float(row[1]),
+                            "close": float(row[2]),
+                            "high": float(row[3]),
+                            "low": float(row[4]),
+                            "volume": float(row[5]),
+                        })
+                    else:
+                        # 分钟格式: ['202607271445', open, close, high, low, volume, ...]
+                        raw_date = str(row[0])
+                        if len(raw_date) == 12:
+                            # YYYYMMDDHHMM -> 格式化
+                            dt_str = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]} {raw_date[8:10]}:{raw_date[10:12]}"
+                        else:
+                            dt_str = raw_date
+                        bars.append({
+                            "date": dt_str,
+                            "open": float(row[1]),
+                            "close": float(row[2]),
+                            "high": float(row[3]),
+                            "low": float(row[4]),
+                            "volume": float(row[5]),
+                        })
+                except (ValueError, IndexError):
+                    continue
+            return {"bars": bars}
+        except Exception:
+            return None
+
+    data = cached(cache_key, TTL["kline"], _fetch)
+    if data is None or not data.get("bars"):
+        return None
+    df = pd.DataFrame(data["bars"])
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date").reset_index(drop=True)
+    df["ma5"] = df["close"].rolling(5).mean()
+    df["ma20"] = df["close"].rolling(20).mean()
+    df["ma60"] = df["close"].rolling(60).mean()
+    return df
+
+
 def compute_tech_signals(df: Optional[pd.DataFrame]) -> dict[str, Any]:
     """从日线数据计算技术面指标。
 

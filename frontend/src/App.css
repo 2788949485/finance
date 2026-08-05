@@ -1051,6 +1051,13 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 }
 .bt-cost-toggle input { cursor: pointer; }
 
+.period-select {
+  padding: 2px 8px; font-size: 12px;
+  background: var(--bg1); border: 1px solid var(--border);
+  color: var(--text, #c8d0da); cursor: pointer;
+}
+.period-select:hover { border-color: var(--blue); }
+
 /* 分析师配置 */
 .analyst-list { display: flex; flex-direction: column; gap: 8px; }
 .analyst-item {

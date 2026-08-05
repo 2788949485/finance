@@ -25,6 +25,7 @@ export default function QuotePage() {
   const [data, setData] = useState<QuoteResponse | null>(null)
   const [news, setNews] = useState<NewsItem[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
+  const [period, setPeriod] = useState<string>('day')
   const [live, setLive] = useState(false)
   const [err, setErr] = useState('')
   const [searching, setSearching] = useState(false)
@@ -194,8 +195,30 @@ export default function QuotePage() {
               <button className={`live-btn ${live ? 'on' : ''}`} onClick={() => setLive((v) => !v)}>
                 {live ? '● 实时' : '○ 实时'}
               </button>
-              <button className={`mode-btn ${mode === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); load(selected.code, 'day', 0) }}>日K</button>
+              <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
               <button className={`mode-btn ${mode === 'minute' ? 'active' : ''}`} onClick={() => { setMode('minute'); load(selected.code, 'minute', 0) }}>分时</button>
+              <select className="mode-btn period-select" value={period} onChange={async (e) => {
+                const p = e.target.value
+                setPeriod(p)
+                setMode('day')
+                if (p === 'day') { load(selected.code, 'day', 0); return }
+                try {
+                  const r = await fetch(`/api/kline/${selected.code}?period=${p}&count=250`)
+                  const d = await r.json()
+                  if (d.bars) {
+                    const klineBars = d.bars.map((b: any) => ({ date: b.date, open: b.open, close: b.close, high: b.high, low: b.low, volume: b.volume }))
+                    setData({ brief: data?.brief ?? {}, kline: klineBars, tech: d.tech ?? {}, last_close: d.tech?.price ?? null })
+                  }
+                } catch { /* ignore */ }
+              }}>
+                <option value="day">日K</option>
+                <option value="week">周K</option>
+                <option value="month">月K</option>
+                <option value="5min">5分钟</option>
+                <option value="15min">15分钟</option>
+                <option value="30min">30分钟</option>
+                <option value="60min">60分钟</option>
+              </select>
             </div>
           </div>
 
