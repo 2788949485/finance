@@ -18,17 +18,21 @@ def _em_secid(symbol: str) -> str:
     return f"0.{sym}"
 
 
-def _fetch_with_retry(url: str, retries: int = 2) -> Optional[dict]:
-    """带重试的请求（东财push2接口，绕过系统代理直连）"""
-    import urllib3
-    http = urllib3.PoolManager(retries=urllib3.Retry(total=2, backoff_factor=0.5))
+def _fetch_with_retry(url: str, retries: int = 3) -> Optional[dict]:
+    """带重试的请求（走系统代理，让FiClash规则匹配DIRECT直连）"""
+    import os
+    # 清掉显式代理环境变量，让requests读系统注册表代理
+    # FiClash的DIRECT规则只对系统代理流量生效
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Referer": "https://quote.eastmoney.com/",
+    }
     for i in range(retries):
         try:
-            r = http.request("GET", url, timeout=urllib3.Timeout(connect=5, read=8),
-                             headers={"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"})
-            if r.status == 200:
-                import json
-                return json.loads(r.data.decode("utf-8"))
+            r = requests.get(url, timeout=10, headers=headers)
+            if r.status_code == 200 and r.text:
+                return r.json()
         except Exception:
             continue
     return None
