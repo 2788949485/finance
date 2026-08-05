@@ -4,10 +4,29 @@ import type { BacktestResult } from './types'
 import BacktestAnalysis from './BacktestAnalysis'
 
 const STRATEGIES = [
-  { key: 'ma_cross', label: 'MA均线交叉' },
-  { key: 'grid', label: '网格交易' },
-  { key: 'hold', label: '买入持有(基准)' },
-  { key: 'ai', label: 'AI增强策略' },
+  { key: 'ma_cross', label: 'MA均线交叉', params: [
+    { key: 'fast_period', label: '快线', default: 5 },
+    { key: 'slow_period', label: '慢线', default: 20 },
+  ]},
+  { key: 'dual_ma', label: '双均线(可调)', params: [
+    { key: 'fast_period', label: '快线', default: 10 },
+    { key: 'slow_period', label: '慢线', default: 30 },
+  ]},
+  { key: 'macd', label: 'MACD交叉', params: [] },
+  { key: 'kdj', label: 'KDJ金叉', params: [] },
+  { key: 'boll', label: 'BOLL带突破', params: [
+    { key: 'boll_period', label: '周期', default: 20 },
+  ]},
+  { key: 'rsi', label: 'RSI超买超卖', params: [
+    { key: 'rsi_period', label: '周期', default: 14 },
+    { key: 'rsi_oversold', label: '超卖线', default: 30 },
+    { key: 'rsi_overbought', label: '超买线', default: 70 },
+  ]},
+  { key: 'grid', label: '网格交易', params: [
+    { key: 'grid_pct', label: '间距%', default: 5 },
+  ]},
+  { key: 'hold', label: '买入持有(基准)', params: [] },
+  { key: 'ai', label: 'AI增强策略', params: [] },
 ]
 
 type PageTab = 'basic' | 'analysis'
@@ -21,12 +40,23 @@ export default function BacktestPage() {
   const [result, setResult] = useState<BacktestResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [params, setParams] = useState<Record<string, string>>({})
+
+  const currentStrategy = STRATEGIES.find(s => s.key === strategy)
 
   const run = async () => {
     if (!symbol.trim()) { setError('请输入股票代码'); return }
     setLoading(true); setError('')
     try {
-      const r = await api.getBacktest(symbol.trim(), strategy, days, enableCost ? 1 : 0)
+      // 转换参数
+      const numParams: Record<string, any> = {}
+      if (currentStrategy) {
+        for (const p of currentStrategy.params) {
+          const val = params[`${strategy}_${p.key}`] ?? String(p.default)
+          numParams[p.key] = val
+        }
+      }
+      const r = await api.getBacktest(symbol.trim(), strategy, days, enableCost ? 1 : 0, numParams)
       setResult(r)
     } catch (e: any) { setError(e.message || '回测失败') }
     finally { setLoading(false) }
@@ -49,13 +79,14 @@ export default function BacktestPage() {
       <div className="backtest-controls">
         <input className="alert-input" placeholder="股票代码（如 600519）"
           value={symbol} onChange={e => setSymbol(e.target.value)} />
-        <select className="alert-select" value={strategy} onChange={e => setStrategy(e.target.value)}>
+        <select className="alert-select" value={strategy} onChange={e => { setStrategy(e.target.value); setParams({}) }}>
           {STRATEGIES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
         <select className="alert-select" value={days} onChange={e => setDays(parseInt(e.target.value))}>
           <option value={60}>60天</option>
           <option value={120}>120天</option>
           <option value={250}>250天</option>
+          <option value={500}>500天</option>
         </select>
         <label className="bt-cost-toggle">
           <input type="checkbox" checked={enableCost} onChange={e => setEnableCost(e.target.checked)} />
@@ -65,10 +96,27 @@ export default function BacktestPage() {
           {loading ? (strategy === 'ai' ? 'AI分析中(较慢)...' : '回测中...') : '开始回测'}
         </button>
       </div>
+
+      {/* 策略参数面板 */}
+      {currentStrategy && currentStrategy.params.length > 0 && (
+        <div className="bt-params">
+          <span className="bt-params-label">{currentStrategy.label} 参数：</span>
+          {currentStrategy.params.map(p => (
+            <label key={p.key} className="bt-param-item">
+              <span>{p.label}</span>
+              <input type="number" className="bt-param-input"
+                value={params[`${strategy}_${p.key}`] ?? p.default}
+                onChange={e => setParams(prev => ({ ...prev, [`${strategy}_${p.key}`]: e.target.value }))} />
+            </label>
+          ))}
+        </div>
+      )}
+
       {error && <span className="alert-error">{error}</span>}
 
       {result && !result.error && (
         <>
+          {/* KPI 卡片 - 扩展指标 */}
           <div className="backtest-summary">
             <div className="kpi-card">
               <span className="kpi-label">策略收益</span>
@@ -89,8 +137,30 @@ export default function BacktestPage() {
               </span>
             </div>
             <div className="kpi-card">
+              <span className="kpi-label">年化收益</span>
+              <span className={`kpi-value ${(result.annual_return ?? 0) >= 0 ? 'up' : 'down'}`}>
+                {(result.annual_return ?? 0) >= 0 ? '+' : ''}{(result.annual_return ?? 0).toFixed(1)}%
+              </span>
+            </div>
+            <div className="kpi-card">
               <span className="kpi-label">最大回撤</span>
               <span className="kpi-value down">-{result.max_drawdown}%</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">夏普比率</span>
+              <span className="kpi-value">{(result.sharpe_ratio ?? 0).toFixed(2)}</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">Sortino</span>
+              <span className="kpi-value">{(result.sortino_ratio ?? 0).toFixed(2)}</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">Calmar</span>
+              <span className="kpi-value">{(result.calmar_ratio ?? 0).toFixed(2)}</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">波动率</span>
+              <span className="kpi-value">{(result.volatility ?? 0).toFixed(1)}%</span>
             </div>
             <div className="kpi-card">
               <span className="kpi-label">交易次数</span>
@@ -99,6 +169,10 @@ export default function BacktestPage() {
             <div className="kpi-card">
               <span className="kpi-label">胜率</span>
               <span className="kpi-value">{result.win_rate}%</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-label">最大连亏</span>
+              <span className="kpi-value">{result.max_consecutive_losses ?? '-'}次</span>
             </div>
           </div>
 
@@ -125,7 +199,7 @@ export default function BacktestPage() {
                       <td className={t.action === 'BUY' ? 'up' : 'down'}>{t.action === 'BUY' ? '买入' : '卖出'}</td>
                       <td>{t.price}</td>
                       <td>{t.shares}</td>
-                      {strategy === 'ai' && <td className="pf-code">{(t as any).reason || ''}</td>}
+                      {strategy === 'ai' && <td className="pf-code">{t.reason || ''}</td>}
                     </tr>
                   ))}
                 </tbody>

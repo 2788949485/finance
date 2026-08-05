@@ -659,14 +659,43 @@ def backtest_analysis_api(
 
 
 @app.get("/api/backtest/{symbol}")
-def backtest_api(symbol: str, strategy: str = "ma_cross", days: int = 120, record_signals: int = 0, enable_cost: int = 1) -> dict[str, Any]:
+def backtest_api(
+    symbol: str,
+    strategy: str = "ma_cross",
+    days: int = 120,
+    record_signals: int = 0,
+    enable_cost: int = 1,
+    fast_period: int = 0,
+    slow_period: int = 0,
+    grid_pct: float = 0,
+    boll_period: int = 0,
+    rsi_period: int = 0,
+    rsi_oversold: int = 0,
+    rsi_overbought: int = 0,
+    slippage: float = 0,
+    position_pct: float = 0,
+) -> dict[str, Any]:
     """策略回测：在历史K线上模拟交易策略。
-    strategy: ma_cross / grid / hold / ai
-    record_signals: 1=记录ML信号特征快照（生成CSV供训练用）
-    enable_cost: 1=含A股交易成本(印花税+佣金+过户费), 0=不含
+    strategy: ma_cross / dual_ma / macd / kdj / boll / rsi / grid / hold / ai
+    可选参数: fast_period, slow_period, grid_pct, boll_period, rsi_period, rsi_oversold, rsi_overbought, slippage, position_pct
+    record_signals: 1=记录ML信号特征快照
+    enable_cost: 1=含A股交易成本
     """
     sym = datalayer._norm_symbol(symbol)
-    result = backtest.run_backtest(sym, strategy=strategy, days=days, record_signals=bool(record_signals), enable_cost=bool(enable_cost))
+    # 构建策略参数（只传非零/非默认值）
+    kwargs: dict[str, Any] = {}
+    if fast_period > 0: kwargs["fast_period"] = fast_period
+    if slow_period > 0: kwargs["slow_period"] = slow_period
+    if grid_pct > 0: kwargs["grid_pct"] = grid_pct / 100  # 前端传5表示5%
+    if boll_period > 0: kwargs["boll_period"] = boll_period
+    if rsi_period > 0: kwargs["rsi_period"] = rsi_period
+    if rsi_oversold > 0: kwargs["rsi_oversold"] = rsi_oversold
+    if rsi_overbought > 0: kwargs["rsi_overbought"] = rsi_overbought
+    if slippage > 0: kwargs["slippage"] = slippage / 1000  # 前端传1表示0.1%
+    if position_pct > 0: kwargs["position_pct"] = position_pct / 100
+
+    result = backtest.run_backtest(sym, strategy=strategy, days=days,
+                                   record_signals=bool(record_signals), enable_cost=bool(enable_cost), **kwargs)
     return result or {"error": "回测数据不足（需要至少30个交易日）"}
 
 

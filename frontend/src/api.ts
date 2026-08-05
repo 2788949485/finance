@@ -205,8 +205,15 @@ export const api = {
     request<TransactionItem[]>(`/api/portfolio/transactions`),
 
   // 回测
-  getBacktest: (symbol: string, strategy: string, days: number, enable_cost: number = 1) =>
-    request<BacktestResult>(`/api/backtest/${symbol}?strategy=${strategy}&days=${days}&enable_cost=${enable_cost}`),
+  getBacktest: (symbol: string, strategy: string, days: number, enable_cost: number = 1, params?: Record<string, any>) => {
+    let url = `/api/backtest/${symbol}?strategy=${strategy}&days=${days}&enable_cost=${enable_cost}`
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== null && v !== '') url += `&${k}=${v}`
+      }
+    }
+    return request<BacktestResult>(url)
+  },
 
   // 多LLM对比
   compareLLM: (prompt: string, models: { name: string; base_url: string; api_key: string; model: string }[]) =>
