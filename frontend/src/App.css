@@ -506,9 +506,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .md-body code { font-family: var(--mono); font-size: 12px; background: var(--muted); border: 1px solid var(--border); padding: 2px 6px; color: var(--accent); }
 .md-body pre { background: var(--bg); border: 1px solid var(--border); padding: 12px 14px; overflow-x: auto; margin: 10px 0; }
 .md-body pre code { background: none; border: none; padding: 0; color: var(--text-2); }
-.md-body table { border-collapse: collapse; margin: 10px 0; width: 100%; font-size: 13px; }
-.md-body th, .md-body td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
-.md-body th { background: var(--muted); color: var(--text-2); font-weight: 600; }
+.md-body table, .md-table { border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 13px; }
+.md-body th, .md-body td, .md-table th, .md-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+.md-body th, .md-table th { background: var(--muted); color: var(--text-2); font-weight: 600; }
 .md-body blockquote { border-left: 3px solid var(--accent); background: var(--surface); padding: 8px 14px; margin: 10px 0; color: var(--text-2); }
 .md-body hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
 
