@@ -478,8 +478,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .qp-code { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
 .qp-hot { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .qp-hot-item { background: var(--surface); border: 1px solid var(--border); color: var(--text-2); font-size: 12px; padding: 8px 16px; cursor: pointer; }
-.qp-hot-item:hover { border-color: var(--border-strong); }
-.qp-hot-item.active { border-color: var(--accent); color: var(--accent); }
+.qp-hot-item:hover { border-color: var(--border-strong); color: var(--text); }
+.qp-hot-item.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.qp-hot-item.active:hover { color: #fff; background: var(--accent); }
 .qp-main { background: var(--surface); border: 1px solid var(--border); padding: 24px; }
 .qp-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .qp-title { display: flex; align-items: baseline; gap: 10px; }
