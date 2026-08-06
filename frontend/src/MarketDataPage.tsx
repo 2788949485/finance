@@ -201,12 +201,13 @@ function ScreenerTab() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [hasResult, setHasResult] = useState(false)
+  const [limit, setLimit] = useState('50')
 
   const screen = async () => {
     setLoading(true); setError('')
     try {
       const p = new URLSearchParams()
-      p.set('limit', '50')
+      p.set('limit', limit || '50')
       if (peMin) p.set('pe_min', peMin)
       if (peMax) p.set('pe_max', peMax)
       if (pbMin) p.set('pb_min', pbMin)
@@ -257,6 +258,11 @@ function ScreenerTab() {
           <option value="desc">降序</option>
           <option value="asc">升序</option>
         </select>
+        <label className="bt-param-item">
+          <span>显示</span>
+          <input className="bt-param-input" style={{ width: 50 }} type="number" value={limit} onChange={e => setLimit(e.target.value)} />
+          <span>只</span>
+        </label>
         <button className="btn-primary" onClick={screen} disabled={loading}>{loading ? '筛选中...' : '筛选'}</button>
       </div>
 
