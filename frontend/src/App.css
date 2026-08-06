@@ -1308,10 +1308,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   color: var(--text); cursor: pointer; font-size: 13px;
   transition: all 0.15s;
 }
-.bt-tabs button:hover { color: var(--accent); border-color: var(--accent); }
+.bt-tabs button:hover { color: var(--text); border-color: var(--border-strong); background: var(--surface-hover); }
 .bt-tabs button.active {
-  color: var(--accent); border-color: var(--accent);
-  background: var(--info-soft);
+  color: #fff; border-color: var(--accent); background: var(--accent);
 }
 .bt-analysis { padding: 0; }
 .bt-loading { padding: 20px; color: var(--muted); text-align: center; }
