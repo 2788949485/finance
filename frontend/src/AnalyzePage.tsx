@@ -144,11 +144,23 @@ function AnalyzePane() {
               <button className="ghost" style={{ fontSize: 11 }}
                 onClick={async () => {
                   try {
-                    await api.post(`/api/reflection/settle/${ticker}`, {})
+                    const r = await api.post<any>(`/api/reflection/settle/${ticker}`, {})
+                    loadReflections(ticker)
+                    alert(`已结算 ${r.settled ?? 0} 条pending决策`)
+                  } catch { alert('结算失败') }
+                }}>
+                手动结算pending决策
+              </button>
+            )}
+            {reflections.length === 0 && !reflectionLoading && (
+              <button className="ghost" style={{ fontSize: 11 }}
+                onClick={async () => {
+                  try {
+                    const r = await api.post<any>(`/api/reflection/settle/${ticker}`, {})
                     loadReflections(ticker)
                   } catch {}
                 }}>
-                手动结算pending决策
+                刷新反思记录
               </button>
             )}
           </div>
