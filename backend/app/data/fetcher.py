@@ -107,6 +107,16 @@ def get_stock_brief(symbol: str, fresh: bool = False) -> Optional[dict[str, Any]
                 "pb": _to_float(p[46]),
                 "turnover": _to_float(p[38]),
                 "industry": "",
+                # 盘口数据
+                "pre_close": _to_float(p[4]),       # 昨收
+                "open": _to_float(p[5]),            # 今开
+                "high": _to_float(p[33]),           # 最高
+                "low": _to_float(p[34]),            # 最低
+                "volume": _to_float(p[36]),         # 成交量(手)
+                "amount": _to_float(p[37]),         # 成交额(万元)
+                "limit_up": _to_float(p[47]),       # 涨停价
+                "limit_down": _to_float(p[48]),     # 跌停价
+                "volume_ratio": _to_float(p[49]),   # 量比
             }
         except Exception:
             return None
