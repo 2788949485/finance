@@ -531,9 +531,21 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         onMouseLeave={() => { endDrag(); setHover(null); setCrosshair(null) }}
         onDoubleClick={resetZoom}
       >
+        {/* 主图裁剪区域：防止MA/BOLL/蜡烛影线穿到副图 */}
+        <defs>
+          <clipPath id="clip-main">
+            <rect x={PAD.l} y={PAD.t} width={vw} height={priceH} />
+          </clipPath>
+          <clipPath id="clip-sub">
+            <rect x={PAD.l} y={macdTop} width={vw} height={macdH} />
+          </clipPath>
+        </defs>
+        {/* 主图网格 */}
         {[0.25, 0.5, 0.75].map((r) => (
           <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + priceH * r} y2={PAD.t + priceH * r} stroke="#1e293b" strokeWidth="1" />
         ))}
+        {/* 主图内容（裁剪：MA/BOLL/蜡烛不超出主图区域） */}
+        <g clipPath="url(#clip-main)">
         <polyline
           points={ma5.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')}
           fill="none" stroke={MA5_COLOR} strokeWidth="1.2" opacity="0.9"
@@ -654,8 +666,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </g>
           )
         })()}
+        </g>{/* 关闭主图clipPath */}
         {/* 副图分隔线 */}
         <line x1={PAD.l} x2={W - PAD.r} y1={macdTop - 1} y2={macdTop - 1} stroke="#1e293b" strokeWidth="1" />
+        {/* 副图内容（裁剪：DIF/DEA/KDJ不超出副图区域） */}
+        <g clipPath="url(#clip-sub)">
         {subIndicator === 'macd' ? (
           <>
         <text x={PAD.l + 4} y={macdTop + 11} fontSize="9" fill="#64748b">MACD(12,26,9)</text>
@@ -752,6 +767,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         <polyline points={kdj.j.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke={J_COLOR} strokeWidth="1" opacity="0.85" />
           </>
         )}
+        </g>{/* 关闭副图clipPath */}
       </svg>
       {hover && (() => {
         const idx = data.findIndex(d => d.date === hover.date)
