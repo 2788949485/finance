@@ -761,6 +761,58 @@ def walk_forward_api(
         return {"error": f"Walk-Forward 测试失败：{e}"}
 
 
+@app.get("/api/backtest/cpcv/{symbol}")
+def backtest_cpcv_api(
+    symbol: str,
+    strategy: str = "ma_cross",
+    days: int = 500,
+    n_groups: int = 6,
+    n_test_groups: int = 2,
+    embargo_pct: float = 0.01,
+) -> dict[str, Any]:
+    """组合式清洗交叉验证 (CPCV)：防信息泄漏的组合式 OOS 测试。
+
+    把数据按时间分成 n_groups 组，遍历 C(n_groups, n_test_groups) 种组合，
+    每次在样本内做参数搜索、样本外测试，并用 embargo 隔离带防止泄漏。
+    返回各组合 IS/OOS 表现、汇总统计与样本外累计权益曲线。
+    """
+    from . import backtest_analysis as ba
+    sym = datalayer._norm_symbol(symbol)
+    try:
+        return ba.run_cpcv(
+            sym, strategy=strategy, days=days,
+            n_groups=n_groups, n_test_groups=n_test_groups,
+            embargo_pct=embargo_pct,
+        )
+    except Exception as e:
+        return {"error": f"CPCV 测试失败：{e}"}
+
+
+@app.get("/api/backtest/pbo/{symbol}")
+def backtest_pbo_api(
+    symbol: str,
+    strategy: str = "ma_cross",
+    days: int = 500,
+    n_groups: int = 8,
+    n_test_groups: int = 2,
+) -> dict[str, Any]:
+    """回测过拟合概率 (PBO)：Bailey & López de Prado 2017 方法。
+
+    在 IS 上找最优策略，检查其在 OOS 的排名是否低于中位数。
+    PBO = 低于中位数的组合比例（<0.5 为良好）。
+    返回 PBO、logit 直方图、IS 排名频率与评级。
+    """
+    from . import backtest_analysis as ba
+    sym = datalayer._norm_symbol(symbol)
+    try:
+        return ba.run_pbo(
+            sym, strategy=strategy, days=days,
+            n_groups=n_groups, n_test_groups=n_test_groups,
+        )
+    except Exception as e:
+        return {"error": f"PBO 测试失败：{e}"}
+
+
 # ---------- 多LLM对比 ----------
 
 @app.post("/api/llm-compare")

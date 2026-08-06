@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { api } from './api'
 import type { BacktestResult } from './types'
-import BacktestAnalysis from './BacktestAnalysis'
+import { lazy, Suspense } from 'react'
+
+const BacktestAnalysis = lazy(() => import('./BacktestAnalysis'))
 import { EquityChart, DrawdownChart, MonthlyHeatmap } from './BacktestCharts'
 
 const STRATEGIES = [
@@ -74,7 +76,9 @@ export default function BacktestPage() {
       </div>
 
       {pageTab === 'analysis' ? (
-        <BacktestAnalysis />
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center', color: 'var(--text-2)' }}>加载分析模块...</div>}>
+          <BacktestAnalysis />
+        </Suspense>
       ) : (
       <>
       <div className="backtest-controls">
@@ -199,7 +203,7 @@ export default function BacktestPage() {
 
           <div className="backtest-equity">
             <h4>权益曲线</h4>
-            <EquityChart curve={result.equity_curve} initialCapital={result.initial_capital} />
+            <EquityChart curve={result.equity_curve} initialCapital={result.initial_capital} tradesLog={result.trades_log} />
           </div>
 
           <div className="backtest-equity">

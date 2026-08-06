@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  ReferenceLine, Cell,
+  ReferenceLine, ReferenceDot, Cell,
 } from 'recharts'
 
 const DOWN = '#ef4444'
@@ -25,8 +25,12 @@ function LegendBar({ items }: { items: { color: string; label: string }[] }) {
   )
 }
 
-// ============ 权益曲线 + 回撤水下图 ============
-export function EquityChart({ curve, initialCapital }: { curve: { date: string; value: number }[]; initialCapital?: number }) {
+// ============ 权益曲线 + 买卖信号标注 ============
+export function EquityChart({ curve, initialCapital, tradesLog }: {
+  curve: { date: string; value: number }[]
+  initialCapital?: number
+  tradesLog?: { date: string; action: string; price: number; shares: number }[]
+}) {
   if (!curve || curve.length < 2) return <div style={{ padding: 20, color: AXIS }}>数据不足</div>
 
   const data = curve.map(p => ({
@@ -36,11 +40,17 @@ export function EquityChart({ curve, initialCapital }: { curve: { date: string; 
 
   const initCap = initialCapital ?? curve[0]?.value ?? 100000
 
+  // 买卖信号点：匹配tradesLog的日期到equity_curve
+  const buyDots = (tradesLog || []).filter(t => t.action === 'BUY')
+  const sellDots = (tradesLog || []).filter(t => t.action === 'SELL')
+
   return (
     <div>
       <LegendBar items={[
         { color: ACCENT, label: '策略权益' },
         { color: '#4b5563', label: '初始资金基准线' },
+        { color: ACCENT, label: '▲ 买入信号' },
+        { color: DOWN, label: '▼ 卖出信号' },
       ]} />
       <ResponsiveContainer width="100%" height={260}>
         <AreaChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
@@ -60,6 +70,18 @@ export function EquityChart({ curve, initialCapital }: { curve: { date: string; 
           />
           <ReferenceLine y={initCap} stroke="#4b5563" strokeDasharray="4 2" label={{ value: '初始资金', fill: AXIS, fontSize: 10, position: 'insideTopLeft' }} />
           <Area type="monotone" dataKey="equity" stroke={ACCENT} strokeWidth={1.5} fill="url(#equityGrad)" />
+          {/* 买入信号标注 */}
+          {buyDots.map((t, i) => {
+            const point = data.find(d => d.date === t.date) || data.find(d => d.date.startsWith(t.date.slice(0, 7)))
+            if (!point) return null
+            return <ReferenceDot key={`buy${i}`} x={point.date} y={point.equity} r={4} fill={ACCENT} stroke="#fff" strokeWidth={1} />
+          })}
+          {/* 卖出信号标注 */}
+          {sellDots.map((t, i) => {
+            const point = data.find(d => d.date === t.date) || data.find(d => d.date.startsWith(t.date.slice(0, 7)))
+            if (!point) return null
+            return <ReferenceDot key={`sell${i}`} x={point.date} y={point.equity} r={4} fill={DOWN} stroke="#fff" strokeWidth={1} />
+          })}
         </AreaChart>
       </ResponsiveContainer>
     </div>

@@ -572,7 +572,8 @@ function WatchlistPanel({
               <span className="qp-watchlist-name">{it.name}</span>
               <span className="qp-watchlist-code">{stripCode}</span>
               <span className={`qp-watchlist-chg ${chg == null ? '' : chg >= 0 ? 'up' : 'down'}`}>
-                {chg != null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : (it.price != null ? it.price : '--')}
+                {it.price != null && <span style={{ color: 'var(--text)', marginRight: 6 }}>{it.price}</span>}
+                {chg != null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : '--'}
               </span>
               <button
                 className="qp-watchlist-del"
