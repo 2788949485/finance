@@ -56,13 +56,14 @@ export const api = {
 
   streamAnalysis: async (
     ticker: string, topic: string | undefined,
-    onEvent: (ev: any) => void
+    onEvent: (ev: any) => void,
+    mode: string = 'standard'
   ): Promise<void> => {
     const token = getToken()
     const resp = await fetch('/api/analysis/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
-      body: JSON.stringify({ ticker, topic: topic || null }),
+      body: JSON.stringify({ ticker, topic: topic || null, mode }),
     })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const reader = resp.body!.getReader()

@@ -6,6 +6,7 @@ import Markdown from './Markdown'
 function AnalyzePane() {
   const [ticker, setTicker] = useState('600519')
   const [topic, setTopic] = useState('')
+  const [mode, setMode] = useState<'standard' | 'agentic'>('standard')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<AnalysisResult | null>(null)
@@ -13,6 +14,17 @@ function AnalyzePane() {
   const [analystViews, setAnalystViews] = useState<{ role: string; title: string; summary: string; score: number }[]>([])
   const [riskReview, setRiskReview] = useState<{ approved: boolean; verdict: string; max_position_pct: number; stop_loss_pct: number } | null>(null)
   const [userConfirmed, setUserConfirmed] = useState(false)
+  const [reflections, setReflections] = useState<any[]>([])
+  const [reflectionLoading, setReflectionLoading] = useState(false)
+
+  const loadReflections = async (t: string) => {
+    setReflectionLoading(true)
+    try {
+      const d = await api.get<any>(`/api/reflection/${t}`)
+      setReflections(d.memos || [])
+    } catch { setReflections([]) }
+    finally { setReflectionLoading(false) }
+  }
 
   const run = async () => {
     setLoading(true)
@@ -41,7 +53,8 @@ function AnalyzePane() {
         } else if (ev.type === 'error') {
           setError(ev.message)
         }
-      })
+      }, mode)
+      loadReflections(ticker)
     } catch (e) {
       setError(e instanceof Error ? e.message : '分析失败')
     } finally {
@@ -67,6 +80,16 @@ function AnalyzePane() {
         <button onClick={run} disabled={loading || !ticker.trim()}>
           {loading ? '分析中...' : '开始分析'}
         </button>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
+          <input type="radio" value="standard" checked={mode === 'standard'} onChange={() => setMode('standard')} />
+          标准模式（快速）
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
+          <input type="radio" value="agentic" checked={mode === 'agentic'} onChange={() => setMode('agentic')} />
+          Agent模式（分析师自主调工具）
+        </label>
       </div>
       {error && <div className="error-box">{error}</div>}
       {loading && (
@@ -112,6 +135,62 @@ function AnalyzePane() {
       )}
       {result && userConfirmed && <ReportView result={result} />}
       {result && !userConfirmed && !riskReview && <ReportView result={result} />}
+
+      {(result || reflections.length > 0) && (
+        <div className="pane" style={{ marginTop: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h3 className="section-title" style={{ margin: 0 }}>历史决策反思</h3>
+            {reflections.length > 0 && (
+              <button className="ghost" style={{ fontSize: 11 }}
+                onClick={async () => {
+                  try {
+                    await api.post(`/api/reflection/settle/${ticker}`, {})
+                    loadReflections(ticker)
+                  } catch {}
+                }}>
+                手动结算pending决策
+              </button>
+            )}
+          </div>
+          {reflectionLoading ? (
+            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>加载中...</div>
+          ) : reflections.length > 0 ? (
+            <table className="portfolio-table">
+              <thead>
+                <tr>
+                  <th>日期</th><th>分析师</th><th>评分</th><th>实际涨跌</th>
+                  <th>超额收益</th><th>判断</th><th>反思</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reflections.map((m, i) => (
+                  <tr key={i}>
+                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{m.decision_date}</td>
+                    <td>{m.role}</td>
+                    <td className={m.decision_score >= 0 ? 'up' : 'down'} style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>
+                      {m.decision_score > 0 ? '+' : ''}{m.decision_score}
+                    </td>
+                    <td className={m.raw_return >= 0 ? 'up' : 'down'} style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>
+                      {m.raw_return > 0 ? '+' : ''}{m.raw_return?.toFixed(2)}%
+                    </td>
+                    <td className={m.alpha_return >= 0 ? 'up' : 'down'} style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>
+                      {m.alpha_return > 0 ? '+' : ''}{m.alpha_return?.toFixed(2)}%
+                    </td>
+                    <td>
+                      <span className={`qp-badge ${m.verdict === 'correct' ? 'badge-up' : m.verdict === 'wrong' ? 'badge-down' : 'badge-neutral'}`}>
+                        {m.verdict === 'correct' ? '正确' : m.verdict === 'wrong' ? '错误' : '待定'}
+                      </span>
+                    </td>
+                    <td style={{ maxWidth: 300, fontSize: 12, color: 'var(--text-2)' }}>{m.reflection}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>暂无历史决策记录</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
