@@ -1237,7 +1237,11 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   font-size: 12px;
 }
 .qp-watchlist-item:hover { background: var(--surface-hover); }
-.qp-watchlist-item.active { background: var(--accent-soft); }
+.qp-watchlist-item.active { background: var(--accent-soft); border-left: 2px solid var(--accent); }
+.qp-watchlist-item.active:hover { background: var(--accent-soft); }
+.qp-watchlist-item.active .qp-watchlist-name { color: var(--text); }
+.qp-watchlist-item.active:hover .qp-watchlist-name,
+.qp-watchlist-item.active:hover .qp-watchlist-code { color: #fff; }
 .qp-watchlist-name { flex: 1; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qp-watchlist-code { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
 .qp-watchlist-chg { font-family: var(--mono); font-size: 11px; margin-left: auto; }
