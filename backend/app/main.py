@@ -258,7 +258,7 @@ def create_analysis(req: AnalysisRequest, user: dict[str, Any] = Depends(get_cur
     if not resolved:
         raise HTTPException(status_code=400, detail=f"无法识别 {ticker}")
     try:
-        return run_analysis(resolved, req.topic, user_id=user["id"])
+        return run_analysis(resolved, req.topic, user_id=user["id"], mode=req.mode)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分析失败: {e}")
 
@@ -1108,6 +1108,24 @@ def margin_detail_api(symbol: str | None = None, date: str | None = None) -> dic
 def margin_top_api(date: str | None = None, limit: int = 20) -> dict[str, Any]:
     """融资余额 TOP / 融券余量 TOP。date: YYYYMMDD。"""
     return margin_mod.get_margin_top(date=date, limit=limit)
+
+
+# ==================== 交易后反思学习闭环 ====================
+
+@app.get("/api/reflection/{ticker}")
+def reflection_api(ticker: str) -> dict[str, Any]:
+    """获取某股票的历史决策反思记录（已结算）。"""
+    from .reflection_engine import get_recent_memos
+    return {"ticker": ticker, "memos": get_recent_memos(ticker, limit=20)}
+
+
+@app.post("/api/reflection/settle/{ticker}")
+def settle_api(ticker: str) -> dict[str, Any]:
+    """手动触发某股票的 pending 决策结算（N 天后反思）。"""
+    from .reflection_engine import settle_pending
+    from .llm import LLMClient
+    settled = settle_pending(ticker, LLMClient())
+    return {"ticker": ticker, "settled": settled}
 
 
 # 前端静态托管（构建后可用）-- index.html 不缓存确保加载最新 JS

@@ -215,3 +215,39 @@ ALL_ANALYSTS = [
     SentimentAnalyst,
     CapitalAnalyst,
 ]
+
+
+# ==================== Agentic 变体 ====================
+# 通过 MRO (AgenticAnalyst, XxxAnalyst) 混入：
+# - role/title/system_prompt 来自 XxxAnalyst
+# - analyze() 来自 AgenticAnalyst（覆盖原 analyze）
+from .agentic_analyst import AgenticAnalyst  # noqa: E402
+
+
+class AgenticMacroAnalyst(AgenticAnalyst, MacroAnalyst):
+    pass
+
+
+class AgenticFundamentalAnalyst(AgenticAnalyst, FundamentalAnalyst):
+    pass
+
+
+class AgenticTechnicalAnalyst(AgenticAnalyst, TechnicalAnalyst):
+    pass
+
+
+class AgenticSentimentAnalyst(AgenticAnalyst, SentimentAnalyst):
+    pass
+
+
+class AgenticCapitalAnalyst(AgenticAnalyst, CapitalAnalyst):
+    pass
+
+
+AGENTIC_ANALYSTS = [
+    AgenticMacroAnalyst,
+    AgenticFundamentalAnalyst,
+    AgenticTechnicalAnalyst,
+    AgenticSentimentAnalyst,
+    AgenticCapitalAnalyst,
+]

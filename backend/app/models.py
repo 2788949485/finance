@@ -18,6 +18,7 @@ class LLMConfig(BaseModel):
 class AnalysisRequest(BaseModel):
     ticker: str = Field(..., description="A股代码，如 600519 或 000001")
     topic: Optional[str] = Field(None, description="可选：分析主题/事件")
+    mode: str = Field("standard", description="分析师模式: standard(默认) | agentic(自主调工具)")
 
 
 class AnalystView(BaseModel):

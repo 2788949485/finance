@@ -39,6 +39,10 @@ class Agent:
         # 注入用户记忆到 prompt 尾部
         if context:
             user_prompt += self._memory_block(context)
+            # 注入历史决策反思记忆（过往判断的复盘经验）
+            reflection = context.get("reflection_memory") or ""
+            if reflection:
+                user_prompt += f"\n\n{reflection}"
         model = self.llm._build_model()
         if model is None:
             data = json.loads(self.llm._mock(self.system_prompt, user_prompt))

@@ -18,6 +18,7 @@ class AgentState(TypedDict, total=False):
     ticker: str
     topic: Optional[str]
     user_id: Optional[int]
+    mode: str  # "standard" | "agentic" 分析师执行模式
 
     # 数据层收集结果
     context: dict[str, Any]

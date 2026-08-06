@@ -72,6 +72,26 @@ def _init_db() -> None:
                 result TEXT
             )"""
         )
+        # 交易后反思学习闭环：记录每次决策，N天后结算并反思
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS reflection_memos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                role TEXT NOT NULL,
+                decision_date TEXT NOT NULL,
+                decision_score REAL,
+                decision_summary TEXT,
+                raw_return REAL,
+                alpha_return REAL,
+                reflection TEXT,
+                verdict TEXT,
+                settled_at TEXT,
+                status TEXT DEFAULT 'pending'
+            )"""
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reflection_ticker ON reflection_memos(ticker, status)"
+        )
 
 
 def get_config() -> dict[str, Any]:

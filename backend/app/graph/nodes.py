@@ -40,6 +40,14 @@ def _get_llm(config: RunnableConfig) -> LLMClient:
 
 def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     ticker = state.get("ticker", "")
+    # 惰性结算：分析新股票时触发旧决策的反思（失败不阻塞主流程）
+    try:
+        from ..reflection_engine import settle_pending
+
+        settle_pending(ticker, _get_llm(config))
+    except Exception:
+        pass
+
     ctx: dict[str, Any] = {"ticker": ticker}
     ctx["brief"] = datalayer.get_stock_brief(ticker) or {}
     try:
@@ -99,6 +107,13 @@ def collect_data(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
             ctx["user_memories"] = []
     else:
         ctx["user_memories"] = []
+    # 注入历史决策反思记忆（反哺分析师：过往判断的复盘经验）
+    try:
+        from ..reflection_engine import build_memory_block
+
+        ctx["reflection_memory"] = build_memory_block(ticker)
+    except Exception:
+        ctx["reflection_memory"] = ""
     return {"context": ctx}
 
 
@@ -109,23 +124,42 @@ def fan_out_analysts(state: AgentState) -> list[Send]:
 
     支持用户配置：从 context 中的 enabled_analysts 过滤，
     如果未配置则默认全部启用。
+    mode（"standard"|"agentic"）透传给每个 run_analyst 任务，
+    决定选用标准分析师还是自主调工具的 Agentic 变体。
     """
     ctx = state.get("context", {})
+    mode = state.get("mode", "standard")
     enabled = ctx.get("enabled_analysts")
     if enabled and isinstance(enabled, list):
         roles = [r for r in ANALYST_ORDER if r in enabled]
     else:
         roles = ANALYST_ORDER
     return [
-        Send("run_analyst", {"context": ctx, "role": role})
+        Send("run_analyst", {"context": ctx, "role": role, "mode": mode})
         for role in roles
     ]
 
 
 def run_analyst(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
-    """单个分析师执行，产出 {role: AnalystView} 写入 view_map。"""
+    """单个分析师执行，产出 {role: AnalystView} 写入 view_map。
+
+    根据 mode 选择分析师类：
+    - "agentic": 用 AgenticXxxAnalyst（自主调工具循环）
+    - 其他/缺省: 用标准 ROLE_REGISTRY 分析师（向后兼容）
+    """
     role = state["role"]
-    agent_cls = ROLE_REGISTRY[role]
+    mode = state.get("mode", "standard")
+    agent_cls = None
+    if mode == "agentic":
+        try:
+            from ..agents.analysts import AGENTIC_ANALYSTS
+
+            registry = {c.role: c for c in AGENTIC_ANALYSTS}
+            agent_cls = registry.get(role)
+        except Exception:
+            agent_cls = None
+    if agent_cls is None:
+        agent_cls = ROLE_REGISTRY[role]
     agent = agent_cls(_get_llm(config))
     try:
         view = agent.analyze(state["context"])
@@ -135,9 +169,26 @@ def run_analyst(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 
 
 def aggregate_views(state: AgentState) -> dict[str, Any]:
-    """Reduce 阶段：按固定顺序汇总 view_map 为 views 列表。"""
+    """Reduce 阶段：按固定顺序汇总 view_map 为 views 列表。
+
+    同时记录每个分析师的决策到反思引擎（pending 状态，N 天后结算）。
+    记录失败不阻塞主流程。
+    """
     view_map: dict[str, AnalystView] = state.get("view_map", {})
     views = [view_map[r] for r in ANALYST_ORDER if r in view_map]
+    # 记录每个分析师的决策（供交易后反思）
+    try:
+        from ..reflection_engine import record_decision
+
+        ticker = state.get("ticker", "")
+        today = datetime.now().strftime("%Y-%m-%d")
+        for view in views:
+            try:
+                record_decision(ticker, view.role, view.score, view.summary, today)
+            except Exception:
+                pass
+    except Exception:
+        pass
     return {"views": views}
 
 
@@ -244,6 +295,20 @@ def run_consensus(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     # 投票结果调整评分（看多票多则加分，看空票多则减分）
     vote_adjustment = (votes["bull"] - votes["bear"]) * 0.3
     adjusted_score = round(max(0, min(10, score + vote_adjustment)), 2)
+
+    # 记录综合共识决策（供交易后反思）
+    try:
+        from ..reflection_engine import record_decision
+
+        record_decision(
+            state.get("ticker", ""),
+            "consensus",
+            adjusted_score,
+            verdict[:500] if verdict else "",
+            datetime.now().strftime("%Y-%m-%d"),
+        )
+    except Exception:
+        pass
 
     return {
         "consensus_score": adjusted_score,
