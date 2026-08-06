@@ -58,6 +58,7 @@ export default function QuotePage() {
   const [allBars, setAllBars] = useState<KlineBar[]>([])
   // watchlist 版本号：星标/删除/添加后自增以刷新左栏
   const [wlVersion, setWlVersion] = useState(0)
+  const [showIndustry, setShowIndustry] = useState(false)
   const timerRef = useRef<number | null>(null)
   const searchTimer = useRef<number | null>(null)
 
@@ -332,26 +333,44 @@ export default function QuotePage() {
               }}
             />
 
-            {/* 行业对比移到左栏底部 */}
+            {/* 行业对比：弹窗按钮 */}
             {industry && industry.peers.length > 0 && (
-              <details className="industry-compare">
-                <summary className="industry-head">行业对比 {industry.avg_pe != null && <span className="industry-avg">均PE {industry.avg_pe}</span>}</summary>
-                <div className="industry-peers">
-                  {industry.peers.map((p) => (
-                    <div key={p.code} className={`industry-peer ${p.is_target ? 'target' : ''}`}>
-                      <span className="industry-name">{p.name}</span>
-                      <span className="industry-code">{p.code}</span>
-                      <span className="industry-pe">PE {p.pe?.toFixed(1) ?? '--'}</span>
-                      <span className="industry-pb">PB {p.pb?.toFixed(2) ?? '--'}</span>
-                      <span className={`industry-chg ${(p.change_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
-                        {p.change_pct != null ? `${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%` : ''}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </details>
+              <button className="qp-industry-btn" onClick={() => setShowIndustry(true)}>
+                行业对比 ({industry.peers.length}只)
+              </button>
             )}
           </aside>
+
+          {/* 行业对比弹窗 */}
+          {showIndustry && industry && (
+            <div className="qp-modal-overlay" onClick={() => setShowIndustry(false)}>
+              <div className="qp-modal" onClick={e => e.stopPropagation()}>
+                <div className="qp-modal-head">
+                  <span>行业对比</span>
+                  <button className="qp-modal-close" onClick={() => setShowIndustry(false)}>×</button>
+                </div>
+                {industry.avg_pe != null && (
+                  <div className="qp-modal-meta">行业均PE {industry.avg_pe} {industry.avg_pb != null && `| 均PB ${industry.avg_pb}`}</div>
+                )}
+                <table className="portfolio-table qp-industry-table">
+                  <thead><tr><th>名称</th><th>代码</th><th>PE</th><th>PB</th><th>涨跌幅</th></tr></thead>
+                  <tbody>
+                    {industry.peers.map((p) => (
+                      <tr key={p.code} className={p.is_target ? 'industry-target-row' : ''}>
+                        <td>{p.name}</td>
+                        <td className="pf-code">{p.code}</td>
+                        <td>{p.pe?.toFixed(1) ?? '--'}</td>
+                        <td>{p.pb?.toFixed(2) ?? '--'}</td>
+                        <td className={(p.change_pct ?? 0) >= 0 ? 'up' : 'down'}>
+                          {p.change_pct != null ? `${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%` : '--'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* ========== 中栏：标题+操作 / 周期 / K线 / 对比 ========== */}
           <main className="qp-center">

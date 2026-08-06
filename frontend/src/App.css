@@ -448,8 +448,17 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .compare-table .compare-label { font-family: var(--sans); color: var(--text-3); font-weight: 500; width: 100px; }
 
 /* 行业对比 */
-.industry-compare { margin: 16px 0; }
-.industry-head { font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 12px; display: flex; gap: 16px; align-items: center; text-transform: uppercase; letter-spacing: 0.5px; }
+/* 行业对比弹窗 */
+.qp-industry-btn { margin: 8px 12px; padding: 6px 12px; font-size: 11px; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); cursor: pointer; }
+.qp-industry-btn:hover { border-color: var(--accent); color: var(--accent); }
+.qp-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; display: flex; align-items: center; justify-content: center; }
+.qp-modal { background: var(--bg); border: 1px solid var(--border); padding: 20px 24px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.qp-modal-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.qp-modal-close { background: none; border: none; color: var(--text-3); font-size: 20px; cursor: pointer; padding: 0 4px; }
+.qp-modal-close:hover { color: var(--down); }
+.qp-modal-meta { font-size: 12px; color: var(--text-2); margin-bottom: 12px; font-family: var(--mono); }
+.qp-industry-table { width: 100%; }
+.industry-target-row { background: var(--accent-soft); }
 .industry-avg { font-size: 11px; color: var(--text-3); font-weight: 400; background: var(--surface); padding: 3px 10px; border: 1px solid var(--border); }
 .industry-peers { display: flex; gap: 8px; flex-wrap: wrap; }
 .industry-peer { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); font-size: 11px; min-width: 100px; }
