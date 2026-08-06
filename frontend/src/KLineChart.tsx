@@ -592,6 +592,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </g>
           )
         })}
+        </g>{/* 关闭主图clipPath */}
+        {/* Y轴价格刻度（在clipPath外，不会被裁掉） */}
         {[0, 0.5, 1].map((r) => {
           const v = maxV - span * r
           return (
@@ -666,7 +668,6 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </g>
           )
         })()}
-        </g>{/* 关闭主图clipPath */}
         {/* 副图分隔线 */}
         <line x1={PAD.l} x2={W - PAD.r} y1={macdTop - 1} y2={macdTop - 1} stroke="#1e293b" strokeWidth="1" />
         {/* 副图内容（裁剪：DIF/DEA/KDJ不超出副图区域） */}
