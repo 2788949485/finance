@@ -467,28 +467,6 @@ function NorthTab() {
     return () => window.clearInterval(t)
   }, [autoRefresh, market])
 
-  // SVG 折线图：当日分时净流入趋势
-  const intraday = overview?.intraday ?? []
-  const W = 760, H = 160, PAD = 40
-  let pathD = ''
-  let areaD = ''
-  let points: { x: number; y: number; v: number; label: string }[] = []
-  if (intraday.length > 1) {
-    const vals = intraday.map((r: any) => r.net ?? 0)
-    const maxV = Math.max(...vals, 0), minV = Math.min(...vals, 0)
-    const range = maxV - minV || 1
-    const stepX = (W - PAD * 2) / (intraday.length - 1)
-    points = intraday.map((r: any, i: number) => {
-      const v = r.net ?? 0
-      const x = PAD + i * stepX
-      const y = PAD + (H - PAD * 2) * (1 - (v - minV) / range)
-      return { x, y, v, label: r.time }
-    })
-    pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-    const baseY = PAD + (H - PAD * 2)
-    areaD = pathD + ` L${points[points.length - 1].x.toFixed(1)},${baseY} L${points[0].x.toFixed(1)},${baseY} Z`
-  }
-
   const fmtNet = (v: number | null | undefined) => {
     if (v === null || v === undefined || v !== v) return '—'
     return fmtNum(v, 2) // 亿元
