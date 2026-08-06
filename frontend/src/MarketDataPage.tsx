@@ -143,11 +143,22 @@ function SectorTab() {
 
   useEffect(() => { load() }, [load])
 
+  // 板块轮动30秒自动刷新
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  useEffect(() => {
+    if (!autoRefresh) return
+    const t = window.setInterval(() => load(), 30000)
+    return () => window.clearInterval(t)
+  }, [autoRefresh, load])
+
   return (
     <>
       <div className="bt-tabs" style={{ marginBottom: 12 }}>
         <button className={type === 'concept' ? 'active' : ''} onClick={() => setType('concept')}>概念板块</button>
         <button className={type === 'industry' ? 'active' : ''} onClick={() => setType('industry')}>行业板块</button>
+        <button className={autoRefresh ? 'active' : ''} onClick={() => setAutoRefresh(v => !v)} style={{ marginLeft: 'auto' }}>
+          {autoRefresh ? '● 自动刷新' : '○ 自动刷新'}
+        </button>
       </div>
 
       <StatusBar loading={loading} error={error} />
@@ -443,6 +454,19 @@ function NorthTab() {
 
   useEffect(() => { query('600519') }, [])
 
+  // 北向排行30秒自动刷新
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  useEffect(() => {
+    if (!autoRefresh) return
+    const t = window.setInterval(() => {
+      // 只刷新排行数据，不刷新个股历史
+      api.get<any>(`/api/north-flow/top-stocks?market=${market}&period=5日排行`).then(ts => {
+        if (!ts.error) setTopStocks(ts.top || [])
+      }).catch(() => {})
+    }, 30000)
+    return () => window.clearInterval(t)
+  }, [autoRefresh, market])
+
   // SVG 折线图：最近30天净流入趋势
   const recent = overview?.history?.slice(-30) ?? []
   const W = 760, H = 160, PAD = 40
@@ -477,6 +501,9 @@ function NorthTab() {
         <input className="alert-input" placeholder="股票代码（如 600519）" value={symbol} onChange={e => setSymbol(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') query() }} style={{ flex: '0 0 auto', minWidth: 200 }} />
         <button className="btn-primary" onClick={() => query()} disabled={loading}>{loading ? '查询中...' : '查询'}</button>
+        <button className={`mode-btn ${autoRefresh ? 'active' : ''}`} onClick={() => setAutoRefresh(v => !v)} style={{ flex: '0 0 auto' }}>
+          {autoRefresh ? '● 排行自动刷新' : '○ 排行自动刷新'}
+        </button>
       </div>
 
       <StatusBar loading={loading} error={error} />
