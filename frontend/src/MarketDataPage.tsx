@@ -40,24 +40,6 @@ interface MarginRow {
   short_repay: number | null
 }
 
-interface NorthDay {
-  date: string
-  net_buy: number | null
-  buy_amount: number | null
-  sell_amount: number | null
-  cumulative: number | null
-}
-
-interface NorthStockDay {
-  date: string
-  close: number | null
-  change_pct: number | null
-  hold_shares: number | null
-  hold_value: number | null
-  hold_pct: number | null
-  change_shares: number | null
-}
-
 // ============== 工具函数 ==============
 const fmtNum = (v: number | null | undefined, digits = 2): string => {
   if (v === null || v === undefined || v !== v) return '—'
@@ -78,10 +60,6 @@ const fmtYi = (v: number | null | undefined): string => {
   return fmtNum(yi, 2)
 }
 // 万元 -> 亿
-const fmtWanToYi = (v: number | null | undefined): string => {
-  if (v === null || v === undefined || v !== v) return '—'
-  return fmtNum(v / 1e4, 2)
-}
 // 股数 -> 万股
 const fmtWanGu = (v: number | null | undefined): string => {
   if (v === null || v === undefined || v !== v) return '—'
@@ -426,33 +404,22 @@ function MarginTab() {
 
 // ============== Tab4: 北向资金 ==============
 function NorthTab() {
-  const [symbol, setSymbol] = useState('600519')
   const [market, setMarket] = useState<'沪股通' | '深股通'>('沪股通')
-  const [overview, setOverview] = useState<{ latest_date: string; latest_net: number | null; cumulative: number | null; intraday: { time: string; net: number; buy: number; sell: number; cumulative: number }[]; history: NorthDay[] } | null>(null)
-  const [stockHist, setStockHist] = useState<NorthStockDay[]>([])
   const [topStocks, setTopStocks] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const query = useCallback(async (sym?: string) => {
-    const s = (sym ?? symbol).trim()
-    if (!s) return
+  const query = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const [ov, sh, ts] = await Promise.all([
-        api.get<any>('/api/north-flow/overview'),
-        api.get<any>(`/api/north-flow/stock/${s}`),
-        api.get<any>(`/api/north-flow/top-stocks?market=${market}&period=5日排行`),
-      ])
-      if (ov.error && sh.error && ts.error) { setError('全部数据源不可用'); return }
-      if (!ov.error) setOverview(ov)
-      if (!sh.error) setStockHist(sh.history || [])
-      if (!ts.error) setTopStocks(ts.top || [])
+      const ts = await api.get<any>(`/api/north-flow/top-stocks?market=${market}&period=5日排行`)
+      if (ts.error) { setError('数据源不可用'); return }
+      setTopStocks(ts.top || [])
     } catch (e: any) { setError(e.message || '查询失败') }
     finally { setLoading(false) }
-  }, [symbol, market])
+  }, [market])
 
-  useEffect(() => { query('600519') }, [])
+  useEffect(() => { query() }, [])
 
   // 北向排行30秒自动刷新
   const [autoRefresh, setAutoRefresh] = useState(true)
@@ -467,17 +434,9 @@ function NorthTab() {
     return () => window.clearInterval(t)
   }, [autoRefresh, market])
 
-  const fmtNet = (v: number | null | undefined) => {
-    if (v === null || v === undefined || v !== v) return '—'
-    return fmtNum(v, 2) // 亿元
-  }
-
   return (
     <>
       <div className="backtest-controls">
-        <input className="alert-input" placeholder="股票代码（如 600519）" value={symbol} onChange={e => setSymbol(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') query() }} style={{ flex: '0 0 auto', minWidth: 200 }} />
-        <button className="btn-primary" onClick={() => query()} disabled={loading}>{loading ? '查询中...' : '查询'}</button>
         <button className={`mode-btn ${autoRefresh ? 'active' : ''}`} onClick={() => setAutoRefresh(v => !v)} style={{ flex: '0 0 auto' }}>
           {autoRefresh ? '● 排行自动刷新' : '○ 排行自动刷新'}
         </button>
@@ -485,84 +444,10 @@ function NorthTab() {
 
       <StatusBar loading={loading} error={error} />
 
-      {!loading && !error && overview && (
+      {!loading && !error && (
         <>
-          {/* 总览 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
-            <div className="kpi-card">
-              <span className="kpi-label">最新日期</span>
-              <span className="kpi-value" style={{ fontSize: 14 }}>{overview.latest_date || '—'}</span>
-            </div>
-            <div className="kpi-card">
-              <span className="kpi-label">当日净流入(亿)</span>
-              <span className={`kpi-value ${(overview.latest_net ?? 0) >= 0 ? 'up' : 'down'}`}>{fmtNet(overview.latest_net)}</span>
-            </div>
-            <div className="kpi-card">
-              <span className="kpi-label">累计净流入(亿)</span>
-              <span className={`kpi-value ${(overview.cumulative ?? 0) >= 0 ? 'up' : 'down'}`}>{fmtNet(overview.cumulative)}</span>
-            </div>
-          </div>
-
-          {/* SVG 折线图 */}
-          <div className="backtest-equity">
-            <h4>北向资金历史净流入趋势（亿元，2024年8月起港交所停止实时披露）</h4>
-            {(() => {
-              const hist = (overview?.history || []).filter(h => h.net_buy !== null && h.net_buy !== undefined)
-              if (hist.length < 2) return <div style={{ padding: 20, color: 'var(--text-3)', textAlign: 'center' }}>数据不足</div>
-              const W2 = 760, H2 = 160, PAD2 = 40
-              const vals = hist.map((h: any) => h.net_buy ?? 0)
-              const maxV = Math.max(...vals, 0), minV = Math.min(...vals, 0)
-              const range = maxV - minV || 1
-              const stepX = (W2 - PAD2 * 2) / (hist.length - 1)
-              const pts = hist.map((h: any, i: number) => ({
-                x: PAD2 + i * stepX,
-                y: PAD2 + (H2 - PAD2 * 2) * (1 - ((h.net_buy ?? 0) - minV) / range),
-                label: String(h.date || ''),
-              }))
-              const pD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-              const bY = PAD2 + (H2 - PAD2 * 2)
-              const aD = pD + ` L${pts[pts.length - 1].x.toFixed(1)},${bY} L${pts[0].x.toFixed(1)},${bY} Z`
-              return (
-                <svg className="equity-svg" width="100%" viewBox={`0 0 ${W2} ${H2}`} preserveAspectRatio="xMidYMid meet">
-                  {minV < 0 && maxV > 0 && (
-                    <line x1={PAD2} y1={PAD2 + (H2 - PAD2 * 2) * (1 - (0 - minV) / range)} x2={W2 - PAD2} y2={PAD2 + (H2 - PAD2 * 2) * (1 - (0 - minV) / range)} stroke="var(--border-strong)" strokeDasharray="3,3" />
-                  )}
-                  <path d={aD} fill="var(--accent)" opacity={0.08} />
-                  <path d={pD} fill="none" stroke="var(--accent)" strokeWidth={1.5} />
-                  {pts.filter((_, i) => i % 5 === 0 || i === pts.length - 1).map((p, i) => (
-                    <text key={i} x={p.x} y={H2 - 8} textAnchor="middle" className="axis-label">{p.label.slice(5)}</text>
-                  ))}
-                </svg>
-              )
-            })()}
-          </div>
-
-          {/* 个股持股历史 */}
-          <div className="backtest-trades">
-            <h4 style={{ margin: '16px 0 8px' }}>{symbol} 北向持股历史</h4>
-            <table className="portfolio-table">
-              <thead>
-                <tr>
-                  <th>日期</th>
-                  <th>持股数量(万股)</th>
-                  <th>持股市值(亿)</th>
-                  <th>持股比例</th>
-                  <th>当日增减持(万股)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stockHist.length === 0 && <tr><td className="empty-row" colSpan={5}>暂无数据</td></tr>}
-                {stockHist.map((d, i) => (
-                  <tr key={i}>
-                    <td>{d.date}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanGu(d.hold_shares)}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanToYi(d.hold_value)}</td>
-                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{d.hold_pct !== null && d.hold_pct !== undefined ? fmtNum(d.hold_pct, 3) + '%' : '—'}</td>
-                    <td className={pctClass(d.change_shares)} style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanGu(d.change_shares)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border)', marginBottom: 16, fontSize: 12, color: 'var(--text-3)' }}>
+            注：2024年8月起港交所停止实时披露北向资金明细，以下为沪深股通成份股实时资金排行数据
           </div>
 
           {/* 北向持股排行 */}
