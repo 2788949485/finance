@@ -144,9 +144,9 @@ function AnalyzePane() {
               <button className="ghost" style={{ fontSize: 11 }}
                 onClick={async () => {
                   try {
-                    const r = await api.post<any>(`/api/reflection/settle/${ticker}`, {})
+                    const res = await api.post<any>(`/api/reflection/settle/${ticker}`, {})
                     loadReflections(ticker)
-                    alert(`已结算 ${r.settled ?? 0} 条pending决策`)
+                    alert(`已结算 ${res.settled ?? 0} 条pending决策`)
                   } catch { alert('结算失败') }
                 }}>
                 手动结算pending决策
