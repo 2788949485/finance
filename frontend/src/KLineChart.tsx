@@ -574,9 +574,9 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             <rect x={PAD.l} y={macdTop} width={vw} height={macdH} />
           </clipPath>
         </defs>
-        {/* Y轴水平网格线（跟随nice-number刻度，实线） */}
+        {/* Y轴水平网格线（跟随nice-number刻度，淡色实线） */}
         {yTicks.map((v, i) => (
-          <line key={`yg${i}`} x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#1a2332" strokeWidth="1" />
+          <line key={`yg${i}`} x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#1e293b" strokeWidth="0.5" opacity="0.4" />
         ))}
         {/* 主图内容（裁剪：MA/BOLL/蜡烛不超出主图区域） */}
         <g clipPath="url(#clip-main)">
@@ -664,8 +664,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           }
           return labels.map((l, i) => (
             <g key={i}>
-              {/* X轴竖网格线（实线，跟随刻度） */}
-              <line x1={l.x} y1={PAD.t} x2={l.x} y2={H - PAD.b} stroke="#1a2332" strokeWidth="1" />
+              {/* X轴竖网格线（淡色实线，跟随刻度） */}
+              <line x1={l.x} y1={PAD.t} x2={l.x} y2={H - PAD.b} stroke="#1e293b" strokeWidth="0.5" opacity="0.4" />
               <text x={l.x} y={H - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{l.label}</text>
             </g>
           ))
