@@ -441,6 +441,21 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         <span className="kline-price" style={{ color: trend }}>
           {last.close} <small>{trend === UP ? '▲' : '▼'}</small>
         </span>
+        <span className="kline-legend">
+          <span className="kl-item"><span className="kl-dot" style={{ background: UP }}></span>阳线(涨)</span>
+          <span className="kl-item"><span className="kl-dot" style={{ background: DOWN }}></span>阴线(跌)</span>
+          {extSub === 'macd' && <>
+            <span className="kl-item"><span className="kl-dot" style={{ background: '#f59e0b' }}></span>DIF</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: '#10b981' }}></span>DEA</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: UP }}></span>MACD柱(正)</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: DOWN }}></span>MACD柱(负)</span>
+          </>}
+          {extSub === 'kdj' && <>
+            <span className="kl-item"><span className="kl-dot" style={{ background: '#a855f7' }}></span>K</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: '#10b981' }}></span>D</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: '#f59e0b' }}></span>J</span>
+          </>}
+        </span>
         {fullscreen && (
           <span className="kline-range">
             <button className="ghost" onClick={() => onFullscreen?.(false)}>退出全屏</button>

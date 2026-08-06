@@ -319,10 +319,13 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .quote-area { display: flex; flex-direction: column; gap: 12px; padding: 12px 0; }
 .quote-card { background: var(--surface); border: 1px solid var(--border); padding: 16px; }
 .kline-wrap { width: 100%; aspect-ratio: 680/320; }
-.kline-head { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+.kline-head { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
 .kline-symbol { font-family: var(--mono); font-weight: 700; font-size: 14px; }
 .kline-price { font-family: var(--mono); font-weight: 700; font-size: 16px; }
 .kline-price small { font-size: 11px; }
+.kline-legend { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--text-2); flex-wrap: wrap; }
+.kl-item { display: inline-flex; align-items: center; gap: 3px; }
+.kl-dot { display: inline-block; width: 10px; height: 10px; border: 1px solid var(--border); flex-shrink: 0; }
 .kline-range { margin-left: auto; display: flex; gap: 4px; }
 .kline-range button { padding: 4px 10px; font-size: 11px; }
 .kline-range button.active { color: var(--up); border-color: var(--up); background: var(--up-bg); }
