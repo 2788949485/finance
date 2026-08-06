@@ -90,15 +90,15 @@ function App() {
       </header>
       <main>
         <Suspense fallback={<div style={{padding:'40px',textAlign:'center',color:'var(--text-2)'}}>加载中...</div>}>
-          {tab === 'chat' && <ChatPage />}
-          {tab === 'quote' && <QuotePage />}
-          {tab === 'market' && <MarketDataPage />}
-          {tab === 'analyze' && <AnalyzePane />}
-          {tab === 'portfolio' && <PortfolioPage />}
-          {tab === 'backtest' && <BacktestPage />}
-          {tab === 'history' && <HistoryPane onPick={() => setTab('analyze')} />}
-          {tab === 'profile' && <ProfilePage />}
-          {tab === 'admin' && <AdminPage />}
+          <div style={{ display: tab === 'chat' ? 'block' : 'none' }}><ChatPage /></div>
+          <div style={{ display: tab === 'quote' ? 'block' : 'none' }}><QuotePage /></div>
+          <div style={{ display: tab === 'market' ? 'block' : 'none' }}><MarketDataPage /></div>
+          <div style={{ display: tab === 'analyze' ? 'block' : 'none' }}><AnalyzePane /></div>
+          <div style={{ display: tab === 'portfolio' ? 'block' : 'none' }}><PortfolioPage /></div>
+          <div style={{ display: tab === 'backtest' ? 'block' : 'none' }}><BacktestPage /></div>
+          <div style={{ display: tab === 'history' ? 'block' : 'none' }}><HistoryPane onPick={() => setTab('analyze')} /></div>
+          <div style={{ display: tab === 'profile' ? 'block' : 'none' }}><ProfilePage /></div>
+          {isAdmin && <div style={{ display: tab === 'admin' ? 'block' : 'none' }}><AdminPage /></div>}
         </Suspense>
       </main>
     </div>
