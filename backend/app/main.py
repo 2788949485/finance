@@ -1120,11 +1120,12 @@ def reflection_api(ticker: str) -> dict[str, Any]:
 
 
 @app.post("/api/reflection/settle/{ticker}")
-def settle_api(ticker: str) -> dict[str, Any]:
-    """手动触发某股票的 pending 决策结算（N 天后反思）。"""
+def settle_api(ticker: str, force: bool = False) -> dict[str, Any]:
+    """手动触发某股票的 pending 决策结算（N 天后反思）。
+    force=true 时立即结算（不等5天，用于测试/演示）。"""
     from .reflection_engine import settle_pending
     from .llm import LLMClient
-    settled = settle_pending(ticker, LLMClient())
+    settled = settle_pending(ticker, LLMClient(), force=force)
     return {"ticker": ticker, "settled": settled}
 
 

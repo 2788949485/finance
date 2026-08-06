@@ -72,12 +72,14 @@ def settle_pending(
     ticker: str,
     llm: LLMClient | None = None,
     settlement_days: int = 5,
+    force: bool = False,
 ) -> int:
     """结算某 ticker 的 pending 决策。
 
     流程：
     1. 查所有 pending 记录
     2. 对每条：decision_date + settlement_days <= today 才结算
+       （force=True 时跳过时间检查，立即结算）
     3. 计算个股 raw_return 与相对沪深300的 alpha_return
     4. LLM 反思下结论（correct/wrong/unclear）
     5. 更新 status=settled
@@ -111,7 +113,7 @@ def settle_pending(
         try:
             dec_date_str = row["decision_date"]
             dec_date = datetime.strptime(dec_date_str, "%Y-%m-%d").date()
-            if dec_date > cutoff:
+            if not force and dec_date > cutoff:
                 # 还没到结算窗口，跳过
                 continue
             raw_ret, alpha_ret = _calc_return(ticker, dec_date_str, settlement_days)
