@@ -5,6 +5,13 @@ import type { KlineBar, MinutePoint } from './types'
 
 const UP = '#22c55e'
 const DOWN = '#ef4444'
+const MA5_COLOR = '#eab308'       // MA5 均线：黄色
+const MA20_COLOR = '#06b6d4'      // MA20 均线：青色
+const DIF_COLOR = '#f59e0b'       // MACD DIF：橙色
+const DEA_COLOR = '#10b981'       // MACD DEA：翠绿
+const K_COLOR = '#a855f7'         // KDJ K：紫色
+const D_COLOR = '#10b981'         // KDJ D：翠绿
+const J_COLOR = '#f59e0b'         // KDJ J：橙色
 const MAX_ZOOM = 200
 const MIN_WIN = 10
 
@@ -479,16 +486,18 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         <span className="kline-legend">
           <span className="kl-item"><span className="kl-dot" style={{ background: UP }}></span>阳线(涨)</span>
           <span className="kl-item"><span className="kl-dot" style={{ background: DOWN }}></span>阴线(跌)</span>
+          <span className="kl-item"><span className="kl-dot" style={{ background: MA5_COLOR }}></span>MA5</span>
+          <span className="kl-item"><span className="kl-dot" style={{ background: MA20_COLOR }}></span>MA20</span>
           {extSub === 'macd' && <>
-            <span className="kl-item"><span className="kl-dot" style={{ background: '#f59e0b' }}></span>DIF</span>
-            <span className="kl-item"><span className="kl-dot" style={{ background: '#10b981' }}></span>DEA</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: DIF_COLOR }}></span>DIF</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: DEA_COLOR }}></span>DEA</span>
             <span className="kl-item"><span className="kl-dot" style={{ background: UP }}></span>MACD柱(正)</span>
             <span className="kl-item"><span className="kl-dot" style={{ background: DOWN }}></span>MACD柱(负)</span>
           </>}
           {extSub === 'kdj' && <>
-            <span className="kl-item"><span className="kl-dot" style={{ background: '#a855f7' }}></span>K</span>
-            <span className="kl-item"><span className="kl-dot" style={{ background: '#10b981' }}></span>D</span>
-            <span className="kl-item"><span className="kl-dot" style={{ background: '#f59e0b' }}></span>J</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: K_COLOR }}></span>K</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: D_COLOR }}></span>D</span>
+            <span className="kl-item"><span className="kl-dot" style={{ background: J_COLOR }}></span>J</span>
           </>}
         </span>
         {fullscreen && (
@@ -527,11 +536,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
         ))}
         <polyline
           points={ma5.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')}
-          fill="none" stroke="#f59e0b" strokeWidth="1.2" opacity="0.9"
+          fill="none" stroke={MA5_COLOR} strokeWidth="1.2" opacity="0.9"
         />
         <polyline
           points={ma20.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')}
-          fill="none" stroke="#10b981" strokeWidth="1.2" opacity="0.9"
+          fill="none" stroke={MA20_COLOR} strokeWidth="1.2" opacity="0.9"
         />
         {/* BOLL 上轨 */}
         <polyline points={boll.upper.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${y(v)}`).join(' ')} fill="none" stroke="#64748b" strokeWidth="0.8" opacity="0.5" strokeDasharray="3 2" />
@@ -657,8 +666,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const m = macdBars[idx] ?? 0
           return (
             <text x={PAD.l + 90} y={macdTop + 11} fontSize="9" fill="#64748b">
-              <tspan fill="#f59e0b">DIF {d.toFixed(3)}</tspan>
-              <tspan dx="6" fill="#10b981">DEA {e.toFixed(3)}</tspan>
+              <tspan fill={DIF_COLOR}>DIF {d.toFixed(3)}</tspan>
+              <tspan dx="6" fill={DEA_COLOR}>DEA {e.toFixed(3)}</tspan>
               <tspan dx="6" fill={m >= 0 ? UP : DOWN}>MACD {m.toFixed(3)}</tspan>
             </text>
           )
@@ -683,7 +692,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const dVal = dif[idx] ?? 0
           return (
             <g pointerEvents="none">
-              <circle cx={cx} cy={macdY(dVal)} r="2" fill="#f59e0b" />
+              <circle cx={cx} cy={macdY(dVal)} r="2" fill={DIF_COLOR} />
             </g>
           )
         })()}
@@ -697,9 +706,9 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           return <rect key={'m'+i} x={x - bw * 0.35} y={Math.min(macdY(v), zeroY)} width={bw * 0.7} height={Math.max(h, 0.5)} fill={isUp ? UP : DOWN} opacity="0.6" />
         })}
         {/* DIF 线 */}
-        <polyline points={dif.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#f59e0b" strokeWidth="1" opacity="0.85" />
+        <polyline points={dif.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke={DIF_COLOR} strokeWidth="1" opacity="0.85" />
         {/* DEA 线 */}
-        <polyline points={dea.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke="#10b981" strokeWidth="1" opacity="0.85" />
+        <polyline points={dea.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${macdY(v)}`).join(' ')} fill="none" stroke={DEA_COLOR} strokeWidth="1" opacity="0.85" />
           </>
         ) : (
           <>
@@ -711,9 +720,9 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const jv = kdj.j[idx] ?? 0
           return (
             <text x={PAD.l + 70} y={macdTop + 11} fontSize="9" fill="#64748b">
-              <tspan fill="#a855f7">K {kv.toFixed(1)}</tspan>
-              <tspan dx="6" fill="#10b981">D {dv.toFixed(1)}</tspan>
-              <tspan dx="6" fill="#f59e0b">J {jv.toFixed(1)}</tspan>
+              <tspan fill={K_COLOR}>K {kv.toFixed(1)}</tspan>
+              <tspan dx="6" fill={D_COLOR}>D {dv.toFixed(1)}</tspan>
+              <tspan dx="6" fill={J_COLOR}>J {jv.toFixed(1)}</tspan>
             </text>
           )
         })()}
@@ -731,16 +740,16 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const kv = kdj.k[idx] ?? 0
           return (
             <g pointerEvents="none">
-              <circle cx={cx} cy={kdjY(kv)} r="2" fill="#a855f7" />
+              <circle cx={cx} cy={kdjY(kv)} r="2" fill={K_COLOR} />
             </g>
           )
         })()}
         {/* K 线 */}
-        <polyline points={kdj.k.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#a855f7" strokeWidth="1" opacity="0.85" />
+        <polyline points={kdj.k.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke={K_COLOR} strokeWidth="1" opacity="0.85" />
         {/* D 线 */}
-        <polyline points={kdj.d.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#10b981" strokeWidth="1" opacity="0.85" />
+        <polyline points={kdj.d.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke={D_COLOR} strokeWidth="1" opacity="0.85" />
         {/* J 线 */}
-        <polyline points={kdj.j.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke="#f59e0b" strokeWidth="1" opacity="0.85" />
+        <polyline points={kdj.j.map((v, i) => v == null ? '' : `${PAD.l + i * step + step / 2},${kdjY(v)}`).join(' ')} fill="none" stroke={J_COLOR} strokeWidth="1" opacity="0.85" />
           </>
         )}
       </svg>
