@@ -14,6 +14,8 @@ from .fetcher import (
     search_stocks,
     get_history_all,
 )
+# 第一梯队新功能模块
+from . import north_flow, sector_flow, stock_screener, margin_data
 
 __all__ = [
     "AK_AVAILABLE",
@@ -29,4 +31,9 @@ __all__ = [
     "get_stock_brief",
     "search_stocks",
     "get_history_all",
+    # 新功能模块
+    "north_flow",
+    "sector_flow",
+    "stock_screener",
+    "margin_data",
 ]
