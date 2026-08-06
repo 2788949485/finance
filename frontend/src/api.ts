@@ -36,6 +36,11 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // 通用 GET / POST（带 token，自动 json）
+  get: <T = any>(url: string) => request<T>(url),
+  post: <T = any>(url: string, body?: any) =>
+    request<T>(url, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+
   getConfig: () => request<LLMConfig>('/api/config'),
 
   saveConfig: (cfg: LLMConfig) =>

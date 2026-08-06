@@ -12,10 +12,11 @@ const AnalyzePane = lazy(() => import('./AnalyzePage'))
 const HistoryPane = lazy(() => import('./HistoryPage'))
 const PortfolioPage = lazy(() => import('./PortfolioPage'))
 const BacktestPage = lazy(() => import('./BacktestPage'))
+const MarketDataPage = lazy(() => import('./MarketDataPage'))
 const ProfilePage = lazy(() => import('./ProfilePage'))
 const AdminPage = lazy(() => import('./AdminPage'))
 
-type Tab = 'chat' | 'quote' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'profile' | 'admin'
+type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'history' | 'profile' | 'admin'
 
 function useTheme() {
   const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme') || 'dark')
@@ -72,6 +73,7 @@ function App() {
         <nav>
           <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>智能对话</button>
           <button className={tab === 'quote' ? 'active' : ''} onClick={() => setTab('quote')}>行情</button>
+          <button className={tab === 'market' ? 'active' : ''} onClick={() => setTab('market')}>市场数据</button>
           <button className={tab === 'analyze' ? 'active' : ''} onClick={() => setTab('analyze')}>投研分析</button>
           <button className={tab === 'portfolio' ? 'active' : ''} onClick={() => setTab('portfolio')}>投资组合</button>
           <button className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
@@ -90,6 +92,7 @@ function App() {
         <Suspense fallback={<div style={{padding:'40px',textAlign:'center',color:'var(--text-2)'}}>加载中...</div>}>
           {tab === 'chat' && <ChatPage />}
           {tab === 'quote' && <QuotePage />}
+          {tab === 'market' && <MarketDataPage />}
           {tab === 'analyze' && <AnalyzePane />}
           {tab === 'portfolio' && <PortfolioPage />}
           {tab === 'backtest' && <BacktestPage />}
