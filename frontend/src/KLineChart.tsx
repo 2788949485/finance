@@ -593,8 +593,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           )
         })}
         </g>{/* 关闭主图clipPath */}
-        {/* Y轴价格刻度（在clipPath外，不会被裁掉） */}
-        {[0, 0.5, 1].map((r) => {
+        {/* Y轴价格刻度（在clipPath外，不会被裁掉）- 5档 */}
+        {[0, 0.25, 0.5, 0.75, 1].map((r) => {
           const v = maxV - span * r
           return (
             <text key={r} x={PAD.l - 6} y={PAD.t + priceH * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
@@ -602,9 +602,9 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             </text>
           )
         })}
-        {/* X轴日期标签：均匀取5个点 */}
+        {/* X轴日期标签+竖网格线：均匀取8个点 */}
         {(() => {
-          const n = Math.min(5, data.length)
+          const n = Math.min(8, data.length)
           const interval = Math.floor(data.length / n)
           const labels = []
           for (let i = 0; i < n; i++) {
@@ -634,7 +634,11 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             labels.push({ x, label })
           }
           return labels.map((l, i) => (
-            <text key={i} x={l.x} y={H - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{l.label}</text>
+            <g key={i}>
+              {/* X轴竖网格线 */}
+              <line x1={l.x} y1={PAD.t} x2={l.x} y2={H - PAD.b} stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 4" opacity="0.5" />
+              <text x={l.x} y={H - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{l.label}</text>
+            </g>
           ))
         })()}
         {hover && (
