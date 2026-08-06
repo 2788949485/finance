@@ -344,14 +344,18 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const step = vw / data.length
   const bw = Math.max(2, step * 0.6)
 
-  // MA 均线在窗口数据上计算即可（短周期，窗口够用）
-  const ma = (n: number) => data.map((_, i) => {
+  // MA均线也在全量rawData上计算（跟MACD/KDJ保持一致）
+  const maAll = (n: number) => rawData.map((_, i) => {
     if (i < n - 1) return null
-    const s = data.slice(i - n + 1, i + 1)
-    return s.reduce((a, b) => a + b.close, 0) / n
+    let s = 0
+    for (let j = i - n + 1; j <= i; j++) s += rawData[j].close
+    return s / n
   })
-  const ma5 = ma(5)
-  const ma20 = ma(20)
+  const ma5All = maAll(5)
+  const ma20All = maAll(20)
+  // 映射到窗口
+  const ma5 = data.map((_, di) => { const ri = start + di; return ri < ma5All.length ? ma5All[ri] : null })
+  const ma20 = data.map((_, di) => { const ri = start + di; return ri < ma20All.length ? ma20All[ri] : null })
 
   // MACD/KDJ 在完整 rawData 上计算（避免放大后窗口数据太少导致 EMA 全 null）
   const closesAll = rawData.map(b => b.close)
@@ -439,18 +443,27 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
 
   // BOLL 计算（20,2）
   const boll = (() => {
-    const mid: (number | null)[] = []
-    const upper: (number | null)[] = []
-    const lower: (number | null)[] = []
-    for (let i = 0; i < data.length; i++) {
-      if (i < 19) { mid.push(null); upper.push(null); lower.push(null); continue }
-      const window = data.slice(i - 19, i + 1)
-      const m = window.reduce((a, b) => a + b.close, 0) / 20
-      const variance = window.reduce((a, b) => a + (b.close - m) ** 2, 0) / 20
+    // 在全量rawData上计算
+    const midAll: (number | null)[] = []
+    const upperAll: (number | null)[] = []
+    const lowerAll: (number | null)[] = []
+    for (let i = 0; i < closesAll.length; i++) {
+      if (i < 19) { midAll.push(null); upperAll.push(null); lowerAll.push(null); continue }
+      let s = 0
+      for (let j = i - 19; j <= i; j++) s += closesAll[j]
+      const m = s / 20
+      let variance = 0
+      for (let j = i - 19; j <= i; j++) variance += (closesAll[j] - m) ** 2
+      variance /= 20
       const sd = Math.sqrt(variance)
-      mid.push(m); upper.push(m + 2 * sd); lower.push(m - 2 * sd)
+      midAll.push(m); upperAll.push(m + 2 * sd); lowerAll.push(m - 2 * sd)
     }
-    return { mid, upper, lower }
+    // 映射到窗口
+    return {
+      mid: data.map((_, di) => { const ri = start + di; return ri < midAll.length ? midAll[ri] : null }),
+      upper: data.map((_, di) => { const ri = start + di; return ri < upperAll.length ? upperAll[ri] : null }),
+      lower: data.map((_, di) => { const ri = start + di; return ri < lowerAll.length ? lowerAll[ri] : null }),
+    }
   })()
 
   const last = data[data.length - 1]
