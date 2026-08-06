@@ -344,6 +344,7 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const step = vw / data.length
   const bw = Math.max(2, step * 0.6)
 
+  // MA 均线在窗口数据上计算即可（短周期，窗口够用）
   const ma = (n: number) => data.map((_, i) => {
     if (i < n - 1) return null
     const s = data.slice(i - n + 1, i + 1)
@@ -352,56 +353,71 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const ma5 = ma(5)
   const ma20 = ma(20)
 
-  // MACD 计算（12,26,9）
-  const ema = (period: number) => {
+  // MACD/KDJ 在完整 rawData 上计算（避免放大后窗口数据太少导致 EMA 全 null）
+  const closesAll = rawData.map(b => b.close)
+  const highsAll = rawData.map(b => b.high)
+  const lowsAll = rawData.map(b => b.low)
+
+  // 全量 EMA
+  const emaAll = (period: number) => {
     const k = 2 / (period + 1)
     const result: (number | null)[] = []
     let prev: number | null = null
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < closesAll.length; i++) {
       if (i < period - 1) { result.push(null); continue }
       if (prev === null) {
-        const s = data.slice(0, period).reduce((a, b) => a + b.close, 0) / period
+        const s = closesAll.slice(0, period).reduce((a, b) => a + b, 0) / period
         prev = s; result.push(s)
       } else {
-        prev = data[i].close * k + prev * (1 - k)
+        prev = closesAll[i] * k + prev * (1 - k)
         result.push(prev)
       }
     }
     return result
   }
-  const ema12 = ema(12)
-  const ema26 = ema(26)
-  const dif = data.map((_, i) => (ema12[i] != null && ema26[i] != null) ? (ema12[i]! - ema26[i]!) : null)
-  const dea = (() => {
+  const ema12All = emaAll(12)
+  const ema26All = emaAll(26)
+  const difAll = closesAll.map((_, i) => (ema12All[i] != null && ema26All[i] != null) ? (ema12All[i]! - ema26All[i]!) : null)
+  const deaAll = (() => {
     const k = 2 / (9 + 1)
     const result: (number | null)[] = []
     let prev: number | null = null
-    for (let i = 0; i < dif.length; i++) {
-      if (dif[i] == null) { result.push(null); continue }
-      const d = dif[i]!
+    for (let i = 0; i < difAll.length; i++) {
+      if (difAll[i] == null) { result.push(null); continue }
+      const d = difAll[i]!
       if (prev === null) { prev = d; result.push(d) }
       else { prev = d * k + prev * (1 - k); result.push(prev) }
     }
     return result
   })()
-  const macdBars = dif.map((d, i) => (d != null && dea[i] != null) ? (d - dea[i]!) * 2 : null)
-  // 缩放范围取 DIF/DEA/MACD 三者的最大绝对值（否则柱子和线可能超出副图区域）
+  const macdBarsAll = difAll.map((d, i) => (d != null && deaAll[i] != null) ? (d - deaAll[i]!) * 2 : null)
+
+  // 映射到窗口索引（窗口数据对应 rawData[start..start+winCount]）
+  const dif = data.map((_, di) => {
+    const ri = start + di; return ri < difAll.length ? difAll[ri] : null
+  })
+  const dea = data.map((_, di) => {
+    const ri = start + di; return ri < deaAll.length ? deaAll[ri] : null
+  })
+  const macdBars = data.map((_, di) => {
+    const ri = start + di; return ri < macdBarsAll.length ? macdBarsAll[ri] : null
+  })
+  // 缩放范围取 DIF/DEA/MACD 三者的最大绝对值
   const allMacdVals = [...dif, ...dea, ...macdBars].filter((v): v is number => v != null).map(Math.abs)
   const macdMax = Math.max(...allMacdVals, 0.01)
   const macdY = (v: number) => macdTop + macdH / 2 - (v / macdMax) * (macdH / 2 - 2)
 
-  // KDJ 计算（9,3,3）
-  const kdj = (() => {
+  // KDJ 在全量数据上计算（9,3,3）
+  const kdjAll = (() => {
     const kArr: (number | null)[] = []
     const dArr: (number | null)[] = []
     const jArr: (number | null)[] = []
     let prevK = 50, prevD = 50
-    for (let i = 0; i < data.length; i++) {
+    for (let i = 0; i < closesAll.length; i++) {
       if (i < 8) { kArr.push(null); dArr.push(null); jArr.push(null); continue }
-      const window = data.slice(i - 8, i + 1)
-      const hn = Math.max(...window.map(d => d.high))
-      const ln = Math.min(...window.map(d => d.low))
-      const rsv = hn === ln ? 50 : ((data[i].close - ln) / (hn - ln)) * 100
+      const hn = Math.max(...highsAll.slice(i - 8, i + 1))
+      const ln = Math.min(...lowsAll.slice(i - 8, i + 1))
+      const rsv = hn === ln ? 50 : ((closesAll[i] - ln) / (hn - ln)) * 100
       const k = (2 / 3) * prevK + (1 / 3) * rsv
       const d = (2 / 3) * prevD + (1 / 3) * k
       const j = 3 * k - 2 * d
@@ -410,6 +426,12 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     }
     return { k: kArr, d: dArr, j: jArr }
   })()
+  // 映射到窗口
+  const kdj = {
+    k: data.map((_, di) => { const ri = start + di; return ri < kdjAll.k.length ? kdjAll.k[ri] : null }),
+    d: data.map((_, di) => { const ri = start + di; return ri < kdjAll.d.length ? kdjAll.d[ri] : null }),
+    j: data.map((_, di) => { const ri = start + di; return ri < kdjAll.j.length ? kdjAll.j[ri] : null }),
+  }
   const kdjVals = [...kdj.k, ...kdj.d, ...kdj.j].filter((v): v is number => v != null)
   const kdjMin = Math.min(...kdjVals, 0)
   const kdjMax = Math.max(...kdjVals, 100)
