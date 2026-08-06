@@ -41,45 +41,79 @@ def _safe_num(v: Any, ndigits: int = 2) -> Optional[float]:
 
 
 def get_north_flow_overview() -> dict:
-    """北向资金总览：近30天净流入趋势。
+    """北向资金总览：当日分时净流入 + 历史数据（到2024年8月）。
 
-    返回 {latest_date, latest_net, cumulative, history: [{date, net_buy,
-    buy_amount, sell_amount, cumulative}]}
-    数据源失败时返回 {"error": "..."}。
+    push2delay返回当日每分钟资金数据(s2n=北向)。
+    AKShare返回历史日K（2024年8月16日港交所停披露前）。
+
+    返回 {latest_date, latest_net, cumulative,
+           intraday: [{time, net, buy, sell, cumulative}],
+           history: [{date, net_buy, buy_amount, sell_amount, cumulative}]}
     """
-    if not AK_AVAILABLE:
-        return {"error": "akshare 未安装"}
+    from curl_cffi import requests as cq
 
     def _fetch() -> Optional[dict[str, Any]]:
-        df = ak.stock_hsgt_hist_em(symbol="北向资金")
-        if df is None or df.empty:
-            return None
-        # 列：日期 当日成交净买额 买入成交额 卖出成交额 历史累计净买额 ...
-        df = df.tail(30).copy()
+        # 1. 当日分时数据 (push2delay)
+        intraday = []
+        latest_date = ""
+        latest_net = None
+        try:
+            url = "https://push2delay.eastmoney.com/api/qt/kamt.rtmin/get"
+            params = {"fields1": "f1,f2,f3,f4", "fields2": "f51,f52,f53,f54,f55,f56"}
+            r = cq.get(url, params=params, impersonate="chrome", timeout=10)
+            d = r.json().get("data", {})
+            latest_date = d.get("s2nDate", "")
+            for item in d.get("s2n", []):
+                # [time, net, buy, sell, cumulative, pct]
+                if isinstance(item, (list, tuple)) and len(item) >= 5:
+                    intraday.append({
+                        "time": str(item[0]),
+                        "net": _safe_num(item[1]),
+                        "buy": _safe_num(item[2]),
+                        "sell": _safe_num(item[3]),
+                        "cumulative": _safe_num(item[4]),
+                    })
+            if intraday:
+                latest_net = intraday[-1].get("net")
+        except Exception:
+            pass
+
+        # 2. 历史日K (AKShare, 到2024年8月)
         history = []
-        for _, row in df.iterrows():
-            history.append({
-                "date": str(row["日期"].strftime("%Y-%m-%d")
-                            if hasattr(row["日期"], "strftime") else row["日期"]),
-                "net_buy": _safe_num(row.get("当日成交净买额")),
-                "buy_amount": _safe_num(row.get("买入成交额")),
-                "sell_amount": _safe_num(row.get("卖出成交额")),
-                "cumulative": _safe_num(row.get("历史累计净买额")),
-            })
-        latest = history[-1] if history else {}
+        cumulative = None
+        if AK_AVAILABLE:
+            try:
+                df = ak.stock_hsgt_hist_em(symbol="北向资金")
+                valid = df[df["当日成交净买额"].notna()]
+                if len(valid) > 0:
+                    df = valid.tail(30)
+                    for _, row in df.iterrows():
+                        history.append({
+                            "date": str(row["日期"].strftime("%Y-%m-%d")
+                                        if hasattr(row["日期"], "strftime") else row["日期"]),
+                            "net_buy": _safe_num(row.get("当日成交净买额")),
+                            "buy_amount": _safe_num(row.get("买入成交额")),
+                            "sell_amount": _safe_num(row.get("卖出成交额")),
+                            "cumulative": _safe_num(row.get("历史累计净买额")),
+                        })
+                    cumulative = history[-1].get("cumulative") if history else None
+            except Exception:
+                pass
+
         return {
-            "latest_date": latest.get("date"),
-            "latest_net": latest.get("net_buy"),
-            "cumulative": latest.get("cumulative"),
+            "latest_date": latest_date,
+            "latest_net": latest_net,
+            "cumulative": cumulative,
+            "intraday": intraday,
             "history": history,
         }
 
     try:
-        result = cached("north_flow:overview", TTL["kline"], _fetch)
+        result = cached("north_flow:overview", TTL["quote"], _fetch)
     except Exception as e:
         return {"error": f"北向资金总览获取失败：{e}"}
     if result is None:
-        return {"error": "北向资金总览数据为空（接口可能不可用）"}
+        return {"error": "北向资金总览数据为空"}
     return result
 
 

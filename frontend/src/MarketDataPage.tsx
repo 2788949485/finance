@@ -428,7 +428,7 @@ function MarginTab() {
 function NorthTab() {
   const [symbol, setSymbol] = useState('600519')
   const [market, setMarket] = useState<'沪股通' | '深股通'>('沪股通')
-  const [overview, setOverview] = useState<{ latest_date: string; latest_net: number | null; cumulative: number | null; history: NorthDay[] } | null>(null)
+  const [overview, setOverview] = useState<{ latest_date: string; latest_net: number | null; cumulative: number | null; intraday: { time: string; net: number; buy: number; sell: number; cumulative: number }[]; history: NorthDay[] } | null>(null)
   const [stockHist, setStockHist] = useState<NorthStockDay[]>([])
   const [topStocks, setTopStocks] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -467,23 +467,22 @@ function NorthTab() {
     return () => window.clearInterval(t)
   }, [autoRefresh, market])
 
-  // SVG 折线图：最近30天净流入趋势
-  const recent = overview?.history?.slice(-30) ?? []
+  // SVG 折线图：当日分时净流入趋势
+  const intraday = overview?.intraday ?? []
   const W = 760, H = 160, PAD = 40
-  const xLabelN = Math.min(recent.length, 6)
   let pathD = ''
   let areaD = ''
-  let points: { x: number; y: number; v: number; date: string }[] = []
-  if (recent.length > 1) {
-    const vals = recent.map(r => r.net_buy ?? 0)
-    const maxV = Math.max(...vals), minV = Math.min(...vals)
+  let points: { x: number; y: number; v: number; label: string }[] = []
+  if (intraday.length > 1) {
+    const vals = intraday.map((r: any) => r.net ?? 0)
+    const maxV = Math.max(...vals, 0), minV = Math.min(...vals, 0)
     const range = maxV - minV || 1
-    const stepX = (W - PAD * 2) / (recent.length - 1)
-    points = recent.map((r, i) => {
-      const v = r.net_buy ?? 0
+    const stepX = (W - PAD * 2) / (intraday.length - 1)
+    points = intraday.map((r: any, i: number) => {
+      const v = r.net ?? 0
       const x = PAD + i * stepX
       const y = PAD + (H - PAD * 2) * (1 - (v - minV) / range)
-      return { x, y, v, date: r.date }
+      return { x, y, v, label: r.time }
     })
     pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
     const baseY = PAD + (H - PAD * 2)
@@ -492,7 +491,7 @@ function NorthTab() {
 
   const fmtNet = (v: number | null | undefined) => {
     if (v === null || v === undefined || v !== v) return '—'
-    return fmtNum(v / 1e4, 2) // 万元 -> 亿
+    return fmtNum(v, 2) // 亿元
   }
 
   return (
@@ -528,28 +527,36 @@ function NorthTab() {
 
           {/* SVG 折线图 */}
           <div className="backtest-equity">
-            <h4>最近30天净流入趋势（亿）</h4>
-            {points.length > 1 ? (
-              <svg className="equity-svg" width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet">
-                {/* 0 轴（如果跨越正负） */}
-                {(() => {
-                  const vals = recent.map(r => r.net_buy ?? 0)
-                  const maxV = Math.max(...vals), minV = Math.min(...vals)
-                  if (minV < 0 && maxV > 0) {
-                    const range = maxV - minV
-                    const y0 = PAD + (H - PAD * 2) * (1 - (0 - minV) / range)
-                    return <line x1={PAD} y1={y0} x2={W - PAD} y2={y0} stroke="var(--border-strong)" strokeDasharray="3,3" />
-                  }
-                  return null
-                })()}
-                <path d={areaD} fill="var(--accent)" opacity={0.08} />
-                <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth={1.5} />
-                {/* x 轴日期标签 */}
-                {points.filter((_, i) => i % Math.ceil(points.length / xLabelN) === 0 || i === points.length - 1).map((p, i) => (
-                  <text key={i} x={p.x} y={H - 8} textAnchor="middle" className="axis-label">{p.date.slice(5)}</text>
-                ))}
-              </svg>
-            ) : <div style={{ padding: 20, color: 'var(--text-3)', textAlign: 'center' }}>数据不足</div>}
+            <h4>北向资金历史净流入趋势（亿元，2024年8月起港交所停止实时披露）</h4>
+            {(() => {
+              const hist = (overview?.history || []).filter(h => h.net_buy !== null && h.net_buy !== undefined)
+              if (hist.length < 2) return <div style={{ padding: 20, color: 'var(--text-3)', textAlign: 'center' }}>数据不足</div>
+              const W2 = 760, H2 = 160, PAD2 = 40
+              const vals = hist.map((h: any) => h.net_buy ?? 0)
+              const maxV = Math.max(...vals, 0), minV = Math.min(...vals, 0)
+              const range = maxV - minV || 1
+              const stepX = (W2 - PAD2 * 2) / (hist.length - 1)
+              const pts = hist.map((h: any, i: number) => ({
+                x: PAD2 + i * stepX,
+                y: PAD2 + (H2 - PAD2 * 2) * (1 - ((h.net_buy ?? 0) - minV) / range),
+                label: String(h.date || ''),
+              }))
+              const pD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+              const bY = PAD2 + (H2 - PAD2 * 2)
+              const aD = pD + ` L${pts[pts.length - 1].x.toFixed(1)},${bY} L${pts[0].x.toFixed(1)},${bY} Z`
+              return (
+                <svg className="equity-svg" width="100%" viewBox={`0 0 ${W2} ${H2}`} preserveAspectRatio="xMidYMid meet">
+                  {minV < 0 && maxV > 0 && (
+                    <line x1={PAD2} y1={PAD2 + (H2 - PAD2 * 2) * (1 - (0 - minV) / range)} x2={W2 - PAD2} y2={PAD2 + (H2 - PAD2 * 2) * (1 - (0 - minV) / range)} stroke="var(--border-strong)" strokeDasharray="3,3" />
+                  )}
+                  <path d={aD} fill="var(--accent)" opacity={0.08} />
+                  <path d={pD} fill="none" stroke="var(--accent)" strokeWidth={1.5} />
+                  {pts.filter((_, i) => i % 5 === 0 || i === pts.length - 1).map((p, i) => (
+                    <text key={i} x={p.x} y={H2 - 8} textAnchor="middle" className="axis-label">{p.label.slice(5)}</text>
+                  ))}
+                </svg>
+              )
+            })()}
           </div>
 
           {/* 个股持股历史 */}
