@@ -342,12 +342,44 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const macdTop = PAD.t + priceH + 6
   const macdH = H - PAD.t - PAD.b - priceH - 6  // MACD区
   const vh = H - PAD.t - PAD.b
+
+  // ---- nice-number 算法（TradingView/echarts标准） ----
+  const niceNum = (range: number, round: boolean): number => {
+    if (range <= 0) return 1
+    const exp = Math.floor(Math.log10(range))
+    const f = range / Math.pow(10, exp)
+    let nf: number
+    if (round) nf = f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10
+    else       nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10
+    return nf * Math.pow(10, exp)
+  }
+
+  // ---- Y轴价格：nice-number 动态刻度 ----
   const highs = data.map((d) => d.high)
   const lows = data.map((d) => d.low)
-  const maxV = Math.max(...highs)
-  const minV = Math.min(...lows)
+  const rawMax = Math.max(...highs)
+  const rawMin = Math.min(...lows)
+  const rawRange = rawMax - rawMin || 1
+  // 留白5%（防止K线贴顶/贴底）
+  const pad = rawRange * 0.05
+  const maxV_raw = rawMax + pad
+  const minV_raw = rawMin - pad
+  // nice-number 圆整
+  const yTickCount = Math.max(6, Math.round(priceH / 28))  // 每档至少28px
+  const yNiceStep = niceNum((maxV_raw - minV_raw) / yTickCount, true)
+  const minV = Math.floor(minV_raw / yNiceStep) * yNiceStep
+  const maxV = Math.ceil(maxV_raw / yNiceStep) * yNiceStep
   const span = maxV - minV || 1
   const y = (v: number) => PAD.t + ((maxV - v) / span) * priceH
+  // 生成Y轴刻度值数组
+  const yTicks: number[] = []
+  for (let v = minV; v <= maxV + yNiceStep * 0.01; v += yNiceStep) yTicks.push(Math.round(v * 100) / 100)
+
+  // ---- X轴：按标签宽度动态算刻度数量 ----
+  const MIN_LABEL_W = 72  // 一个日期标签的最小宽度
+  const xTickCount = Math.min(data.length, Math.max(3, Math.floor(vw / MIN_LABEL_W)))
+  const xInterval = Math.ceil(data.length / xTickCount)
+
   const step = vw / data.length
   const bw = Math.max(2, step * 0.6)
 
@@ -415,7 +447,9 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   })
   // 缩放范围取 DIF/DEA/MACD 三者的最大绝对值
   const allMacdVals = [...dif, ...dea, ...macdBars].filter((v): v is number => v != null).map(Math.abs)
-  const macdMax = Math.max(...allMacdVals, 0.01)
+  const macdMaxRaw = Math.max(...allMacdVals, 0.01)
+  // MACD Y轴用nice-number圆整
+  const macdMax = niceNum(macdMaxRaw, true)
   const macdY = (v: number) => macdTop + macdH / 2 - (v / macdMax) * (macdH / 2 - 2)
 
   // KDJ 在全量数据上计算（9,3,3）
@@ -540,9 +574,9 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             <rect x={PAD.l} y={macdTop} width={vw} height={macdH} />
           </clipPath>
         </defs>
-        {/* 主图网格 */}
-        {[0.25, 0.5, 0.75].map((r) => (
-          <line key={r} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + priceH * r} y2={PAD.t + priceH * r} stroke="#1e293b" strokeWidth="1" />
+        {/* Y轴水平网格线（跟随nice-number刻度，实线） */}
+        {yTicks.map((v, i) => (
+          <line key={`yg${i}`} x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#1a2332" strokeWidth="1" />
         ))}
         {/* 主图内容（裁剪：MA/BOLL/蜡烛不超出主图区域） */}
         <g clipPath="url(#clip-main)">
@@ -593,22 +627,17 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           )
         })}
         </g>{/* 关闭主图clipPath */}
-        {/* Y轴价格刻度（在clipPath外，不会被裁掉）- 5档 */}
-        {[0, 0.25, 0.5, 0.75, 1].map((r) => {
-          const v = maxV - span * r
-          return (
-            <text key={r} x={PAD.l - 6} y={PAD.t + priceH * r + 4} textAnchor="end" fontSize="10" fill="#64748b">
-              {v.toFixed(2)}
-            </text>
-          )
-        })}
-        {/* X轴日期标签+竖网格线：均匀取8个点 */}
+        {/* Y轴价格刻度（跟随nice-number，在clipPath外） */}
+        {yTicks.map((v, i) => (
+          <text key={`yt${i}`} x={PAD.l - 6} y={y(v) + 3} textAnchor="end" fontSize="10" fill="#64748b">
+            {v.toFixed(2)}
+          </text>
+        ))}
+        {/* X轴日期标签+竖网格线：动态刻度数量 */}
         {(() => {
-          const n = Math.min(8, data.length)
-          const interval = Math.floor(data.length / n)
           const labels = []
-          for (let i = 0; i < n; i++) {
-            const idx = Math.min(data.length - 1, i * interval)
+          for (let i = 0; i < data.length; i += xInterval) {
+            const idx = Math.min(data.length - 1, i)
             const d = data[idx]
             const x = PAD.l + idx * step + step / 2
             // 日期格式化：根据数据类型智能显示
@@ -635,8 +664,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           }
           return labels.map((l, i) => (
             <g key={i}>
-              {/* X轴竖网格线 */}
-              <line x1={l.x} y1={PAD.t} x2={l.x} y2={H - PAD.b} stroke="#1e293b" strokeWidth="0.5" strokeDasharray="2 4" opacity="0.5" />
+              {/* X轴竖网格线（实线，跟随刻度） */}
+              <line x1={l.x} y1={PAD.t} x2={l.x} y2={H - PAD.b} stroke="#1a2332" strokeWidth="1" />
               <text x={l.x} y={H - 6} textAnchor="middle" fontSize="9.5" fill="#64748b">{l.label}</text>
             </g>
           ))
