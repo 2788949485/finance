@@ -629,8 +629,10 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
           const barX = PAD.l + idx * step + step / 2
           // 判断鼠标是否在主图区域
           const inMainChart = cy >= PAD.t && cy <= PAD.t + priceH
-          // 横线始终画在主图：主图时跟鼠标Y，副图时跟hover K线收盘价
-          const hY = inMainChart ? cy : y(data[idx]?.close ?? data[data.length - 1].close)
+          // 横线始终画在主图：主图时跟鼠标Y(限界)，副图时跟hover K线收盘价
+          const rawHY = inMainChart ? Math.max(PAD.t, Math.min(PAD.t + priceH, cy)) : y(data[idx]?.close ?? data[data.length - 1].close)
+          // 边界限制：横线不能超出主图区域（防止穿到副图）
+          const hY = Math.max(PAD.t, Math.min(PAD.t + priceH, rawHY))
           const val = maxV - ((hY - PAD.t) / vh) * span
           return (
             <g pointerEvents="none">
