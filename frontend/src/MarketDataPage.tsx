@@ -410,8 +410,10 @@ function MarginTab() {
 // ============== Tab4: 北向资金 ==============
 function NorthTab() {
   const [symbol, setSymbol] = useState('600519')
+  const [market, setMarket] = useState<'沪股通' | '深股通'>('沪股通')
   const [overview, setOverview] = useState<{ latest_date: string; latest_net: number | null; cumulative: number | null; history: NorthDay[] } | null>(null)
   const [stockHist, setStockHist] = useState<NorthStockDay[]>([])
+  const [topStocks, setTopStocks] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -420,16 +422,18 @@ function NorthTab() {
     if (!s) return
     setLoading(true); setError('')
     try {
-      const [ov, sh] = await Promise.all([
+      const [ov, sh, ts] = await Promise.all([
         api.get<any>('/api/north-flow/overview'),
         api.get<any>(`/api/north-flow/stock/${s}`),
+        api.get<any>(`/api/north-flow/top-stocks?market=${market}&period=5日排行`),
       ])
-      if (ov.error && sh.error) { setError(ov.error || sh.error); return }
+      if (ov.error && sh.error && ts.error) { setError('全部数据源不可用'); return }
       if (!ov.error) setOverview(ov)
       if (!sh.error) setStockHist(sh.history || [])
+      if (!ts.error) setTopStocks(ts.top || [])
     } catch (e: any) { setError(e.message || '查询失败') }
     finally { setLoading(false) }
-  }, [symbol])
+  }, [symbol, market])
 
   useEffect(() => { query('600519') }, [])
 
@@ -537,6 +541,37 @@ function NorthTab() {
                     <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanToYi(d.hold_value)}</td>
                     <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{d.hold_pct !== null && d.hold_pct !== undefined ? fmtNum(d.hold_pct, 3) + '%' : '—'}</td>
                     <td className={pctClass(d.change_shares)} style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{fmtWanGu(d.change_shares)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 北向持股排行 */}
+          <div className="backtest-trades">
+            <h4 style={{ margin: '16px 0 8px' }}>
+              {market} 北向持股排行（5日资金净流入TOP20）
+              <button className="mode-btn" style={{ marginLeft: 12, padding: '4px 12px', fontSize: 11 }}
+                onClick={() => { const m = market === '沪股通' ? '深股通' : '沪股通'; setMarket(m); setTimeout(() => query(), 0) }}>
+                切换到{market === '沪股通' ? '深股通' : '沪股通'}
+              </button>
+            </h4>
+            <table className="portfolio-table">
+              <thead>
+                <tr><th>代码</th><th>名称</th><th>最新价</th><th>涨跌幅</th><th>主力净流入(亿)</th><th>持股比例</th></tr>
+              </thead>
+              <tbody>
+                {topStocks.length === 0 && <tr><td className="empty-row" colSpan={6}>暂无数据</td></tr>}
+                {topStocks.map((s: any, i: number) => (
+                  <tr key={i}>
+                    <td className="pf-code">{s.code}</td>
+                    <td>{s.name}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{s.price ?? '—'}</td>
+                    <td className={pctClass(s.change_pct)} style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>
+                      {s.change_pct != null ? fmtNum(s.change_pct, 2) + '%' : '—'}
+                    </td>
+                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{s.net_inflow != null ? fmtNum(s.net_inflow / 1e8, 2) : '—'}</td>
+                    <td style={{ fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums' }}>{s.hold_pct != null ? fmtNum(s.hold_pct, 2) + '%' : '—'}</td>
                   </tr>
                 ))}
               </tbody>

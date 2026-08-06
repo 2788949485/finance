@@ -126,58 +126,67 @@ def get_north_flow_stock(symbol: str) -> dict:
 
 
 def get_north_flow_top_stocks(market: str = "沪股通", period: str = "5日排行") -> dict:
-    """北向持股增持排行 TOP20。
+    """北向持股增持排行 TOP20（push2delay接口，实时可用）。
+
+    2024年8月港交所停止实时披露后，用push2delay拉沪深股通成份股资金排行。
 
     Args:
-        market: 北向 / 沪股通 / 深股通
-        period: 今日排行 / 3日排行 / 5日排行 / 10日排行 / 月排行 / 季排行 / 年排行
+        market: 沪股通 / 深股通
+        period: 5日排行 / 10日排行 / 月排行
 
-    返回 {market, period, date, top: [{code, name, hold_shares, hold_value,
-    hold_pct, change_shares, change_value}]}
-    datacenter-web 不通时返回 {"error": "..."}（不 crash）。
+    返回 {market, period, date, top: [{code, name, price, change_pct, net_inflow, hold_pct}]}
     """
-    if not AK_AVAILABLE:
-        return {"error": "akshare 未安装"}
+    from curl_cffi import requests as cq
+
+    # 沪股通=m:1 t:23  深股通=m:0 t:80
+    fs_map = {"沪股通": "m:1 t:23", "深股通": "m:0 t:80"}
+    fs = fs_map.get(market, "m:1 t:23")
+
+    # period转排序字段fid
+    period_map = {"5日排行": "f62", "10日排行": "f164", "月排行": "f184"}
+    fid = period_map.get(period, "f62")
 
     cache_key = f"north_flow:top:{market}:{period}"
 
     def _fetch() -> Optional[dict[str, Any]]:
+        url = "https://push2delay.eastmoney.com/api/qt/clist/get"
+        params = {
+            "pn": 1, "pz": 20, "po": 1, "np": 1,
+            "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+            "fltt": 2, "invt": 2,
+            "fid": fid,
+            "fs": fs,
+            "fields": "f12,f14,f2,f3,f62,f184,f66,f72",
+        }
         try:
-            df = ak.stock_hsgt_hold_stock_em(market=market, indicator=period)
+            r = cq.get(url, params=params, impersonate="chrome", timeout=10)
+            d = r.json()
         except Exception:
             return None
-        if df is None or df.empty:
+        items = d.get("data", {}).get("diff", [])
+        if not items:
             return None
-        df = df.head(20).copy()
         top = []
-        for _, row in df.iterrows():
+        for it in items:
             top.append({
-                "code": str(row.get("代码", "")),
-                "name": str(row.get("名称", "")),
-                "hold_shares": _safe_num(row.get("今日持股-股数"), 0),
-                "hold_value": _safe_num(row.get("今日持股-市值"), 2),
-                "hold_pct": _safe_num(row.get("今日持股-占流通股比"), 4),
-                "change_shares": _safe_num(
-                    row.get(f"{period.split('排')[0]}增持估计-股数"), 0),
-                "change_value": _safe_num(
-                    row.get(f"{period.split('排')[0]}增持估计-市值"), 2),
+                "code": str(it.get("f12", "")),
+                "name": str(it.get("f14", "")),
+                "price": it.get("f2"),
+                "change_pct": it.get("f3"),
+                "net_inflow": it.get("f62"),       # 主力净流入
+                "hold_pct": it.get("f184"),         # 持股比例
             })
-        # 日期列在排行数据中
-        date_val = ""
-        if "日期" in df.columns and len(df):
-            d0 = df.iloc[0].get("日期")
-            date_val = str(d0)
         return {
             "market": market,
             "period": period,
-            "date": date_val,
+            "date": "",
             "top": top,
         }
 
     try:
-        result = cached(cache_key, TTL["financials"], _fetch)
+        result = cached(cache_key, TTL["quote"], _fetch)
     except Exception as e:
         return {"error": f"北向持股排行获取失败：{e}"}
     if result is None:
-        return {"error": "北向持股排行暂不可用（datacenter-web 接口超时，非交易时段常见）"}
+        return {"error": "北向持股排行暂不可用"}
     return result
