@@ -156,7 +156,7 @@ function AnalyzePane() {
               <button className="ghost" style={{ fontSize: 11 }}
                 onClick={async () => {
                   try {
-                    const r = await api.post<any>(`/api/reflection/settle/${ticker}`, {})
+                    await api.post<any>(`/api/reflection/settle/${ticker}`, {})
                     loadReflections(ticker)
                   } catch {}
                 }}>
