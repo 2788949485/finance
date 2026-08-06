@@ -411,7 +411,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 @keyframes flow-spin { to { transform: rotate(360deg); } }
 
 /* ---------- 行情页 ---------- */
-.quote-page { max-width: 1000px; margin: 0 auto; padding: 24px; }
+.quote-page { width: 100%; padding: 16px; box-sizing: border-box; }
 .qp-search { position: relative; margin-bottom: 16px; }
 .qp-search input { width: 100%; padding: 12px 16px; font-size: 14px; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); }
 .qp-search input:focus { outline: none; border-color: var(--accent); }
@@ -439,8 +439,7 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .qp-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .mode-btn { background: none; border: 1px solid var(--border-strong); color: var(--text-2); font-size: 11px; padding: 5px 14px; cursor: pointer; }
 .mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-.qp-meta { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; color: var(--text-2); font-size: 12px; font-family: var(--mono); }
-.qp-meta span { background: var(--muted); border: 1px solid var(--border); padding: 4px 12px; }
+/* .qp-meta removed: PE/PB moved into right-column orderbook */
 
 .compare-input { font-size: 12px; padding: 5px 10px; width: 100px; }
 .compare-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
@@ -1085,13 +1084,15 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .analyst-title { font-size: 14px; font-weight: 500; }
 .analyst-role { font-size: 12px; color: var(--muted); margin-left: auto; font-family: monospace; }
 
-/* 资金流向 + K线形态卡片 */
-.qp-cards { display: flex; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+/* 资金流向 + K线形态卡片（现在垂直堆叠在右栏） */
+.qp-cards { display: flex; flex-direction: column; gap: 12px; }
 .qp-card {
-  flex: 1; min-width: 200px; max-width: 320px;
+  width: 100%;
   background: var(--surface-2); border: 1px solid var(--border);
   padding: 10px 14px; border-radius: var(--radius);
 }
+.qp-right .qp-card { margin-bottom: 12px; }
+.qp-right .qp-card:last-child { margin-bottom: 0; }
 .qp-card-title { font-size: 12px; color: var(--text-2); display: block; margin-bottom: 6px; }
 .qp-card-row { display: flex; align-items: center; gap: 12px; margin: 4px 0; font-size: 13px; }
 .qp-card-desc { font-size: 12px; color: var(--text-2); margin: 4px 0 0; }
@@ -1123,6 +1124,116 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .toolbar-sep {
   width: 1px; height: 16px; background: var(--border);
   margin: 0 4px; display: inline-block; flex-shrink: 0;
+}
+
+/* ==================== 三栏布局（东财式） ==================== */
+.quote-grid {
+  display: grid;
+  grid-template-columns: 220px 1fr 300px;
+  gap: 12px;
+  align-items: start;
+}
+/* 左栏：自选股 */
+.qp-left {
+  display: flex; flex-direction: column; gap: 12px;
+  position: sticky; top: 16px;
+  max-height: calc(100vh - 32px);
+}
+/* 中栏：主区 */
+.qp-center { min-width: 0; }
+.qp-center .qp-main { padding: 16px; }
+/* 右栏：盘口 + 资金 + 形态 */
+.qp-right {
+  display: flex; flex-direction: column; gap: 12px;
+  position: sticky; top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+/* ---------- 自选股面板 ---------- */
+.qp-watchlist {
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; flex-direction: column;
+}
+.qp-watchlist-head {
+  font-size: 11px; color: var(--text-3); font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+}
+.qp-watchlist-add { position: relative; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.qp-watchlist-add input {
+  width: 100%; box-sizing: border-box;
+  padding: 6px 10px; font-size: 12px;
+  background: var(--bg); border: 1px solid var(--border-strong); color: var(--text);
+}
+.qp-watchlist-add input:focus { outline: none; border-color: var(--accent); }
+.qp-watchlist-results { position: absolute; top: 100%; left: 10px; right: 10px; z-index: 30; }
+.qp-watchlist-empty { padding: 16px 12px; font-size: 11px; color: var(--text-3); text-align: center; }
+.qp-watchlist-list { overflow-y: auto; flex: 1; min-height: 0; max-height: 50vh; }
+.qp-watchlist-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.qp-watchlist-item:hover { background: var(--surface-hover); }
+.qp-watchlist-item.active { background: var(--accent-soft); }
+.qp-watchlist-name { flex: 1; color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qp-watchlist-code { font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+.qp-watchlist-chg { font-family: var(--mono); font-size: 11px; margin-left: auto; }
+.qp-watchlist-chg.up { color: var(--up); }
+.qp-watchlist-chg.down { color: var(--down); }
+.qp-watchlist-del {
+  width: 16px; height: 16px; line-height: 14px; text-align: center;
+  background: none; border: none; color: var(--text-3);
+  font-size: 14px; cursor: pointer; padding: 0;
+  opacity: 0; transition: opacity 0.15s;
+}
+.qp-watchlist-item:hover .qp-watchlist-del { opacity: 1; }
+.qp-watchlist-del:hover { color: var(--down); }
+
+/* ---------- 盘口数据表（2行x6列，每行3格） ---------- */
+.qp-orderbook {
+  background: var(--surface); border: 1px solid var(--border);
+  padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.qp-ob-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+.qp-ob-cell {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px 8px; background: var(--surface-2);
+  min-width: 0;
+}
+.qp-ob-label { font-size: 10px; color: var(--text-3); }
+.qp-ob-value { font-family: var(--mono); font-size: 13px; color: var(--text); font-weight: 500; }
+.qp-ob-value.up { color: var(--up); }
+.qp-ob-value.down { color: var(--down); }
+
+/* 行业对比折叠（左栏底部） */
+.qp-left .industry-compare { margin: 0; }
+.qp-left .industry-head {
+  cursor: pointer; list-style: none; padding: 10px 12px;
+  font-size: 11px; color: var(--text-3); font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  background: var(--surface); border: 1px solid var(--border);
+  display: flex; gap: 12px; align-items: center;
+}
+.qp-left .industry-compare[open] .industry-head { border-bottom-color: transparent; }
+.qp-left .industry-peers { padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-top: none; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1280px) {
+  .quote-grid { grid-template-columns: 1fr 300px; }
+  .qp-left { display: none; }
+}
+@media (max-width: 900px) {
+  .quote-grid { grid-template-columns: 1fr; }
+  .qp-left, .qp-right { position: static; max-height: none; }
+  .qp-left { display: none; }
 }
 
 /* ==================== 回测深度分析 ==================== */

@@ -1,4 +1,7 @@
-// 行情页：股票搜索（代码/名称/拼音）+ 大 K线图 + 分时 + 实时刷新 + 新闻
+// 行情页（东财式三栏布局）：搜索栏 → 三栏主区 → 新闻
+//   左栏 220px：自选股列表（常驻）
+//   中栏 1fr ：标题+价格+操作 / 周期工具栏 / K线 / 对比表
+//   右栏 300px：盘口数据表 / 资金流向卡 / K线形态卡
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
@@ -13,6 +16,26 @@ const HOT_FALLBACK = [
 ]
 
 interface SearchItem { market: string; code: string; name: string; type: string }
+
+// 推断市场前缀（watchlist 里的 code 形如 sh600519 / hk00700 / usAAPL / 600519）
+function inferMarket(code: string): string {
+  if (code.startsWith('hk')) return 'hk'
+  if (code.startsWith('us')) return 'us'
+  if (/^(sh|sz|bj)/i.test(code)) return code.slice(0, 2).toLowerCase()
+  if (/^\d{6}$/.test(code)) {
+    const c = code[0]
+    if (c === '6') return 'sh'      // 沪市
+    if (c === '0' || c === '3') return 'sz' // 深市/创业板
+    if (c === '8' || c === '4') return 'bj' // 北交所
+    return 'sh'
+  }
+  return 'sh'
+}
+
+// 把任意 code 归一化为 "纯代码"（去掉市场前缀），后端 quote 接口接受带前缀或不带前缀
+function stripMarket(code: string): string {
+  return code.replace(/^(sh|sz|bj|hk|us)/i, '')
+}
 
 export default function QuotePage() {
   const [query, setQuery] = useState('')
@@ -33,6 +56,8 @@ export default function QuotePage() {
   const [err, setErr] = useState('')
   const [searching, setSearching] = useState(false)
   const [allBars, setAllBars] = useState<KlineBar[]>([])
+  // watchlist 版本号：星标/删除/添加后自增以刷新左栏
+  const [wlVersion, setWlVersion] = useState(0)
   const timerRef = useRef<number | null>(null)
   const searchTimer = useRef<number | null>(null)
 
@@ -188,9 +213,19 @@ export default function QuotePage() {
     setResults([])
   }
 
+  // 自选股点击切换：尝试用名称（拉取 brief 后再展示真实名称）
+  const pickWatchlistCode = (code: string) => {
+    setSelected({ market: inferMarket(code), code: stripMarket(code), name: code, type: 'GP' })
+    setQuery('')
+    setResults([])
+  }
+
   const b = data?.brief as {
     name?: string; price?: number; change_pct?: number
     pe?: number; pb?: number; turnover?: number; market_cap?: number
+    open?: number; pre_close?: number; high?: number; low?: number
+    limit_up?: number; limit_down?: number; volume?: number; amount?: number
+    volume_ratio?: number
   } | undefined
   const change = b?.change_pct ?? 0
   const bars = (data?.kline as KlineBar[])?.filter((k) => k.date && typeof k.close === 'number') ?? []
@@ -198,7 +233,7 @@ export default function QuotePage() {
 
   return (
     <div className="quote-page">
-      {/* 搜索栏 */}
+      {/* 顶部：搜索栏 + 热门股（跨三栏全宽） */}
       <div className="qp-search">
         <input
           value={query}
@@ -220,7 +255,6 @@ export default function QuotePage() {
         )}
       </div>
 
-      {/* 热门默认展示 */}
       <div className="qp-hot">
         {hotItems.map((h) => (
           <button
@@ -233,167 +267,377 @@ export default function QuotePage() {
         ))}
       </div>
 
-      {/* 行情主体 */}
       {err && !data && <div className="error-box">{err}</div>}
+
+      {/* 三栏主区 */}
       {data && (
-        <div className="qp-main">
-          <div className="qp-head">
-            <div className="qp-title">
-              <span className="qp-name">{b?.name ?? selected.name}</span>
-              <span className="qp-code">{selected.code}</span>
-            </div>
-            <div className={`qp-price ${change >= 0 ? 'up' : 'down'}`}>
-              {b?.price ?? '--'} <small>{change >= 0 ? '+' : ''}{change}%</small>
-            </div>
-            <div className="qp-actions">
-              <StarButton code={selected.code} />
-              <input
-                className="compare-input"
-                placeholder="对比代码"
-                value={compareCode}
-                onChange={(e) => setCompareCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && compareCode.trim()) {
-                    api.getQuote(compareCode.trim(), 1, 'day', 0)
-                      .then((q) => setCompareData(q))
-                      .catch(() => setCompareData(null))
-                  }
-                }}
-              />
-              {compareData && <button className="mode-btn" onClick={() => { setCompareData(null); setCompareCode('') }}>清除对比</button>}
-              <button className={`live-btn ${live ? 'on' : ''}`} onClick={() => setLive((v) => !v)}>
-                {live ? '● 实时' : '○ 实时'}
-              </button>
-            </div>
-          </div>
-
-          {/* 周期切换工具栏 - 单独一行 */}
-          <div className="qp-toolbar">
-            <select className="period-select" value={multiDay ? `day${multiDay}` : (mode === 'minute' && !multiDay ? 'minute' : 'none')} onChange={(e) => {
-              const v = e.target.value
-              if (v === 'minute') { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }
-              else if (v.startsWith('day')) { const n = parseInt(v.slice(3)); setMode('day'); setMultiDay(n); setPeriod(''); loadMultiDay(selected.code, n) }
-            }}>
-              <option value="none" disabled>选择分时</option>
-              <option value="minute">分时</option>
-              <option value="day2">2日</option>
-              <option value="day3">3日</option>
-              <option value="day4">4日</option>
-              <option value="day5">5日</option>
-            </select>
-            <span className="toolbar-sep" />
-            <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
-            <button className={`mode-btn ${period === 'week' ? 'active' : ''}`} onClick={() => { setPeriod('week'); setMode('day'); loadPeriod(selected.code, 'week') }}>周K</button>
-            <button className={`mode-btn ${period === 'month' ? 'active' : ''}`} onClick={() => { setPeriod('month'); setMode('day'); loadPeriod(selected.code, 'month') }}>月K</button>
-            <span className="toolbar-sep" />
-            <button className={`mode-btn ${period === '5min' ? 'active' : ''}`} onClick={() => { setPeriod('5min'); setMode('day'); loadPeriod(selected.code, '5min') }}>5分</button>
-            <button className={`mode-btn ${period === '15min' ? 'active' : ''}`} onClick={() => { setPeriod('15min'); setMode('day'); loadPeriod(selected.code, '15min') }}>15分</button>
-            <button className={`mode-btn ${period === '30min' ? 'active' : ''}`} onClick={() => { setPeriod('30min'); setMode('day'); loadPeriod(selected.code, '30min') }}>30分</button>
-            <button className={`mode-btn ${period === '60min' ? 'active' : ''}`} onClick={() => { setPeriod('60min'); setMode('day'); loadPeriod(selected.code, '60min') }}>60分</button>
-            <span className="toolbar-sep" />
-            <button className={`mode-btn ${subIndicator === 'macd' ? 'active' : ''}`} onClick={() => setSubIndicator('macd')}>MACD</button>
-            <button className={`mode-btn ${subIndicator === 'kdj' ? 'active' : ''}`} onClick={() => setSubIndicator('kdj')}>KDJ</button>
-            <span className="toolbar-sep" />
-            <button className="mode-btn" onClick={() => setKlineFullscreen(true)}>全屏</button>
-          </div>
-
-          <div className="qp-meta">
-            {b?.pe != null && <span>PE {b.pe}</span>}
-            {b?.pb != null && <span>PB {b.pb}</span>}
-            {b?.turnover != null && <span>换手 {b.turnover}%</span>}
-            {b?.market_cap != null && <span>市值 {b.market_cap}亿</span>}
-          </div>
-
-          {/* 资金流向 + K线形态 */}
-          {data && (
-            <div className="qp-cards">
-              <FundFlowCard code={selected.code} />
-              <PatternCard code={selected.code} />
-            </div>
-          )}
-
-          {/* 对比表格 */}
-          {compareData && compareData.brief && (() => {
-            const cb = compareData.brief as any
-            const rows: [string, any, any][] = [
-              ['名称', b?.name ?? selected.name, cb?.name ?? compareCode],
-              ['现价', b?.price ?? '--', cb?.price ?? '--'],
-              ['涨跌幅', `${(b?.change_pct ?? 0) >= 0 ? '+' : ''}${b?.change_pct ?? '--'}%`, `${(cb?.change_pct ?? 0) >= 0 ? '+' : ''}${cb?.change_pct ?? '--'}%`],
-              ['PE', b?.pe ?? '--', cb?.pe ?? '--'],
-              ['PB', b?.pb ?? '--', cb?.pb ?? '--'],
-              ['换手率', b?.turnover != null ? `${b.turnover}%` : '--', cb?.turnover != null ? `${cb.turnover}%` : '--'],
-              ['市值(亿)', b?.market_cap ?? '--', cb?.market_cap ?? '--'],
-            ]
-            return (
-              <table className="compare-table">
-                <thead><tr><th>指标</th><th>{b?.name ?? selected.name}</th><th>{cb?.name ?? compareCode}</th></tr></thead>
-                <tbody>
-                  {rows.map(([label, v1, v2], i) => (
-                    <tr key={i}>
-                      <td className="compare-label">{label}</td>
-                      <td>{v1}</td>
-                      <td>{v2}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )
-          })()}
-
-          {/* 行业对比 */}
-          {industry && industry.peers.length > 0 && (
-            <div className="industry-compare">
-              <div className="industry-head">
-                行业对比
-                {industry.avg_pe && <span className="industry-avg">行业均PE {industry.avg_pe}</span>}
-                {industry.avg_pb && <span className="industry-avg">均PB {industry.avg_pb}</span>}
-              </div>
-              <div className="industry-peers">
-                {industry.peers.map((p) => (
-                  <div key={p.code} className={`industry-peer ${p.is_target ? 'target' : ''}`}>
-                    <span className="industry-name">{p.name}</span>
-                    <span className="industry-code">{p.code}</span>
-                    <span className="industry-pe">PE {p.pe?.toFixed(1) ?? '--'}</span>
-                    <span className="industry-pb">PB {p.pb?.toFixed(2) ?? '--'}</span>
-                    <span className={`industry-chg ${(p.change_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
-                      {p.change_pct != null ? `${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="qp-chart">
-            <KLineChart
-              bars={allBars.length > 60 ? allBars : bars}
-              minute={minute}
-              lastClose={data.last_close ?? null}
-              symbol={b?.name ?? selected.name}
-              mode={mode}
-              onMode={(m) => { setMode(m); load(selected.code, m, 0) }}
-              dataDate={data.data_date}
-              isToday={data.is_today}
-              subIndicator={subIndicator}
-              onSubIndicator={setSubIndicator}
-              fullscreen={klineFullscreen}
-              onFullscreen={setKlineFullscreen}
+        <div className="quote-grid">
+          {/* ========== 左栏：自选股 ========== */}
+          <aside className="qp-left">
+            <WatchlistPanel
+              currentCode={selected.code}
+              wlVersion={wlVersion}
+              onPick={pickWatchlistCode}
+              onAdd={async (codeToAdd) => {
+                try {
+                  const p = await api.getProfile()
+                  const list = p.watchlist || []
+                  const next = [...new Set([...list, codeToAdd])]
+                  await api.saveProfile({ watchlist: next })
+                  setWlVersion((v) => v + 1)
+                } catch { /* ignore */ }
+              }}
+              onRemove={async (codeToRemove) => {
+                try {
+                  const p = await api.getProfile()
+                  const list = p.watchlist || []
+                  const next = list.filter((c) => c !== codeToRemove)
+                  await api.saveProfile({ watchlist: next })
+                  setWlVersion((v) => v + 1)
+                } catch { /* ignore */ }
+              }}
             />
-          </div>
 
-          {news.length > 0 && (
-            <div className="qp-news">
-              <div className="qp-news-head">最新新闻</div>
-              {news.map((n, i) => (
-                <div className="quote-news-item" key={i}>
-                  <span className="quote-news-time">{n.time.slice(5, 16)}</span>
-                  <span className="quote-news-title">{n.title}</span>
+            {/* 行业对比移到左栏底部 */}
+            {industry && industry.peers.length > 0 && (
+              <details className="industry-compare">
+                <summary className="industry-head">行业对比 {industry.avg_pe != null && <span className="industry-avg">均PE {industry.avg_pe}</span>}</summary>
+                <div className="industry-peers">
+                  {industry.peers.map((p) => (
+                    <div key={p.code} className={`industry-peer ${p.is_target ? 'target' : ''}`}>
+                      <span className="industry-name">{p.name}</span>
+                      <span className="industry-code">{p.code}</span>
+                      <span className="industry-pe">PE {p.pe?.toFixed(1) ?? '--'}</span>
+                      <span className="industry-pb">PB {p.pb?.toFixed(2) ?? '--'}</span>
+                      <span className={`industry-chg ${(p.change_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
+                        {p.change_pct != null ? `${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%` : ''}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </details>
+            )}
+          </aside>
+
+          {/* ========== 中栏：标题+操作 / 周期 / K线 / 对比 ========== */}
+          <main className="qp-center">
+            <div className="qp-main">
+              <div className="qp-head">
+                <div className="qp-title">
+                  <span className="qp-name">{b?.name ?? selected.name}</span>
+                  <span className="qp-code">{selected.code}</span>
+                </div>
+                <div className={`qp-price ${change >= 0 ? 'up' : 'down'}`}>
+                  {b?.price ?? '--'} <small>{change >= 0 ? '+' : ''}{change}%</small>
+                </div>
+                <div className="qp-actions">
+                  <StarButton code={selected.code} />
+                  <input
+                    className="compare-input"
+                    placeholder="对比代码"
+                    value={compareCode}
+                    onChange={(e) => setCompareCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && compareCode.trim()) {
+                        api.getQuote(compareCode.trim(), 1, 'day', 0)
+                          .then((q) => setCompareData(q))
+                          .catch(() => setCompareData(null))
+                      }
+                    }}
+                  />
+                  {compareData && <button className="mode-btn" onClick={() => { setCompareData(null); setCompareCode('') }}>清除对比</button>}
+                  <button className={`live-btn ${live ? 'on' : ''}`} onClick={() => setLive((v) => !v)}>
+                    {live ? '● 实时' : '○ 实时'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 周期切换工具栏 - 单独一行 */}
+              <div className="qp-toolbar">
+                <select className="period-select" value={multiDay ? `day${multiDay}` : (mode === 'minute' && !multiDay ? 'minute' : 'none')} onChange={(e) => {
+                  const v = e.target.value
+                  if (v === 'minute') { setMode('minute'); setPeriod(''); setMultiDay(0); load(selected.code, 'minute', 0) }
+                  else if (v.startsWith('day')) { const n = parseInt(v.slice(3)); setMode('day'); setMultiDay(n); setPeriod(''); loadMultiDay(selected.code, n) }
+                }}>
+                  <option value="none" disabled>选择分时</option>
+                  <option value="minute">分时</option>
+                  <option value="day2">2日</option>
+                  <option value="day3">3日</option>
+                  <option value="day4">4日</option>
+                  <option value="day5">5日</option>
+                </select>
+                <span className="toolbar-sep" />
+                <button className={`mode-btn ${mode === 'day' && period === 'day' ? 'active' : ''}`} onClick={() => { setMode('day'); setPeriod('day'); load(selected.code, 'day', 0) }}>日K</button>
+                <button className={`mode-btn ${period === 'week' ? 'active' : ''}`} onClick={() => { setPeriod('week'); setMode('day'); loadPeriod(selected.code, 'week') }}>周K</button>
+                <button className={`mode-btn ${period === 'month' ? 'active' : ''}`} onClick={() => { setPeriod('month'); setMode('day'); loadPeriod(selected.code, 'month') }}>月K</button>
+                <span className="toolbar-sep" />
+                <button className={`mode-btn ${period === '5min' ? 'active' : ''}`} onClick={() => { setPeriod('5min'); setMode('day'); loadPeriod(selected.code, '5min') }}>5分</button>
+                <button className={`mode-btn ${period === '15min' ? 'active' : ''}`} onClick={() => { setPeriod('15min'); setMode('day'); loadPeriod(selected.code, '15min') }}>15分</button>
+                <button className={`mode-btn ${period === '30min' ? 'active' : ''}`} onClick={() => { setPeriod('30min'); setMode('day'); loadPeriod(selected.code, '30min') }}>30分</button>
+                <button className={`mode-btn ${period === '60min' ? 'active' : ''}`} onClick={() => { setPeriod('60min'); setMode('day'); loadPeriod(selected.code, '60min') }}>60分</button>
+                <span className="toolbar-sep" />
+                <button className={`mode-btn ${subIndicator === 'macd' ? 'active' : ''}`} onClick={() => setSubIndicator('macd')}>MACD</button>
+                <button className={`mode-btn ${subIndicator === 'kdj' ? 'active' : ''}`} onClick={() => setSubIndicator('kdj')}>KDJ</button>
+                <span className="toolbar-sep" />
+                <button className="mode-btn" onClick={() => setKlineFullscreen(true)}>全屏</button>
+              </div>
+
+              <div className="qp-chart">
+                <KLineChart
+                  bars={allBars.length > 60 ? allBars : bars}
+                  minute={minute}
+                  lastClose={data.last_close ?? null}
+                  symbol={b?.name ?? selected.name}
+                  mode={mode}
+                  onMode={(m) => { setMode(m); load(selected.code, m, 0) }}
+                  dataDate={data.data_date}
+                  isToday={data.is_today}
+                  subIndicator={subIndicator}
+                  onSubIndicator={setSubIndicator}
+                  fullscreen={klineFullscreen}
+                  onFullscreen={setKlineFullscreen}
+                />
+              </div>
+
+              {/* 对比表格（K线下方） */}
+              {compareData && compareData.brief && (() => {
+                const cb = compareData.brief as any
+                const rows: [string, any, any][] = [
+                  ['名称', b?.name ?? selected.name, cb?.name ?? compareCode],
+                  ['现价', b?.price ?? '--', cb?.price ?? '--'],
+                  ['涨跌幅', `${(b?.change_pct ?? 0) >= 0 ? '+' : ''}${b?.change_pct ?? '--'}%`, `${(cb?.change_pct ?? 0) >= 0 ? '+' : ''}${cb?.change_pct ?? '--'}%`],
+                  ['PE', b?.pe ?? '--', cb?.pe ?? '--'],
+                  ['PB', b?.pb ?? '--', cb?.pb ?? '--'],
+                  ['换手率', b?.turnover != null ? `${b.turnover}%` : '--', cb?.turnover != null ? `${cb.turnover}%` : '--'],
+                  ['市值(亿)', b?.market_cap ?? '--', cb?.market_cap ?? '--'],
+                ]
+                return (
+                  <table className="compare-table">
+                    <thead><tr><th>指标</th><th>{b?.name ?? selected.name}</th><th>{cb?.name ?? compareCode}</th></tr></thead>
+                    <tbody>
+                      {rows.map(([label, v1, v2], i) => (
+                        <tr key={i}>
+                          <td className="compare-label">{label}</td>
+                          <td>{v1}</td>
+                          <td>{v2}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              })()}
             </div>
-          )}
+          </main>
+
+          {/* ========== 右栏：盘口 + 资金流向 + K线形态 ========== */}
+          <aside className="qp-right">
+            <OrderBookPanel brief={data.brief as any} />
+            <FundFlowCard code={selected.code} />
+            <PatternCard code={selected.code} />
+          </aside>
         </div>
       )}
+
+      {/* 底部新闻（跨三栏全宽） */}
+      {news.length > 0 && (
+        <div className="qp-news">
+          <div className="qp-news-head">最新新闻</div>
+          {news.map((n, i) => (
+            <div className="quote-news-item" key={i}>
+              <span className="quote-news-time">{n.time.slice(5, 16)}</span>
+              <span className="quote-news-title">{n.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ========== 左栏：自选股面板 ==========
+function WatchlistPanel({
+  currentCode, wlVersion, onPick, onAdd, onRemove,
+}: {
+  currentCode: string
+  wlVersion: number
+  onPick: (code: string) => void
+  onAdd: (code: string) => void
+  onRemove: (code: string) => void
+}) {
+  const [codes, setCodes] = useState<string[]>([])
+  const [items, setItems] = useState<{ code: string; name: string; price?: number; change_pct?: number }[]>([])
+  const [loading, setLoading] = useState(false)
+  const [addInput, setAddInput] = useState('')
+  const [searchHits, setSearchHits] = useState<SearchItem[]>([])
+
+  // 1) 拉取自选股 code 列表
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    api.getProfile().then((p) => {
+      if (!cancelled) { setCodes(p.watchlist || []); setLoading(false) }
+    }).catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [wlVersion])
+
+  // 2) 根据 code 列表并发拉取行情（名称+价格+涨跌幅）
+  useEffect(() => {
+    if (codes.length === 0) { setItems([]); return }
+    let cancelled = false
+    const results: { code: string; name: string; price?: number; change_pct?: number }[] = []
+    let done = 0
+    codes.forEach((code) => {
+      api.getQuote(code, 1, 'day', 0).then((q) => {
+        if (cancelled) return
+        const bf = q.brief as any
+        results.push({ code, name: bf?.name ?? code, price: bf?.price, change_pct: bf?.change_pct })
+      }).catch(() => {
+        if (!cancelled) results.push({ code, name: code })
+      }).finally(() => {
+        done += 1
+        if (!cancelled && done === codes.length) setItems([...results])
+      })
+    })
+    return () => { cancelled = true }
+  }, [codes])
+
+  const onSearchAdd = (v: string) => {
+    setAddInput(v)
+    if (!v.trim()) { setSearchHits([]); return }
+    // 复用搜索防抖
+    window.clearTimeout((onSearchAdd as any)._t)
+    ;(onSearchAdd as any)._t = window.setTimeout(async () => {
+      try {
+        const r = await api.search(v.trim())
+        setSearchHits(r.results.slice(0, 5))
+      } catch { setSearchHits([]) }
+    }, 300)
+  }
+
+  const commitAdd = (code: string) => {
+    onAdd(code)
+    setAddInput('')
+    setSearchHits([])
+  }
+
+  return (
+    <div className="qp-watchlist">
+      <div className="qp-watchlist-head">自选股</div>
+
+      <div className="qp-watchlist-add">
+        <input
+          value={addInput}
+          onChange={(e) => onSearchAdd(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              if (searchHits.length > 0) {
+                commitAdd(`${inferMarket(searchHits[0].code)}${searchHits[0].code}`)
+              } else if (addInput.trim()) {
+                // 纯代码兜底
+                const c = addInput.trim()
+                commitAdd(/^\d{6}$/.test(c) || /^(sh|sz|hk|us)/i.test(c) ? c : `sh${c}`)
+              }
+            }
+          }}
+          placeholder="添加代码/名称"
+        />
+        {searchHits.length > 0 && (
+          <div className="qp-results qp-watchlist-results">
+            {searchHits.map((r) => (
+              <button key={r.code} className="qp-result" onClick={() => commitAdd(`${inferMarket(r.code)}${r.code}`)}>
+                <span className={`qp-market m-${r.market}`}>{r.market.toUpperCase()}</span>
+                <span className="qp-name">{r.name}</span>
+                <span className="qp-code">{r.code}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {loading && <div className="qp-watchlist-empty">加载中...</div>}
+      {!loading && codes.length === 0 && (
+        <div className="qp-watchlist-empty">暂无自选股，搜索添加</div>
+      )}
+      <div className="qp-watchlist-list">
+        {items.map((it) => {
+          const stripCode = stripMarket(it.code)
+          const active = stripCode === currentCode || it.code === currentCode
+          const chg = it.change_pct
+          return (
+            <div
+              key={it.code}
+              className={`qp-watchlist-item ${active ? 'active' : ''}`}
+              onClick={() => onPick(it.code)}
+            >
+              <span className="qp-watchlist-name">{it.name}</span>
+              <span className="qp-watchlist-code">{stripCode}</span>
+              <span className={`qp-watchlist-chg ${chg == null ? '' : chg >= 0 ? 'up' : 'down'}`}>
+                {chg != null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%` : (it.price != null ? it.price : '--')}
+              </span>
+              <button
+                className="qp-watchlist-del"
+                title="移除"
+                onClick={(e) => { e.stopPropagation(); onRemove(it.code) }}
+              >×</button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ========== 右栏：盘口数据表 ==========
+function OrderBookPanel({ brief }: { brief: Record<string, unknown> }) {
+  const b = brief as {
+    name?: string
+    open?: number; pre_close?: number; high?: number; low?: number
+    limit_up?: number; limit_down?: number
+    volume?: number; amount?: number; turnover?: number; volume_ratio?: number
+    pe?: number; pb?: number; market_cap?: number
+    circ_market_cap?: number
+    price?: number; change_pct?: number
+  }
+  // 港股/美股没有涨跌停概念，按是否存在判断
+  const hasLimit = b.limit_up != null || b.limit_down != null
+
+  // 单元格：label + value，涨跌上色（红涨绿跌中国习惯 = up/down 变量）
+  const Cell = ({ label, value, tone }: { label: string; value: React.ReactNode; tone?: 'up' | 'down' }) => (
+    <div className="qp-ob-cell">
+      <span className="qp-ob-label">{label}</span>
+      <span className={`qp-ob-value ${tone ?? ''}`}>{value}</span>
+    </div>
+  )
+
+  const fmtNum = (v?: number) => (v == null ? '--' : v.toFixed(2))
+  const fmtVol = (v?: number) => (v == null ? '--' : v >= 10000 ? (v / 10000).toFixed(2) + '万手' : v.toFixed(0) + '手')
+  const fmtAmt = (v?: number) => (v == null ? '--' : v >= 10000 ? (v / 10000).toFixed(2) + '亿' : v.toFixed(0) + '万')
+  const fmtCap = (v?: number) => (v == null ? '--' : v >= 10000 ? (v / 10000).toFixed(2) + '万亿' : v.toFixed(1) + '亿')
+
+  return (
+    <div className="qp-orderbook">
+      <div className="qp-ob-row">
+        <Cell label="今开" value={fmtNum(b.open)} tone={b.open != null && b.pre_close != null ? (b.open >= b.pre_close ? 'up' : 'down') : undefined} />
+        <Cell label="昨收" value={fmtNum(b.pre_close)} />
+        <Cell label="最高" value={fmtNum(b.high)} tone={b.high != null && b.pre_close != null ? (b.high >= b.pre_close ? 'up' : 'down') : undefined} />
+        <Cell label="最低" value={fmtNum(b.low)} tone={b.low != null && b.pre_close != null ? (b.low >= b.pre_close ? 'up' : 'down') : undefined} />
+        <Cell label="涨停" value={hasLimit ? fmtNum(b.limit_up) : '--'} tone="up" />
+        <Cell label="跌停" value={hasLimit ? fmtNum(b.limit_down) : '--'} tone="down" />
+      </div>
+      <div className="qp-ob-row">
+        <Cell label="成交量" value={fmtVol(b.volume)} />
+        <Cell label="成交额" value={fmtAmt(b.amount)} />
+        <Cell label="换手率" value={b.turnover != null ? `${b.turnover}%` : '--'} />
+        <Cell label="量比" value={fmtNum(b.volume_ratio)} />
+        <Cell label="PE" value={fmtNum(b.pe)} />
+        <Cell label="PB" value={fmtNum(b.pb)} />
+      </div>
+      <div className="qp-ob-row">
+        <Cell label="总市值" value={fmtCap(b.market_cap)} />
+        <Cell label="流通市值" value={fmtCap(b.circ_market_cap)} />
+        <Cell label="现价" value={fmtNum(b.price)} tone={b.change_pct != null ? (b.change_pct >= 0 ? 'up' : 'down') : undefined} />
+        <Cell label="涨跌幅" value={b.change_pct != null ? `${b.change_pct >= 0 ? '+' : ''}${b.change_pct}%` : '--'} tone={b.change_pct != null ? (b.change_pct >= 0 ? 'up' : 'down') : undefined} />
+      </div>
     </div>
   )
 }
