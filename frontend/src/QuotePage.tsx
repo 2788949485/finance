@@ -40,7 +40,7 @@ function stripMarket(code: string): string {
 export default function QuotePage() {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchItem[]>([])
-  const [selected, setSelected] = useState<SearchItem>({ market: 'sh', code: '600519', name: '贵州茅台', type: 'GP' })
+  const [selected, setSelected] = useState<SearchItem>({ market: 'sh', code: '', name: '', type: 'GP' })
   const [hotItems, setHotItems] = useState(HOT_FALLBACK)
   const [compareCode, setCompareCode] = useState('')
   const [compareData, setCompareData] = useState<QuoteResponse | null>(null)
@@ -60,6 +60,40 @@ export default function QuotePage() {
   const [wlVersion, setWlVersion] = useState(0)
   const timerRef = useRef<number | null>(null)
   const searchTimer = useRef<number | null>(null)
+
+  // 初始化：优先从自选股取第一只，没有则用热门股第一只
+  useEffect(() => {
+    api.getProfile().then(async (p) => {
+      const wl = p.watchlist || []
+      if (wl.length > 0) {
+        // 自选股第一只
+        const code = wl[0]
+        const market = code.startsWith('hk') ? 'hk' : code.startsWith('us') ? 'us' : code.startsWith('sz') ? 'sz' : 'sh'
+        const pureCode = code.replace(/^(sh|sz|hk|us)/, '')
+        try {
+          const q = await api.getQuote(code, 1, 'day', 0)
+          const name = (q.brief as any)?.name ?? pureCode
+          setSelected({ market, code, name, type: 'GP' })
+          setQuery(name)
+        } catch {
+          // 自选股获取失败，用热门股
+          const h = HOT_FALLBACK[0]
+          setSelected({ market: h.code.startsWith('hk') ? 'hk' : h.code.startsWith('us') ? 'us' : 'sh', code: h.code, name: h.name, type: 'GP' })
+          setQuery(h.name)
+        }
+      } else {
+        // 无自选股，用热门股第一只
+        const h = HOT_FALLBACK[0]
+        setSelected({ market: h.code.startsWith('hk') ? 'hk' : h.code.startsWith('us') ? 'us' : 'sh', code: h.code, name: h.name, type: 'GP' })
+        setQuery(h.name)
+      }
+    }).catch(() => {
+      // 未登录，用热门股
+      const h = HOT_FALLBACK[0]
+      setSelected({ market: h.code.startsWith('hk') ? 'hk' : h.code.startsWith('us') ? 'us' : 'sh', code: h.code, name: h.name, type: 'GP' })
+      setQuery(h.name)
+    })
+  }, [])
 
   // 加载每日热门股票
   useEffect(() => {
