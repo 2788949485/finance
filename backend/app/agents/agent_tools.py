@@ -140,6 +140,21 @@ def get_industry_compare(ticker: str) -> str:
         return f"行业对比获取失败: {e}"
 
 
+@tool("web_search", "联网搜索最新新闻/政策/行业动态/公司公告(实时信息)")
+def web_search(query: str) -> str:
+    """联网搜索 -- 用LangChain DuckDuckGoSearchRun。
+    需要FiClash代理7890(环境变量HTTPS_PROXY)。
+    query: 搜索关键词（如'贵州茅台 2024年业绩'或'A股降准政策'）"""
+    import os
+    os.environ.setdefault("HTTPS_PROXY", "http://127.0.0.1:7890")
+    os.environ.setdefault("HTTP_PROXY", "http://127.0.0.1:7890")
+    try:
+        from langchain_community.tools import DuckDuckGoSearchRun
+        search = DuckDuckGoSearchRun()
+        result = search.invoke(query)
+        return result[:800] if result else "搜索无结果"
+    except Exception as e:
+        return f"搜索失败: {e}"
 @tool("get_reflection", "获取该股票的历史决策反思经验")
 def get_reflection(ticker: str) -> str:
     try:
@@ -155,11 +170,11 @@ def get_reflection(ticker: str) -> str:
 
 # 每个分析师角色对应可用的工具集（最小权限原则）
 ANALYST_TOOLS: dict[str, list[str]] = {
-    "macro": ["get_quote", "get_news", "get_industry_compare"],
-    "fundamental": ["get_quote", "get_financials", "get_industry_compare"],
-    "tech": ["get_quote", "get_kline"],
-    "sentiment": ["get_quote", "get_news", "get_lhb", "get_reflection"],
-    "capital": ["get_quote", "get_kline", "get_lhb", "get_reflection"],
+    "macro": ["get_quote", "get_news", "get_industry_compare", "web_search"],
+    "fundamental": ["get_quote", "get_financials", "get_industry_compare", "web_search"],
+    "tech": ["get_quote", "get_kline", "web_search"],
+    "sentiment": ["get_quote", "get_news", "get_lhb", "get_reflection", "web_search"],
+    "capital": ["get_quote", "get_kline", "get_lhb", "get_reflection", "web_search"],
 }
 
 
@@ -176,7 +191,8 @@ def build_tool_descriptions(role: str) -> str:
     for n in names:
         fn = TOOL_REGISTRY.get(n)
         if fn:
-            # 用注册名 n 作为权威名字（函数可能被替换/lambda 无装饰器属性）
             desc = getattr(fn, "__tool_desc__", "") or ""
-            lines.append(f"- {n}(ticker): {desc}")
+            # web_search参数是query不是ticker
+            param = "query" if n == "web_search" else "ticker"
+            lines.append(f"- {n}({param}): {desc}")
     return "\n".join(lines)

@@ -97,7 +97,12 @@ class AgenticAnalyst(Agent):
                         fn = TOOL_REGISTRY.get(tool_name)
                         if fn:
                             try:
-                                result = fn(ticker)
+                                # web_search参数是query不是ticker
+                                if tool_name == "web_search":
+                                    search_query = tc.get("args", {}).get("query", ticker)
+                                    result = fn(search_query)
+                                else:
+                                    result = fn(ticker)
                                 tool_results_text.append(f"[{tool_name}]\n{result}")
                                 if on_tool:
                                     try:
@@ -153,7 +158,15 @@ class AgenticAnalyst(Agent):
                     fn = TOOL_REGISTRY.get(tn)
                     if fn:
                         try:
-                            r = fn(ticker)
+                            if tn == "web_search":
+                                # web_search参数从TOOL:行提取query
+                                q = tl.split("TOOL:")[1].strip()
+                                # 去掉工具名，剩下的是query
+                                q_parts = q.split(None, 1)
+                                query = q_parts[1] if len(q_parts) > 1 else ticker
+                                r = fn(query)
+                            else:
+                                r = fn(ticker)
                             tool_results.append(f"[{tn}]\n{r}")
                         except Exception as e:
                             tool_results.append(f"[{tn}] 失败: {e}")
