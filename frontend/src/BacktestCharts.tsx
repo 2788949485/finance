@@ -11,6 +11,20 @@ const ACCENT = '#10b981'
 const GRID = '#1f2937'
 const AXIS = '#6b7280'
 
+// 通用图例条
+function LegendBar({ items }: { items: { color: string; label: string }[] }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 11, color: AXIS, marginTop: 6, marginBottom: 4 }}>
+      {items.map((it, i) => (
+        <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ display: 'inline-block', width: 12, height: 12, background: it.color, borderRadius: 0, border: '1px solid #374151' }} />
+          {it.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 // ============ 权益曲线 + 回撤水下图 ============
 export function EquityChart({ curve, initialCapital }: { curve: { date: string; value: number }[]; initialCapital?: number }) {
   if (!curve || curve.length < 2) return <div style={{ padding: 20, color: AXIS }}>数据不足</div>
@@ -23,26 +37,32 @@ export function EquityChart({ curve, initialCapital }: { curve: { date: string; 
   const initCap = initialCapital ?? curve[0]?.value ?? 100000
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <AreaChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={ACCENT} stopOpacity={0.3} />
-            <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke={GRID} opacity={0.4} />
-        <XAxis dataKey="date" stroke={AXIS} fontSize={10} interval={Math.max(1, Math.floor(data.length / 8))} />
-        <YAxis stroke={AXIS} fontSize={11} tickFormatter={v => (v / 10000).toFixed(1) + '万'} domain={['auto', 'auto']} />
-        <Tooltip
-          contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 0, fontSize: 12 }}
-          labelStyle={{ color: '#9ca3af' }}
-          formatter={(v: any) => [Number(v).toLocaleString() + '元', '权益']}
-        />
-        <ReferenceLine y={initCap} stroke="#4b5563" strokeDasharray="4 2" label={{ value: '初始资金', fill: AXIS, fontSize: 10, position: 'insideTopLeft' }} />
-        <Area type="monotone" dataKey="equity" stroke={ACCENT} strokeWidth={1.5} fill="url(#equityGrad)" />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div>
+      <LegendBar items={[
+        { color: ACCENT, label: '策略权益' },
+        { color: '#4b5563', label: '初始资金基准线' },
+      ]} />
+      <ResponsiveContainer width="100%" height={260}>
+        <AreaChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ACCENT} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={ACCENT} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={GRID} opacity={0.4} />
+          <XAxis dataKey="date" stroke={AXIS} fontSize={10} interval={Math.max(1, Math.floor(data.length / 8))} />
+          <YAxis stroke={AXIS} fontSize={11} tickFormatter={v => (v / 10000).toFixed(1) + '万'} domain={['auto', 'auto']} />
+          <Tooltip
+            contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 0, fontSize: 12 }}
+            labelStyle={{ color: '#9ca3af' }}
+            formatter={(v: any) => [Number(v).toLocaleString() + '元', '权益']}
+          />
+          <ReferenceLine y={initCap} stroke="#4b5563" strokeDasharray="4 2" label={{ value: '初始资金', fill: AXIS, fontSize: 10, position: 'insideTopLeft' }} />
+          <Area type="monotone" dataKey="equity" stroke={ACCENT} strokeWidth={1.5} fill="url(#equityGrad)" />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -59,26 +79,32 @@ export function DrawdownChart({ curve }: { curve: { date: string; value: number 
   })
 
   return (
-    <ResponsiveContainer width="100%" height={140}>
-      <AreaChart data={ddData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={DOWN} stopOpacity={0} />
-            <stop offset="100%" stopColor={DOWN} stopOpacity={0.4} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke={GRID} opacity={0.3} />
-        <XAxis dataKey="date" stroke={AXIS} fontSize={10} interval={Math.max(1, Math.floor(ddData.length / 8))} />
-        <YAxis stroke={AXIS} fontSize={11} tickFormatter={v => v + '%'} />
-        <Tooltip
-          contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 0, fontSize: 12 }}
-          labelStyle={{ color: '#9ca3af' }}
-          formatter={(v: any) => [v.toFixed(2) + '%', '回撤']}
-        />
-        <ReferenceLine y={0} stroke="#4b5563" />
-        <Area type="monotone" dataKey="drawdown" stroke={DOWN} strokeWidth={1} fill="url(#ddGrad)" />
-      </AreaChart>
-    </ResponsiveContainer>
+    <div>
+      <LegendBar items={[
+        { color: DOWN, label: '回撤深度（从峰值下跌%）' },
+        { color: '#4b5563', label: '0%基准线（无回撤）' },
+      ]} />
+      <ResponsiveContainer width="100%" height={140}>
+        <AreaChart data={ddData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="ddGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={DOWN} stopOpacity={0} />
+              <stop offset="100%" stopColor={DOWN} stopOpacity={0.4} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={GRID} opacity={0.3} />
+          <XAxis dataKey="date" stroke={AXIS} fontSize={10} interval={Math.max(1, Math.floor(ddData.length / 8))} />
+          <YAxis stroke={AXIS} fontSize={11} tickFormatter={v => v + '%'} />
+          <Tooltip
+            contentStyle={{ background: '#111827', border: '1px solid #374151', borderRadius: 0, fontSize: 12 }}
+            labelStyle={{ color: '#9ca3af' }}
+            formatter={(v: any) => [v.toFixed(2) + '%', '回撤']}
+          />
+          <ReferenceLine y={0} stroke="#4b5563" />
+          <Area type="monotone" dataKey="drawdown" stroke={DOWN} strokeWidth={1} fill="url(#ddGrad)" />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -89,7 +115,13 @@ export function MonteCarloHistogram({ histogram, originalReturn }: { histogram: 
   const maxCount = Math.max(...histogram.map(h => h.count))
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <div>
+      <LegendBar items={[
+        { color: ACCENT, label: '正收益区间' },
+        { color: DOWN, label: '亏损区间' },
+        ...(originalReturn !== undefined ? [{ color: '#6b7280', label: `原始回测收益线(${originalReturn}%)` }] : []),
+      ]} />
+      <ResponsiveContainer width="100%" height={200}>
       <BarChart data={histogram} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={GRID} opacity={0.3} />
         <XAxis dataKey="bin_start" stroke={AXIS} fontSize={10} tickFormatter={v => v + '%'} />
@@ -110,6 +142,7 @@ export function MonteCarloHistogram({ histogram, originalReturn }: { histogram: 
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -169,8 +202,14 @@ export function SensitivityHeatmap({ results }: { results: { fast: number; slow:
           )
         })}
       </svg>
-      <div style={{ fontSize: 11, color: AXIS, marginTop: 8 }}>
-        横轴=快线周期, 纵轴=慢线周期, 颜色=收益率(绿正红负)
+      <div style={{ fontSize: 11, color: AXIS, marginTop: 8, marginBottom: 4 }}>
+        <LegendBar items={[
+          { color: `rgba(16, 185, 129, 0.8)`, label: '高收益' },
+          { color: `rgba(16, 185, 129, 0.2)`, label: '低收益' },
+          { color: `rgba(239, 68, 68, 0.2)`, label: '小亏损' },
+          { color: `rgba(239, 68, 68, 0.8)`, label: '大亏损' },
+        ]} />
+        横轴=快线周期, 纵轴=慢线周期
         <br />最大收益: <span style={{ color: ACCENT }}>+{maxR.toFixed(2)}%</span>
         {' | '}最大亏损: <span style={{ color: DOWN }}>-{maxR.toFixed(2)}%</span>
       </div>
@@ -256,6 +295,13 @@ export function MonthlyHeatmap({ curve }: { curve: { date: string; value: number
           )
         })}
       </svg>
+      <LegendBar items={[
+        { color: `rgba(16, 185, 129, 0.8)`, label: '月度大涨(>5%)' },
+        { color: `rgba(16, 185, 129, 0.3)`, label: '小幅上涨' },
+        { color: `rgba(239, 68, 68, 0.3)`, label: '小幅下跌' },
+        { color: `rgba(239, 68, 68, 0.8)`, label: '月度大跌(<-5%)' },
+        { color: '#111827', label: '无数据' },
+      ]} />
     </div>
   )
 }
