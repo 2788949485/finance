@@ -129,35 +129,57 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     // 时间坐标：按实际数据的时间范围线性映射到 0~vw（适配 A股/港股/美股不同交易时段）
     // 将交易时段分为上午段和下午段（中间午休跳过），用分段线性映射
     const allTimes = minute.map(m => m.time).filter(Boolean).sort()
-    // 自动检测午休分界点：找到 11xx -> 13xx 的跳变
-    let breakIdx = -1
-    for (let k = 1; k < allTimes.length; k++) {
-      const prev = parseInt(allTimes[k - 1].slice(0, 2))
-      const cur = parseInt(allTimes[k].slice(0, 2))
-      if (prev <= 12 && cur >= 13) { breakIdx = k; break }
-    }
     const t2m = (t: string) => parseInt(t.slice(0, 2)) * 60 + parseInt(t.slice(2, 4))
-    // 上午段时间轴
-    const amTimes = breakIdx > 0 ? allTimes.slice(0, breakIdx) : allTimes
-    const pmTimes = breakIdx > 0 ? allTimes.slice(breakIdx) : []
-    const amStart = t2m(amTimes[0])
-    const amEnd = t2m(amTimes[amTimes.length - 1])
-    const pmStart = pmTimes.length > 0 ? t2m(pmTimes[0]) : 0
-    const pmEnd = pmTimes.length > 0 ? t2m(pmTimes[pmTimes.length - 1]) : 0
-    const amLen = Math.max(amEnd - amStart, 1)
-    const pmLen = Math.max(pmEnd - pmStart, 0)
-    const totalLen = amLen + pmLen
-    const amRatio = amLen / totalLen  // 上午段占图表宽度的比例
-    const timeToX = (t: string) => {
-      const m = t2m(t)
-      if (pmTimes.length > 0 && m >= pmStart) {
-        // 下午段：映射到 amRatio~1
-        const frac = (m - pmStart) / pmLen
-        return mPAD.l + (amRatio + frac * (1 - amRatio)) * vw
-      } else {
-        // 上午段：映射到 0~amRatio
-        const frac = (m - amStart) / amLen
-        return mPAD.l + frac * amRatio * vw
+
+    // 检测是否跨午夜（美股：21xx-23xx + 00xx-05xx）
+    const hours = allTimes.map(t => parseInt(t.slice(0, 2)))
+    const hasLateNight = hours.some(h => h >= 20)   // 20xx-23xx
+    const hasEarlyMorning = hours.some(h => h <= 6)  // 00xx-06xx
+    const isOvernight = hasLateNight && hasEarlyMorning
+
+    let timeToX: (t: string) => number
+
+    if (isOvernight) {
+      // 跨午夜：把00xx-06xx的时间+24h，变成连续序列(21:30→28:00)
+      const adjusted = allTimes.map(t => {
+        const h = parseInt(t.slice(0, 2))
+        return h <= 12 ? (h + 24) * 60 + parseInt(t.slice(2, 4)) : t2m(t)
+      })
+      const minT = Math.min(...adjusted)
+      const maxT = Math.max(...adjusted)
+      const span = Math.max(maxT - minT, 1)
+      timeToX = (t: string) => {
+        const h = parseInt(t.slice(0, 2))
+        const adj = h <= 12 ? (h + 24) * 60 + parseInt(t.slice(2, 4)) : t2m(t)
+        return mPAD.l + ((adj - minT) / span) * vw
+      }
+    } else {
+      // A股/港股：检测午休分界点（11xx→13xx跳变）
+      let breakIdx = -1
+      for (let k = 1; k < allTimes.length; k++) {
+        const prev = parseInt(allTimes[k - 1].slice(0, 2))
+        const cur = parseInt(allTimes[k].slice(0, 2))
+        if (prev <= 12 && cur >= 13) { breakIdx = k; break }
+      }
+      const amTimes = breakIdx > 0 ? allTimes.slice(0, breakIdx) : allTimes
+      const pmTimes = breakIdx > 0 ? allTimes.slice(breakIdx) : []
+      const amStart = t2m(amTimes[0])
+      const amEnd = t2m(amTimes[amTimes.length - 1])
+      const pmStart = pmTimes.length > 0 ? t2m(pmTimes[0]) : 0
+      const pmEnd = pmTimes.length > 0 ? t2m(pmTimes[pmTimes.length - 1]) : 0
+      const amLen = Math.max(amEnd - amStart, 1)
+      const pmLen = Math.max(pmEnd - pmStart, 0)
+      const totalLen = amLen + pmLen
+      const amRatio = amLen / totalLen
+      timeToX = (t: string) => {
+        const m = t2m(t)
+        if (pmTimes.length > 0 && m >= pmStart) {
+          const frac = (m - pmStart) / pmLen
+          return mPAD.l + (amRatio + frac * (1 - amRatio)) * vw
+        } else {
+          const frac = (m - amStart) / amLen
+          return mPAD.l + frac * amRatio * vw
+        }
       }
     }
 
@@ -176,10 +198,19 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
     // 时间轴标签：从实际数据均匀取样5个时间点
     const timeLabels = []
     const labelCount = Math.min(5, allTimes.length)
+    // 跨午夜时按交易时段顺序取样（21:30→02:00），否则按排序
+    const orderedTimes = isOvernight
+      ? [...allTimes].sort((a, b) => {
+          const ha = parseInt(a.slice(0, 2)), hb = parseInt(b.slice(0, 2))
+          const aa = ha <= 12 ? ha + 24 : ha
+          const ab = hb <= 12 ? hb + 24 : hb
+          return aa - ab
+        })
+      : allTimes
     for (let k = 0; k < labelCount; k++) {
       const denom = labelCount > 1 ? (labelCount - 1) : 1
-      const idx = Math.min(allTimes.length - 1, Math.round(k * (allTimes.length - 1) / denom))
-      const t = allTimes[idx]
+      const idx = Math.min(orderedTimes.length - 1, Math.round(k * (orderedTimes.length - 1) / denom))
+      const t = orderedTimes[idx]
       const label = `${parseInt(t.slice(0, 2))}:${t.slice(2, 4)}`
       timeLabels.push({ t, label })
     }
