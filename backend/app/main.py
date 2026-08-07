@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,26 @@ from .cache import cached, TTL
 from .data import fetcher as datalayer
 from .models import AnalysisRequest, LLMConfig
 
-app = FastAPI(title="FinanceCrew API", version="0.3.0")
+app = FastAPI(title="FinanceCrew API", version="0.3.1")
+
+
+@app.on_event("startup")
+def _startup_scheduler():
+    try:
+        from .scheduler import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("调度器启动失败: %s", e)
+
+
+@app.on_event("shutdown")
+def _shutdown_scheduler():
+    try:
+        from .scheduler import stop_scheduler
+        stop_scheduler()
+    except Exception:
+        pass
 
 # CORS: 只允许本机和局域网（收紧安全）
 app.add_middleware(
@@ -1127,6 +1147,205 @@ def settle_api(ticker: str, force: bool = False) -> dict[str, Any]:
     from .llm import LLMClient
     settled = settle_pending(ticker, LLMClient(), force=force)
     return {"ticker": ticker, "settled": settled}
+
+
+# ==================== 定时/自动化分析 ====================
+
+
+@app.get("/api/scheduled-tasks")
+def list_scheduled_tasks(user: dict[str, Any] = Depends(get_current_user)) -> list[dict[str, Any]]:
+    """列出当前用户的定时分析任务。"""
+    from .scheduler import list_tasks
+    return list_tasks(user["id"])
+
+
+@app.post("/api/scheduled-tasks")
+def create_scheduled_task(
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """创建定时分析任务。body: {name, symbols[], mode, cron_hour, cron_minute}"""
+    from .scheduler import create_task
+    name = body.get("name") or f"定时分析 {datetime.now().strftime('%m-%d %H:%M')}"
+    symbols = body.get("symbols") or []
+    if not symbols:
+        from fastapi import HTTPException
+        raise HTTPException(400, "至少选择一只股票")
+    mode = body.get("mode", "standard")
+    cron_hour = int(body.get("cron_hour", 15))
+    cron_minute = int(body.get("cron_minute", 30))
+    return create_task(user["id"], name, symbols, mode, cron_hour, cron_minute)
+
+
+@app.put("/api/scheduled-tasks/{task_id}")
+def update_scheduled_task(
+    task_id: int,
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """更新定时分析任务。"""
+    from .scheduler import update_task
+    return update_task(
+        task_id, user["id"],
+        name=body.get("name"),
+        symbols=body.get("symbols"),
+        mode=body.get("mode"),
+        cron_hour=body.get("cron_hour"),
+        cron_minute=body.get("cron_minute"),
+        enabled=body.get("enabled"),
+    )
+
+
+@app.delete("/api/scheduled-tasks/{task_id}")
+def delete_scheduled_task(
+    task_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """删除定时分析任务。"""
+    from .scheduler import delete_task
+    ok = delete_task(task_id, user["id"])
+    return {"ok": "deleted" if ok else "not_found"}
+
+
+@app.get("/api/scheduled-tasks/{task_id}/results")
+def list_scheduled_results(
+    task_id: int,
+    limit: int = 10,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """查看定时任务的历史执行结果。"""
+    from .scheduler import list_results
+    return list_results(task_id, limit)
+
+
+@app.post("/api/scheduled-tasks/{task_id}/run")
+def run_scheduled_task_now(
+    task_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """手动触发一次定时任务（不等时间到，用于测试）。"""
+    from .scheduler import run_task_now
+    result = run_task_now(task_id)
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(404, "任务不存在")
+    return result
+
+
+@app.get("/api/scheduled-tasks/trading-day")
+def check_trading_day() -> dict[str, Any]:
+    """查询今天是否交易日。"""
+    from .scheduler import is_trading_day
+    return {"trading_day": is_trading_day(), "date": date.today().isoformat()}
+
+
+# ==================== 投资论文追踪 ====================
+
+
+@app.get("/api/theses")
+def list_theses_api(
+    status: str = "all",
+    ticker: str = "",
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """列出用户的投资论文。status=active/invalidated/all。"""
+    from .thesis_tracker import list_theses
+    return list_theses(user["id"], status, ticker or None)
+
+
+@app.post("/api/theses")
+def create_thesis_api(
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """创建投资论文。body: {ticker, name, thesis_text, key_assumptions[], invalidation_conditions[], score, horizon}"""
+    from .thesis_tracker import create_thesis
+    return create_thesis(
+        user["id"],
+        ticker=body.get("ticker", ""),
+        name=body.get("name", ""),
+        thesis_text=body.get("thesis_text", ""),
+        key_assumptions=body.get("key_assumptions"),
+        invalidation_conditions=body.get("invalidation_conditions"),
+        score=body.get("score", 0),
+        horizon=body.get("horizon", ""),
+    )
+
+
+@app.put("/api/theses/{thesis_id}")
+def update_thesis_api(
+    thesis_id: int,
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """更新投资论文。"""
+    from .thesis_tracker import update_thesis
+    return update_thesis(
+        thesis_id, user["id"],
+        thesis_text=body.get("thesis_text"),
+        key_assumptions=body.get("key_assumptions"),
+        invalidation_conditions=body.get("invalidation_conditions"),
+        score=body.get("score"),
+        status=body.get("status"),
+        invalidation_reason=body.get("invalidation_reason"),
+    )
+
+
+@app.delete("/api/theses/{thesis_id}")
+def delete_thesis_api(
+    thesis_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, str]:
+    """删除投资论文。"""
+    from .thesis_tracker import delete_thesis
+    ok = delete_thesis(thesis_id, user["id"])
+    return {"ok": "deleted" if ok else "not_found"}
+
+
+@app.post("/api/theses/{thesis_id}/check")
+def check_thesis_api(
+    thesis_id: int,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """手动触发证伪检查。"""
+    from .thesis_tracker import check_thesis
+    from .llm import LLMClient
+    return check_thesis(thesis_id, LLMClient())
+
+
+@app.post("/api/theses/check-all")
+def check_all_theses_api(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """批量检查所有active论文。"""
+    from .thesis_tracker import check_all_active_theses
+    from .llm import LLMClient
+    return check_all_active_theses(user["id"], LLMClient())
+
+
+@app.get("/api/theses/{thesis_id}/checks")
+def list_thesis_checks_api(
+    thesis_id: int,
+    limit: int = 10,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """查看论文的检查历史。"""
+    from .thesis_tracker import list_thesis_checks
+    return list_thesis_checks(thesis_id, limit)
+
+
+@app.get("/api/thesis-drift/{ticker}")
+def thesis_drift_api(
+    ticker: str,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """论文漂移检测：对比同一标的最近的两次分析。"""
+    from .thesis_tracker import detect_thesis_drift
+    from .llm import LLMClient
+    result = detect_thesis_drift(ticker, LLMClient())
+    if result is None:
+        raise HTTPException(404, f"需要至少2次{ticker}的分析记录才能做漂移检测")
+    return result
 
 
 # 前端静态托管（构建后可用）-- index.html 不缓存确保加载最新 JS
