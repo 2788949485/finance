@@ -4,7 +4,10 @@ import type { BacktestResult } from './types'
 import { lazy, Suspense } from 'react'
 
 const BacktestAnalysis = lazy(() => import('./BacktestAnalysis'))
-import { EquityChart, DrawdownChart, MonthlyHeatmap } from './BacktestCharts'
+// 图表组件懒加载：recharts 库很大(~300KB)，只有回测出结果后才加载
+const EquityChart = lazy(() => import('./BacktestCharts').then(m => ({ default: m.EquityChart })))
+const DrawdownChart = lazy(() => import('./BacktestCharts').then(m => ({ default: m.DrawdownChart })))
+const MonthlyHeatmap = lazy(() => import('./BacktestCharts').then(m => ({ default: m.MonthlyHeatmap })))
 
 const STRATEGIES = [
   { key: 'ma_cross', label: 'MA均线交叉', params: [
@@ -203,17 +206,23 @@ export default function BacktestPage() {
 
           <div className="backtest-equity">
             <h4>权益曲线</h4>
-            <EquityChart curve={result.equity_curve} initialCapital={result.initial_capital} tradesLog={result.trades_log} />
+            <Suspense fallback={<div className="chart-loading">加载图表...</div>}>
+              <EquityChart curve={result.equity_curve} initialCapital={result.initial_capital} tradesLog={result.trades_log} />
+            </Suspense>
           </div>
 
           <div className="backtest-equity">
             <h4>回撤水下图 (Underwater)</h4>
-            <DrawdownChart curve={result.equity_curve} />
+            <Suspense fallback={<div className="chart-loading">加载图表...</div>}>
+              <DrawdownChart curve={result.equity_curve} />
+            </Suspense>
           </div>
 
           <div className="backtest-equity">
             <h4>月度收益热力图</h4>
-            <MonthlyHeatmap curve={result.equity_curve} />
+            <Suspense fallback={<div className="chart-loading">加载图表...</div>}>
+              <MonthlyHeatmap curve={result.equity_curve} />
+            </Suspense>
           </div>
 
           {result.trades_log.length > 0 && (

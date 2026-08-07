@@ -1532,6 +1532,9 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .error-boundary-card h3 { font-size: 18px; margin-bottom: 12px; }
 .error-boundary-msg { font-size: 13px; color: var(--text-3); margin-bottom: 20px; word-break: break-word; line-height: 1.5; }
 
+/* 回测图表加载占位 */
+.chart-loading { padding: 40px; text-align: center; color: var(--text-3); font-size: 13px; }
+
 /* ==================== 移动端适配 ==================== */
 
 /* 平板（<=1024px）：收紧间距，表格横向滚动 */
