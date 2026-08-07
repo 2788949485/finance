@@ -1348,6 +1348,51 @@ def thesis_drift_api(
     return result
 
 
+# ==================== 投研知识库 ====================
+
+
+@app.get("/api/knowledge/search")
+def knowledge_search_api(
+    q: str,
+    limit: int = 20,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """搜索用户的历史投研分析。"""
+    from .knowledge_base import search_knowledge
+    return search_knowledge(user["id"], q, limit)
+
+
+@app.get("/api/knowledge/stock/{ticker}")
+def knowledge_stock_api(
+    ticker: str,
+    limit: int = 20,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """获取用户对某只股票的所有历史分析。"""
+    from .knowledge_base import get_stock_history
+    return get_stock_history(user["id"], ticker, limit)
+
+
+@app.get("/api/knowledge/list")
+def knowledge_list_api(
+    limit: int = 50,
+    offset: int = 0,
+    user: dict[str, Any] = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    """列出用户所有投研分析（分页）。"""
+    from .knowledge_base import list_all_knowledge
+    return list_all_knowledge(user["id"], limit, offset)
+
+
+@app.get("/api/knowledge/stats")
+def knowledge_stats_api(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """知识库统计信息。"""
+    from .knowledge_base import get_knowledge_stats
+    return get_knowledge_stats(user["id"])
+
+
 # 前端静态托管（构建后可用）-- index.html 不缓存确保加载最新 JS
 if FRONTEND_DIST.exists():
     from starlette.middleware.base import BaseHTTPMiddleware

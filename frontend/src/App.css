@@ -1497,3 +1497,30 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
 .task-spinner { width: 14px; height: 14px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .ghost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ==================== 知识库 ==================== */
+.kb-stats { display: flex; gap: 12px; margin-bottom: 16px; }
+.kb-stats .kpi-card { flex: 0 0 auto; min-width: 120px; }
+.kb-search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+.kb-search-bar .alert-input { flex: 1; }
+.kb-stock-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.kb-stock-chip { font-size: 12px; font-family: var(--mono); padding: 3px 10px; border: 1px solid var(--border-strong); background: transparent; color: var(--text-2); cursor: pointer; }
+.kb-stock-chip:hover { color: var(--accent); border-color: var(--accent); }
+.kb-list { display: flex; flex-direction: column; gap: 16px; }
+.kb-group { border: 1px solid var(--border); }
+.kb-group-header { display: flex; gap: 10px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--border); cursor: pointer; background: var(--surface); }
+.kb-group-header:hover { background: var(--surface-hover); }
+.kb-group-name { font-weight: 600; font-size: 15px; }
+.kb-group-code { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.kb-group-count { font-size: 12px; color: var(--text-3); margin-left: auto; }
+.kb-group-body { padding: 8px 0; }
+.kb-item { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.kb-item:last-child { border-bottom: none; }
+.kb-item-header { display: flex; gap: 12px; align-items: baseline; margin-bottom: 4px; }
+.kb-item-date { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.kb-item-score { font-size: 13px; font-weight: 600; }
+.kb-item-score.up { color: var(--up); }
+.kb-item-score.down { color: var(--down); }
+.kb-item-action { font-size: 11px; padding: 1px 8px; border: 1px solid var(--border); color: var(--text-2); }
+.kb-item-price { font-size: 12px; color: var(--text-3); }
+.kb-item-verdict { font-size: 13px; line-height: 1.5; color: var(--text-2); margin-top: 4px; }

@@ -12,6 +12,14 @@ from langchain_core.tools import tool
 from . import data as datalayer
 from .pipeline import run_analysis
 
+# 线程局部存储：传递当前对话的 user_id 给工具使用
+import threading
+_thread_local = threading.local()
+
+def _current_user_id() -> int | None:
+    """获取当前线程绑定的 user_id（由 chat.stream_chat 设置）。"""
+    return getattr(_thread_local, 'user_id', None)
+
 # 热门公司名 -> A 股代码映射（智能体可传公司名，工具自动转码）
 COMPANY_ALIASES: dict[str, str] = {
     "贵州茅台": "600519", "茅台": "600519", "五粮液": "000858",
@@ -382,4 +390,26 @@ def get_valuation(symbol: str) -> str:
     return "\n".join(lines)
 
 
-FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, search_stock, web_search, compare_industry, get_sentiment, get_valuation, run_research]
+@tool
+def search_my_research(query: str) -> str:
+    """搜索你在本平台做过的历史投研分析记录。当用户问"我之前分析过XX"或需要引用过去的分析结论时使用。
+    参数 query: 股票代码/名称/关键词（如 "茅台" "600519" "估值"）。"""
+    uid = _current_user_id()
+    if not uid:
+        return "无法获取用户信息"
+    from .knowledge_base import search_knowledge
+    items = search_knowledge(uid, query, limit=10)
+    if not items:
+        return f"未找到与 '{query}' 相关的历史投研记录"
+    lines = [f"找到 {len(items)} 条相关投研记录："]
+    for it in items:
+        score = it.get("consensus_score", 0)
+        verdict = (it.get("consensus_verdict") or "")[:80]
+        action = it.get("action", "")
+        lines.append(f"  {it['name']}({it['ticker']}) {it['created_at'][:10]} 评分{score:+.1f} {action}")
+        if verdict:
+            lines.append(f"    结论: {verdict}")
+    return "\n".join(lines)
+
+
+FINANCE_TOOLS = [get_quote, get_kline, get_financials, get_lhb, get_news, search_stock, web_search, compare_industry, get_sentiment, get_valuation, run_research, search_my_research]

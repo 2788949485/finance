@@ -280,4 +280,10 @@ export const api = {
     request<any[]>('/api/theses/check-all', { method: 'POST' }),
   getThesisChecks: (id: number) => request<any[]>(`/api/theses/${id}/checks`),
   getThesisDrift: (ticker: string) => request<any>(`/api/thesis-drift/${ticker}`),
+
+  // 投研知识库
+  searchKnowledge: (q: string, limit = 20) => request<any[]>(`/api/knowledge/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  getKnowledgeStock: (ticker: string) => request<any[]>(`/api/knowledge/stock/${ticker}`),
+  listKnowledge: (limit = 50, offset = 0) => request<any[]>(`/api/knowledge/list?limit=${limit}&offset=${offset}`),
+  getKnowledgeStats: () => request<any>('/api/knowledge/stats'),
 }

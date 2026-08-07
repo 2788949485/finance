@@ -46,7 +46,8 @@ SYSTEM_PROMPT = """你是 FinanceCrew 的投研助理，一位专业的投资研
 9. 查询纪律：一次只查询用户明确询问的标的，不要批量查询多个股票；用户说公司名（如"腾讯"）时直接把它作为工具参数（get_quote("腾讯") 会自动解析为 hk00700），不要猜测或尝试其他代码
 10. 回复中首次提到股票时用标准代码格式：A股6位数字（600519）、港股 hk+5位（hk00700）、美股 us+代码（usAAPL），方便前端展示行情卡片
 11. 遇到不认识的股票名称（如新上市公司），先调用 search_stock 搜索代码，或 web_search 联网查询最新信息，不要凭训练数据断言"不存在"或"未上市"
-12. 联网搜索结果中的日期可能不是最新的，请以上方"当前时间"为准判断"""
+12. 联网搜索结果中的日期可能不是最新的，请以上方"当前时间"为准判断
+13. 用户问"我之前分析过XX"或需要引用历史研究时，调用 search_my_research 搜索用户在本平台的历史投研记录"""
 
 MEMORY_EXTRACT_PROMPT = """从下面的对话中提取用户的持久性事实，用于长期记忆。
 只提取值得长期记住的信息，例如：关注的股票/行业、风险偏好、投资风格、持仓、投资目标。
@@ -445,6 +446,10 @@ def stream_chat(session_id: int, user_id: int, message: str):
       {"type":"error","message":"..."}
       {"type":"done","session_id":N}
     """
+    # 设置线程局部 user_id，供工具（如 search_my_research）使用
+    from .tools import _thread_local
+    _thread_local.user_id = user_id
+
     _init_db()
     save_message(session_id, "user", message)
 
@@ -605,6 +610,10 @@ def chat(session_id: int, user_id: int, message: str) -> dict[str, Any]:
 
     返回 {reply, tool_calls, session_id}。
     """
+    # 设置线程局部 user_id
+    from .tools import _thread_local
+    _thread_local.user_id = user_id
+
     _init_db()
     save_message(session_id, "user", message)
 
