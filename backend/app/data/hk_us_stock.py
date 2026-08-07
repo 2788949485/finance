@@ -125,31 +125,65 @@ def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[di
         return None
 
 
+def _convert_us_time_to_bj(points: list[dict]) -> list[dict]:
+    """把美股东部时间(HHMM)转成北京时间(HHMM)。
+
+    美股交易时段 09:30-16:00 ET → 北京 21:30-04:00(夏)/22:30-05:00(冬)
+    用 zoneinfo 自动判断夏令时/冬令时，差12或13小时。
+    """
+    try:
+        from datetime import datetime, timezone, timedelta
+        from zoneinfo import ZoneInfo
+
+        ny = ZoneInfo("America/New_York")
+        bj = timezone(timedelta(hours=8))
+        now = datetime.now(ny)
+        # 取今天的日期 + 时间点来计算偏移
+        for pt in points:
+            t = pt.get("time", "")
+            if not t or len(t) < 4 or not t.isdigit():
+                continue
+            hh, mm = int(t[:2]), int(t[2:4])
+            # 构造纽约时间（用今天的日期）
+            try:
+                ny_dt = datetime(now.year, now.month, now.day, hh, mm, tzinfo=ny)
+                bj_dt = ny_dt.astimezone(bj)
+                pt["time"] = bj_dt.strftime("%H%M")
+            except (ValueError, Exception):
+                continue
+    except Exception:
+        pass
+    return points
+
+
 def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
     """美股分时数据。多接口fallback：东财 → 腾讯 → 新浪。
 
     返回与A股分时相同格式: {points, last_close, data_date, is_today}
+    时间已转换为北京时间。
     """
-    # 接口1：东财trends2（curl_cffi）
+    # 接口1：东财trends2（curl_cffi）— push2delay返回的已是北京时间，无需转换
     result = _us_minute_eastmoney(symbol)
     if result and result.get("points"):
         return result
 
-    # 接口2：腾讯分时（requests直连）
+    # 接口2：腾讯分时（requests直连）— 原始数据是美东时间，需转换
     result = _us_minute_tencent(symbol)
     if result and result.get("points"):
+        result["points"] = _convert_us_time_to_bj(result["points"])
         return result
 
-    # 接口3：新浪5分钟K线聚合（requests）
+    # 接口3：新浪5分钟K线聚合（requests）— 原始数据是美东时间，需转换
     result = _us_minute_sina(symbol)
     if result and result.get("points"):
+        result["points"] = _convert_us_time_to_bj(result["points"])
         return result
 
     return None
 
 
 def _us_minute_eastmoney(symbol: str) -> Optional[dict[str, Any]]:
-    """东财trends2接口（curl_cffi绕过TLS）。"""
+    """东财trends2接口（curl_cffi）。push2his被封→自动用push2delay。"""
     sym = symbol.replace("us", "")
     nasdaq = {"AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "TSLA", "NVDA", "META", "NFLX",
               "AMD", "INTC", "CSCO", "ADBE", "PEP", "COST", "AVGO", "TXN", "QCOM",
@@ -157,19 +191,28 @@ def _us_minute_eastmoney(symbol: str) -> Optional[dict[str, Any]]:
     market = "105" if sym.upper() in {s.upper() for s in nasdaq} else "106"
     secid = f"{market}.{sym}"
 
+    params = {
+        "fields1": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58",
+        "iscr": "0",
+        "ndays": "1",
+        "secid": secid,
+    }
     try:
         from curl_cffi import requests as cffi_req
-        url = "https://push2his.eastmoney.com/api/qt/stock/trends2/get"
-        params = {
-            "fields1": "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12,f13",
-            "fields2": "f51,f52,f53,f54,f55,f56,f57,f58",
-            "iscr": "0",
-            "ndays": "1",
-            "secid": secid,
-        }
-        r = cffi_req.get(url, params=params, impersonate="chrome", timeout=10)
-        d = r.json()
-        trends = d.get("data", {}).get("trends", [])
+        d = None
+        trends = []
+        # 先试push2his，被封则fallback到push2delay
+        for host in ("push2his.eastmoney.com", "push2delay.eastmoney.com"):
+            try:
+                r = cffi_req.get(f"https://{host}/api/qt/stock/trends2/get",
+                                 params=params, impersonate="chrome", timeout=10)
+                d = r.json()
+                trends = d.get("data", {}).get("trends", [])
+                if trends:
+                    break
+            except Exception:
+                continue
         if not trends:
             return None
 
