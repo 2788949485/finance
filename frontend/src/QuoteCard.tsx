@@ -67,7 +67,7 @@ export default function QuoteCard({ code }: { code: string }) {
   const [news, setNews] = useState<NewsItem[]>([])
   const [allBars, setAllBars] = useState<KlineBar[]>([])
   const [mode, setMode] = useState<'day' | 'minute'>('day')
-  const [live, setLive] = useState(false)
+  const [live, setLive] = useState(true)
   const [err, setErr] = useState('')
   const [starred, setStarred] = useState(false)
   const timerRef = useRef<number | null>(null)

@@ -52,7 +52,7 @@ export default function QuotePage() {
   const [multiDay, setMultiDay] = useState<number>(0)
   const [subIndicator, setSubIndicator] = useState<'macd' | 'kdj'>('macd')
   const [klineFullscreen, setKlineFullscreen] = useState(false)
-  const [live, setLive] = useState(false)
+  const [live, setLive] = useState(true)
   const [err, setErr] = useState('')
   const [searching, setSearching] = useState(false)
   const [allBars, setAllBars] = useState<KlineBar[]>([])
