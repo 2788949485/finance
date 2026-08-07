@@ -285,8 +285,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
 
   // ---------- 日K模式 ----------
   const rawData = range === 'all' ? bars : bars.slice(-range)
-  if (rawData.length < 2) {
-    return <div className="kline-empty">K线数据不足</div>
+  if (rawData.length === 0) {
+    return <div className="kline-empty">暂无K线数据</div>
   }
 
   // 数据窗口缩放：放大 → 窗口内K线数量变少，蜡烛更宽更清晰（不是像素放大）
@@ -299,8 +299,8 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
   const data = winData.length > 600
     ? winData.filter((_, i) => i % Math.ceil(winData.length / 600) === 0)
     : winData
-  if (data.length < 2) {
-    return <div className="kline-empty">K线数据不足</div>
+  if (data.length === 0) {
+    return <div className="kline-empty">暂无K线数据</div>
   }
 
   // 拖动平移（放大后可用）
