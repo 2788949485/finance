@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { api } from './api'
+import { useModal } from './Modal'
 import type { AlertItem, SearchItem } from './types'
 
 // 全局预警通知：铃铛图标 + 轮询检查 + 弹窗通知
 export default function AlertBell() {
+  const { toast } = useModal()
   const [alerts, setAlerts] = useState<AlertItem[]>([])
   const [showPanel, setShowPanel] = useState(false)
   const [notifications, setNotifications] = useState<AlertItem[]>([])
@@ -39,11 +41,11 @@ export default function AlertBell() {
   const triggeredAlerts = alerts.filter(a => a.status === 'triggered')
 
   const handleDelete = async (id: number) => {
-    try { await api.deleteAlert(id); loadAlerts() } catch { /* ignore */ }
+    try { await api.deleteAlert(id); loadAlerts() } catch { toast('删除失败', 'error') }
   }
 
   const handleReactivate = async (id: number) => {
-    try { await api.reactivateAlert(id); loadAlerts() } catch { /* ignore */ }
+    try { await api.reactivateAlert(id); loadAlerts() } catch { toast('激活失败', 'error') }
   }
 
   return (

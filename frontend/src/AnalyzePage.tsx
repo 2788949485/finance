@@ -160,7 +160,7 @@ function AnalyzePane() {
                   try {
                     await api.post<any>(`/api/reflection/settle/${ticker}`, {})
                     loadReflections(ticker)
-                  } catch {}
+                  } catch { toast('结算失败', 'error') }
                 }}>
                 刷新反思记录
               </button>

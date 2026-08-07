@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { useModal } from './Modal'
 import type { PortfolioPosition, PortfolioSummary, TransactionItem } from './types'
 
 // 投资组合页面
 export default function PortfolioPage() {
+  const { toast } = useModal()
   const [positions, setPositions] = useState<PortfolioPosition[]>([])
   const [summary, setSummary] = useState<PortfolioSummary | null>(null)
   const [transactions, setTransactions] = useState<TransactionItem[]>([])
@@ -28,7 +30,7 @@ export default function PortfolioPage() {
   }, [])
 
   const handleRemove = async (symbol: string) => {
-    try { await api.removePosition(symbol); load() } catch { /* ignore */ }
+    try { await api.removePosition(symbol); load() } catch { toast('删除失败', 'error') }
   }
 
   return (

@@ -1,11 +1,31 @@
 // Markdown 渲染组件：聊天气泡与报告文本的美化渲染
+// katex 懒加载：只有遇到公式时才动态加载（减小首屏 chunk ~200KB）
 import React from 'react'
-import katex from 'katex'
 
-// 渲染LaTeX公式
+// katex 动态加载缓存
+let _katex: any = null
+let _katexPromise: Promise<any> | null = null
+
+async function loadKatex(): Promise<any> {
+  if (_katex) return _katex
+  if (!_katexPromise) {
+    _katexPromise = import('katex').then((mod) => {
+      _katex = mod.default || mod
+      return _katex
+    })
+  }
+  return _katexPromise
+}
+
+// 同步渲染：如果katex已加载则用，否则返回原始文本（下次渲染时katex已就绪）
 function renderMath(tex: string, displayMode: boolean): string {
+  if (!_katex) {
+    // 首次遇到公式时触发异步加载，当前先返回原始文本
+    loadKatex()
+    return tex
+  }
   try {
-    return katex.renderToString(tex, { displayMode, throwOnError: false, output: 'html' })
+    return _katex.renderToString(tex, { displayMode, throwOnError: false, output: 'html' })
   } catch {
     return tex
   }
@@ -13,7 +33,6 @@ function renderMath(tex: string, displayMode: boolean): string {
 
 // 简单内联格式化：**加粗** -> <strong>，$公式$ -> katex
 function formatInline(text: string): React.ReactNode {
-  // 先提取$...$行内公式
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\$[^$]+\$)/g)
   return parts.map((p, i) => {
     if (p.startsWith('**') && p.endsWith('**')) {
@@ -75,7 +94,6 @@ export default function Markdown({ text }: { text: string }) {
 
   // 渲染表格
   function renderTable(tableLines: string[]) {
-    // 过滤分隔行(|---|---|)
     const dataLines = tableLines.filter(l => !/^\|[\s-:|]+\|$/.test(l))
     if (dataLines.length === 0) return null
     const rows = dataLines.map(l => l.split('|').slice(1, -1).map(c => c.trim()))
@@ -104,27 +122,21 @@ export default function Markdown({ text }: { text: string }) {
         return block.lines.map((line, li) => {
           const t = line.trim()
           if (!t) return null
-          // 标题
           if (/^#{1,4}\s/.test(t)) {
             return <div key={`${bi}-${li}`} style={{ fontWeight: 700, marginTop: bi + li > 0 ? 8 : 0, marginBottom: 2 }}>{formatInline(t.replace(/^#{1,4}\s/, ''))}</div>
           }
-          // 无序列表
           if (/^[-*]\s/.test(t)) {
             return <div key={`${bi}-${li}`} style={{ paddingLeft: 16, textIndent: -10 }}>{'• '}{formatInline(t.replace(/^[-*]\s/, ''))}</div>
           }
-          // 有序列表
           if (/^\d+\.\s/.test(t)) {
             return <div key={`${bi}-${li}`} style={{ paddingLeft: 16, textIndent: -16 }}>{formatInline(t)}</div>
           }
-          // 引用
           if (t.startsWith('> ')) {
             return <div key={`${bi}-${li}`} style={{ borderLeft: '2px solid var(--border)', paddingLeft: 8, color: 'var(--text-2)' }}>{formatInline(t.slice(2))}</div>
           }
-          // 分隔线
           if (t === '---') {
             return <hr key={`${bi}-${li}`} style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' }} />
           }
-          // 普通行
           return <div key={`${bi}-${li}`}>{formatInline(t)}</div>
         })
       })}

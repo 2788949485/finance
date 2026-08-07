@@ -32,7 +32,14 @@ app = FastAPI(title="FinanceCrew API", version="0.4.0")
 
 
 @app.on_event("startup")
-def _startup_scheduler():
+def _startup():
+    # 数据库索引迁移
+    try:
+        from .db_migrations import run_migrations
+        run_migrations()
+    except Exception as e:
+        logger.warning("数据库迁移失败: %s", e)
+    # 调度器
     try:
         from .scheduler import start_scheduler
         start_scheduler()

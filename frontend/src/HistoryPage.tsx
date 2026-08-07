@@ -7,7 +7,7 @@ import { useModal } from './Modal'
 /* ---------------- 历史记录 ---------------- */
 
 function HistoryPane({ onPick }: { onPick: () => void }) {
-  const { confirm } = useModal()
+  const { confirm, toast } = useModal()
   const [items, setItems] = useState<HistoryItem[]>([])
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<AnalysisResult | null>(null)
@@ -66,7 +66,7 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
                   <button onClick={onPick}>再分析</button>
                   <button className="ghost hist-del-btn" onClick={async () => {
                     if (!await confirm(`确定删除记录 #${it.id}？`, { danger: true, confirmText: '删除' })) return
-                    try { await api.deleteHistory(it.id); setItems(prev => prev.filter(x => x.id !== it.id)) } catch {}
+                    try { await api.deleteHistory(it.id); setItems(prev => prev.filter(x => x.id !== it.id)) } catch { toast('删除失败', 'error') }
                   }}>删除</button>
                 </td>
               </tr>

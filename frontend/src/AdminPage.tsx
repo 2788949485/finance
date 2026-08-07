@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { useModal } from './Modal'
 
 type AdminTab = 'stats' | 'users' | 'invites' | 'audit'
 
@@ -59,12 +60,13 @@ function StatsSection() {
 }
 
 function UsersSection() {
+  const { toast } = useModal()
   const [users, setUsers] = useState<any[]>([])
   const load = () => { api.adminUsers().then(setUsers).catch(() => {}) }
   useEffect(() => { load() }, [])
 
-  const toggleActive = async (id: number) => { try { await api.toggleUserActive(id); load() } catch {} }
-  const setAdmin = async (id: number, val: boolean) => { try { await api.setUserAdmin(id, val); load() } catch {} }
+  const toggleActive = async (id: number) => { try { await api.toggleUserActive(id); load() } catch { toast('操作失败', 'error') } }
+  const setAdmin = async (id: number, val: boolean) => { try { await api.setUserAdmin(id, val); load() } catch { toast('设置失败', 'error') } }
 
   return (
     <table className="portfolio-table">
@@ -92,11 +94,12 @@ function UsersSection() {
 }
 
 function InviteSection() {
+  const { toast } = useModal()
   const [codes, setCodes] = useState<any[]>([])
   const [note, setNote] = useState('')
   const load = () => { api.adminInvites().then(setCodes).catch(() => {}) }
   useEffect(() => { load() }, [])
-  const create = async () => { try { await api.createInvite(note); setNote(''); load() } catch {} }
+  const create = async () => { try { await api.createInvite(note); setNote(''); load() } catch { toast('创建邀请码失败', 'error') } }
 
   return (
     <>

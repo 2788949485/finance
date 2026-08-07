@@ -1,11 +1,13 @@
 // 行情卡片：K线/分时切换 + 15秒实时轮询 + 新闻，跟随对话消息内嵌展示
 import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
+import { useModal } from './Modal'
 import type { KlineBar, MinutePoint, NewsItem, QuoteResponse } from './types'
 import KLineChart from './KLineChart'
 
 // 可复用的自选星标按钮
 export function StarButton({ code }: { code: string }) {
+  const { toast } = useModal()
   const [starred, setStarred] = useState(false)
   useEffect(() => {
     api.getProfile().then((p) => setStarred((p.watchlist || []).includes(code))).catch(() => {})
@@ -17,7 +19,7 @@ export function StarButton({ code }: { code: string }) {
       const next = starred ? list.filter((c) => c !== code) : [...new Set([...list, code])]
       await api.saveProfile({ watchlist: next })
       setStarred(!starred)
-    } catch { /* skip */ }
+    } catch { toast('操作失败', 'error') }
   }
   return (
     <button
@@ -60,6 +62,7 @@ export function extractCodes(text: string): string[] {
 }
 
 export default function QuoteCard({ code }: { code: string }) {
+  const { toast } = useModal()
   const [data, setData] = useState<QuoteResponse | null>(null)
   const [news, setNews] = useState<NewsItem[]>([])
   const [allBars, setAllBars] = useState<KlineBar[]>([])
@@ -125,7 +128,7 @@ export default function QuoteCard({ code }: { code: string }) {
       const next = starred ? list.filter((c) => c !== code) : [...new Set([...list, code])]
       await api.saveProfile({ watchlist: next })
       setStarred(!starred)
-    } catch { /* skip */ }
+    } catch { toast('操作失败', 'error') }
   }
 
   if (!data) {
