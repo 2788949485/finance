@@ -17,9 +17,8 @@ const ProfilePage = lazy(() => import('./ProfilePage'))
 const AdminPage = lazy(() => import('./AdminPage'))
 const SchedulerPage = lazy(() => import('./SchedulerPage'))
 const ThesisPage = lazy(() => import('./ThesisPage'))
-const KnowledgePage = lazy(() => import('./KnowledgePage'))
 
-type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'scheduler' | 'thesis' | 'knowledge' | 'history' | 'profile' | 'admin'
+type Tab = 'chat' | 'quote' | 'market' | 'analyze' | 'portfolio' | 'backtest' | 'scheduler' | 'thesis' | 'history' | 'profile' | 'admin'
 
 function useTheme() {
   const [theme, setTheme] = useState(() => localStorage.getItem('fc_theme') || 'dark')
@@ -82,7 +81,6 @@ function App() {
           <button className={tab === 'backtest' ? 'active' : ''} onClick={() => setTab('backtest')}>策略回测</button>
           <button className={tab === 'scheduler' ? 'active' : ''} onClick={() => setTab('scheduler')}>定时分析</button>
           <button className={tab === 'thesis' ? 'active' : ''} onClick={() => setTab('thesis')}>投资论文</button>
-          <button className={tab === 'knowledge' ? 'active' : ''} onClick={() => setTab('knowledge')}>知识库</button>
           <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>历史记录</button>
           <button className={tab === 'profile' ? 'active' : ''} onClick={() => setTab('profile')}>个人中心</button>
           {isAdmin && <button className={tab === 'admin' ? 'active' : ''} onClick={() => setTab('admin')}>管理后台</button>}
@@ -104,7 +102,6 @@ function App() {
           <div style={{ display: tab === 'backtest' ? 'block' : 'none' }}><BacktestPage /></div>
           <div style={{ display: tab === 'scheduler' ? 'block' : 'none' }}><SchedulerPage /></div>
           <div style={{ display: tab === 'thesis' ? 'block' : 'none' }}><ThesisPage /></div>
-          <div style={{ display: tab === 'knowledge' ? 'block' : 'none' }}><KnowledgePage /></div>
           <div style={{ display: tab === 'history' ? 'block' : 'none' }}><HistoryPane onPick={() => setTab('analyze')} /></div>
           <div style={{ display: tab === 'profile' ? 'block' : 'none' }}><ProfilePage /></div>
           {isAdmin && <div style={{ display: tab === 'admin' ? 'block' : 'none' }}><AdminPage /></div>}
