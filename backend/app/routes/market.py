@@ -17,6 +17,16 @@ from ..config import get_config
 import json
 
 
+def _num(v) -> float:
+    """安全转float，None/NaN→0。"""
+    try:
+        f = float(v)
+        import math
+        return 0 if math.isnan(f) else f
+    except (ValueError, TypeError):
+        return 0
+
+
 @router.get("/api/quote/{symbol}")
 def quote(symbol: str, days: int = 120, mode: str = "day", fresh: int = 0, all: int = 0) -> dict[str, Any]:
     """行情接口：brief(实时概览) + kline(日K/分时/全量) + tech(技术指标)。

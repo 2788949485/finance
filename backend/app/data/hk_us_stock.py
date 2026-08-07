@@ -157,23 +157,32 @@ def _convert_us_time_to_bj(points: list[dict]) -> list[dict]:
 
 
 def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
-    """美股分时数据。多接口fallback：东财 → 腾讯 → 新浪。
+    """美股分时数据。多接口fallback：东财 → Polygon → 腾讯 → 新浪。
 
     返回与A股分时相同格式: {points, last_close, data_date, is_today}
-    时间已转换为北京时间。
+    时间均为北京时间。
     """
-    # 接口1：东财trends2（curl_cffi）— push2delay返回的已是北京时间，无需转换
+    # 接口1：东财trends2（curl_cffi）— push2delay实时分时，已是北京时间
     result = _us_minute_eastmoney(symbol)
-    if result and result.get("points"):
+    if result and result.get("points") and len(result["points"]) > 5:
         return result
 
-    # 接口2：腾讯分时（requests直连）— 原始数据是美东时间，需转换
+    # 接口2：Polygon.io（5分钟K线聚合，稳定但延迟15分钟，时间已是北京时间）
+    try:
+        from .polygon_us import polygon_get_minute
+        result = polygon_get_minute(symbol)
+        if result and result.get("points"):
+            return result
+    except Exception:
+        pass
+
+    # 接口3：腾讯分时（requests直连）— 原始数据是美东时间，需转换
     result = _us_minute_tencent(symbol)
     if result and result.get("points"):
         result["points"] = _convert_us_time_to_bj(result["points"])
         return result
 
-    # 接口3：新浪5分钟K线聚合（requests）— 原始数据是美东时间，需转换
+    # 接口4：新浪5分钟K线聚合（requests）— 原始数据是美东时间，需转换
     result = _us_minute_sina(symbol)
     if result and result.get("points"):
         result["points"] = _convert_us_time_to_bj(result["points"])
