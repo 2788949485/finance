@@ -251,4 +251,33 @@ export const api = {
   adminInvites: () => request<any[]>('/api/admin/invite-codes'),
   adminAuditLogs: () => request<any[]>('/api/admin/audit-logs'),
   adminStats: () => request<Record<string, any>>('/api/admin/stats'),
+
+  // 定时/自动化分析
+  listScheduledTasks: () => request<any[]>('/api/scheduled-tasks'),
+  createScheduledTask: (body: { name: string; symbols: string[]; mode: string; cron_hour: number; cron_minute: number }) =>
+    request<any>('/api/scheduled-tasks', { method: 'POST', body: JSON.stringify(body) }),
+  updateScheduledTask: (id: number, body: any) =>
+    request<any>(`/api/scheduled-tasks/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteScheduledTask: (id: number) =>
+    request<any>(`/api/scheduled-tasks/${id}`, { method: 'DELETE' }),
+  runScheduledTaskNow: (id: number) =>
+    request<any>(`/api/scheduled-tasks/${id}/run`, { method: 'POST' }),
+  getScheduledResults: (id: number) => request<any[]>(`/api/scheduled-tasks/${id}/results`),
+  checkTradingDay: () => request<{ trading_day: boolean; date: string }>('/api/scheduled-tasks/trading-day'),
+
+  // 投资论文追踪
+  listTheses: (status?: string) =>
+    request<any[]>(`/api/theses${status ? `?status=${status}` : ''}`),
+  createThesis: (body: { ticker: string; name: string; thesis_text: string; key_assumptions?: string[]; invalidation_conditions?: string[]; score?: number; horizon?: string }) =>
+    request<any>('/api/theses', { method: 'POST', body: JSON.stringify(body) }),
+  updateThesis: (id: number, body: any) =>
+    request<any>(`/api/theses/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deleteThesis: (id: number) =>
+    request<any>(`/api/theses/${id}`, { method: 'DELETE' }),
+  checkThesis: (id: number) =>
+    request<any>(`/api/theses/${id}/check`, { method: 'POST' }),
+  checkAllTheses: () =>
+    request<any[]>('/api/theses/check-all', { method: 'POST' }),
+  getThesisChecks: (id: number) => request<any[]>(`/api/theses/${id}/checks`),
+  getThesisDrift: (ticker: string) => request<any>(`/api/thesis-drift/${ticker}`),
 }

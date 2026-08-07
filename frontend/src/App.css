@@ -1386,3 +1386,86 @@ button.ghost:hover { color: var(--text); border-color: var(--text-3); background
   border-radius: 2px;
 }
 .admin-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ==================== 定时分析 ==================== */
+.scheduler-status { display: flex; align-items: center; gap: 12px; }
+.trading-badge { font-size: 12px; padding: 4px 10px; border: 1px solid var(--border); font-family: var(--mono); }
+.trading-badge.open { color: var(--up); border-color: var(--up); }
+.trading-badge.closed { color: var(--text-3); }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-3); }
+.empty-state .hint { font-size: 13px; margin-top: 8px; }
+.task-list { display: flex; flex-direction: column; gap: 12px; }
+.task-card { border: 1px solid var(--border); padding: 16px; background: var(--surface); }
+.task-card.disabled { opacity: 0.55; }
+.task-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.task-info { display: flex; flex-direction: column; gap: 4px; }
+.task-name { font-weight: 600; font-size: 15px; }
+.task-meta { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.task-actions { display: flex; gap: 6px; }
+.task-actions .ghost-btn { font-size: 12px; padding: 4px 10px; }
+.ghost-btn { background: transparent; color: var(--text-2); border: 1px solid var(--border-strong); padding: 4px 12px; cursor: pointer; font-size: 13px; }
+.ghost-btn:hover { color: var(--text); border-color: var(--text-3); background: var(--surface-hover); }
+.ghost-btn.danger:hover { color: var(--down); border-color: var(--down); }
+.task-symbols { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.symbol-tag { font-size: 11px; font-family: var(--mono); padding: 2px 8px; border: 1px solid var(--border); color: var(--text-2); }
+.task-last-run { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-3); display: flex; gap: 12px; }
+.task-last-run .summary { color: var(--text-2); }
+.task-results { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.task-results h4 { font-size: 13px; margin-bottom: 8px; color: var(--text-2); }
+.result-item { display: flex; gap: 12px; align-items: baseline; padding: 4px 0; font-size: 12px; }
+.result-time { color: var(--text-3); font-family: var(--mono); }
+.result-skipped { color: var(--text-3); }
+.result-summary { color: var(--text-2); }
+.task-form { border: 1px solid var(--border); padding: 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.form-row { display: flex; gap: 8px; }
+.form-row .alert-input, .form-row .alert-select { flex: 1; }
+
+/* ==================== 投资论文 ==================== */
+.thesis-controls { display: flex; gap: 8px; align-items: center; }
+.thesis-filters { display: flex; gap: 6px; margin-bottom: 16px; }
+.thesis-filters button { padding: 4px 14px; font-size: 13px; border: 1px solid var(--border-strong); background: transparent; color: var(--text-2); cursor: pointer; }
+.thesis-filters button.active { color: var(--text); border-color: var(--accent); background: var(--surface-hover); }
+.thesis-list { display: flex; flex-direction: column; gap: 12px; }
+.thesis-card { border: 1px solid var(--border); padding: 16px; background: var(--surface); }
+.thesis-card.invalidated { border-left: 3px solid var(--down); }
+.thesis-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.thesis-info { display: flex; align-items: center; gap: 10px; }
+.thesis-stock { font-weight: 600; font-size: 15px; }
+.thesis-code { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
+.thesis-horizon { font-size: 11px; padding: 1px 8px; border: 1px solid var(--border); color: var(--text-2); }
+.thesis-status { font-size: 11px; padding: 1px 8px; }
+.thesis-status.active { color: var(--up); }
+.thesis-status.invalidated { color: var(--down); }
+.thesis-actions { display: flex; gap: 6px; }
+.thesis-body { margin-top: 12px; }
+.thesis-score { font-size: 13px; margin-bottom: 8px; }
+.thesis-text { font-size: 14px; line-height: 1.5; margin-bottom: 10px; }
+.thesis-section { margin-bottom: 8px; }
+.thesis-section .label { font-size: 12px; color: var(--text-3); }
+.thesis-section ul { margin: 4px 0 0; padding-left: 20px; font-size: 13px; }
+.thesis-section li { line-height: 1.6; }
+.thesis-section li.invalidation { color: var(--text-2); }
+.thesis-invalidated-reason { margin-top: 8px; padding: 8px 12px; border: 1px solid var(--down); color: var(--down); font-size: 13px; }
+.thesis-checks { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.thesis-checks h4 { font-size: 13px; margin-bottom: 8px; color: var(--text-2); }
+.check-item { display: flex; gap: 12px; align-items: baseline; padding: 3px 0; font-size: 12px; }
+.check-time { color: var(--text-3); font-family: var(--mono); }
+.check-status.valid { color: var(--up); }
+.check-status.warning { color: var(--accent-warm, #eab308); }
+.check-status.invalidated { color: var(--down); }
+.check-price { color: var(--text-3); }
+.check-triggered { color: var(--down); }
+.thesis-form { border: 1px solid var(--border); padding: 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.thesis-textarea { resize: vertical; min-height: 60px; }
+.drift-panel { border: 1px solid var(--accent); padding: 16px; margin-bottom: 16px; background: var(--surface); }
+.drift-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.drift-header h4 { font-size: 15px; }
+.drift-body { display: flex; flex-direction: column; gap: 8px; }
+.drift-stat { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.drift-stat .label { color: var(--text-3); }
+.drift-stat .val.up { color: var(--up); }
+.drift-stat .val.down { color: var(--down); }
+.drift-flag { display: inline-block; font-size: 11px; padding: 2px 8px; border: 1px solid var(--down); color: var(--down); }
+.drift-risks { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.risk-tag { font-size: 11px; padding: 2px 8px; border: 1px solid var(--down); color: var(--down); }
+.drift-summary { font-size: 13px; line-height: 1.5; color: var(--text-2); margin-top: 4px; }
