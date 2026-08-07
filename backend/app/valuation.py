@@ -72,7 +72,11 @@ def compute_dcf(symbol: str) -> Optional[dict[str, Any]]:
     # 增长率：用历史增速，但限制在合理范围 [-5%, 25%]
     base_growth = max(-0.05, min(0.25, net_profit_yoy / 100))
     if base_growth <= 0:
-        base_growth = 0.05  # 最低5%增长
+        # 港股/美股 yfinance 可能无增速数据，用收入增速兜底，再不行用默认值
+        if revenue_yoy and revenue_yoy > 0:
+            base_growth = max(-0.05, min(0.25, revenue_yoy / 100))
+        else:
+            base_growth = 0.05  # 最低5%增长
 
     # 阶段1：高增长期（每年递减，从base_growth到base_growth*0.6）
     # 阶段2：过渡期（从base_growth*0.6线性降到terminal_growth）

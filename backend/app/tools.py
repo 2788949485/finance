@@ -163,7 +163,7 @@ def get_financials(symbol: str) -> str:
 @tool
 def get_lhb(symbol: str) -> str:
     """查询A股最近30日龙虎榜记录（上榜原因、净买额、买卖额）。
-    参数 symbol: 6位A股代码或公司名。仅支持A股。"""
+    参数 symbol: A股代码或公司名。龙虎榜为A股独有制度，港股/美股无此数据。"""
     resolved = resolve_symbol(symbol)
     if not resolved.isdigit() or len(resolved) != 6:
         return f"{symbol} 的龙虎榜数据暂不支持（当前仅支持A股）"
@@ -292,13 +292,20 @@ def run_research(symbol: str, topic: str = "") -> str:
 def compare_industry(symbol: str) -> str:
     """行业对比：查询该股票与同行业竞争对手的 PE/PB/涨跌幅对比 + 行业均值。
     自动判断同行股票（数据库缓存或 LLM 生成），无需手动指定。
-    参数 symbol: A股6位代码或公司名。"""
+    参数 symbol: A股代码、港股(hk开头)、美股(us开头)或公司名。"""
     resolved = resolve_symbol(symbol)
     if not _valid_symbol(resolved):
         return f"无法识别 {symbol}，请提供股票代码或公司名"
     data = datalayer.fetcher.get_industry_compare(resolved)
     if not data or not data.get("peers"):
-        return f"{symbol} 暂不支持行业对比（可能是港股/美股或同行数据不足）"
+        # 港股/美股：用联网搜索获取竞品对比
+        if resolved.startswith(("hk", "us")):
+            from .chat import _code_name
+            name = _code_name(resolved)
+            from .tools import web_search as _ws
+            search_result = _ws.invoke({"query": f"{name} competitors peer comparison PE PB valuation 2025"})
+            return f"{resolved}({name}) 行业对比（基于联网搜索）：\n{search_result}"
+        return f"{symbol} 暂无行业对比数据（同行数据不足）"
     peers = data["peers"]
     avg_pe = data.get("avg_pe")
     avg_pb = data.get("avg_pb")
@@ -318,36 +325,45 @@ def compare_industry(symbol: str) -> str:
 @tool
 def get_sentiment(symbol: str) -> str:
     """查询社交情绪面数据：东财人气榜排名、雪球关注度、今日主力资金净流入、综合情绪评分。
-    参数 symbol: A股6位代码或公司名。仅支持A股。"""
+    参数 symbol: A股代码、港股(hk开头)、美股(us开头)或公司名。A股提供完整情绪数据，港股/美股通过联网搜索获取舆情。"""
     from .tools import resolve_symbol as _rs
     resolved = _rs(symbol)
-    if not resolved.isdigit() or len(resolved) != 6:
-        return f"{symbol} 的情绪数据暂不支持（当前仅支持A股）"
-    data = datalayer.get_social_sentiment(resolved)
-    if not data:
-        return f"未获取到 {resolved} 的情绪数据"
-    lines = [f"{resolved} 社交情绪面："]
-    if data.get("hot_rank_trend"):
-        latest_rank = data["hot_rank_trend"][-1]["rank"]
-        lines.append(f"  东财人气榜排名: 第{latest_rank}名")
-    if data.get("xq_followers"):
-        lines.append(f"  雪球关注人数: {data['xq_followers']:,}")
-    if data.get("vol_ratio") is not None:
-        lines.append(f"  近5日量比: {data['vol_ratio']}（>1放量 <1缩量）")
-    if data.get("price_5d_chg") is not None:
-        lines.append(f"  近5日涨跌幅: {data['price_5d_chg']:+.2f}%")
-    if data.get("momentum") is not None:
-        lines.append(f"  资金动能: {data['momentum']:+.1f}（正=主力流入 负=流出）")
-    if data.get("sentiment_score") is not None:
-        lines.append(f"  综合情绪评分: {data['sentiment_score']}/100")
-    return "\n".join(lines)
+    if not resolved:
+        return f"无法识别 {symbol}"
+    # A股：用东财+雪球完整情绪数据
+    if resolved.isdigit() and len(resolved) == 6:
+        data = datalayer.get_social_sentiment(resolved)
+        if not data:
+            return f"未获取到 {resolved} 的情绪数据"
+        lines = [f"{resolved} 社交情绪面："]
+        if data.get("hot_rank_trend"):
+            last = data["hot_rank_trend"][-1]
+            latest_rank = last.get("rank", 0) if isinstance(last, dict) else (last[1] if len(last) > 1 else 0)
+            lines.append(f"  东财人气榜排名: 第{latest_rank}名")
+        if data.get("xq_followers"):
+            lines.append(f"  雪球关注人数: {data['xq_followers']:,}")
+        if data.get("vol_ratio") is not None:
+            lines.append(f"  近5日量比: {data['vol_ratio']}（>1放量 <1缩量）")
+        if data.get("price_5d_chg") is not None:
+            lines.append(f"  近5日涨跌幅: {data['price_5d_chg']:+.2f}%")
+        if data.get("momentum") is not None:
+            lines.append(f"  资金动能: {data['momentum']:+.1f}（正=主力流入 负=流出）")
+        if data.get("sentiment_score") is not None:
+            lines.append(f"  综合情绪评分: {data['sentiment_score']}/100")
+        return "\n".join(lines)
+    # 港股/美股：用联网搜索获取舆情
+    from .chat import _code_name
+    name = _code_name(resolved)
+    from .tools import web_search as _ws
+    search_result = _ws.invoke({"query": f"{name} stock sentiment analyst rating 2025"})
+    return f"{resolved}({name}) 港股/美股情绪分析（基于联网搜索）：\n{search_result}"
 
 
 @tool
 def get_valuation(symbol: str) -> str:
     """DCF现金流折现估值：计算股票内在价值，判断高估/低估。
     返回内在价值、上行空间、10年FCF预测、关键假设。
-    参数 symbol: A股6位代码或公司名。仅支持有财务数据的股票。"""
+    参数 symbol: A股代码、港股(hk开头)、美股(us开头)或公司名。"""
     from .tools import resolve_symbol as _rs
     resolved = _rs(symbol)
     if not _valid_symbol(resolved):
