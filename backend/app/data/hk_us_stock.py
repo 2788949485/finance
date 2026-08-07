@@ -126,13 +126,31 @@ def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[di
 
 
 def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
-    """美股分时数据（东财trends2接口，curl_cffi绕过TLS封锁）。
+    """美股分时数据。多接口fallback：东财 → 腾讯 → 新浪。
 
     返回与A股分时相同格式: {points, last_close, data_date, is_today}
     """
+    # 接口1：东财trends2（curl_cffi）
+    result = _us_minute_eastmoney(symbol)
+    if result and result.get("points"):
+        return result
+
+    # 接口2：腾讯分时（requests直连）
+    result = _us_minute_tencent(symbol)
+    if result and result.get("points"):
+        return result
+
+    # 接口3：新浪5分钟K线聚合（requests）
+    result = _us_minute_sina(symbol)
+    if result and result.get("points"):
+        return result
+
+    return None
+
+
+def _us_minute_eastmoney(symbol: str) -> Optional[dict[str, Any]]:
+    """东财trends2接口（curl_cffi绕过TLS）。"""
     sym = symbol.replace("us", "")
-    # secid: 105=纳斯达克, 106=纽交所
-    # 常见纳斯达克: AAPL/MSFT/GOOGL/AMZN/TSLA/NVDA/META
     nasdaq = {"AAPL", "MSFT", "GOOGL", "GOOG", "AMZN", "TSLA", "NVDA", "META", "NFLX",
               "AMD", "INTC", "CSCO", "ADBE", "PEP", "COST", "AVGO", "TXN", "QCOM",
               "TMUS", "CMCSA", "SBUX", "PYPL"}
@@ -155,9 +173,7 @@ def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
         if not trends:
             return None
 
-        # 昨收
         pre_close = d.get("data", {}).get("preClose", 0) or 0
-
         points = []
         total_vol = 0
         total_amount = 0
@@ -165,27 +181,117 @@ def _us_minute_from_em(symbol: str) -> Optional[dict[str, Any]]:
             parts = item.split(",")
             if len(parts) < 7:
                 continue
-            dt_str = parts[0]  # "2026-08-05 21:30"
-            price = float(parts[2])  # 收盘价
-            vol = int(float(parts[5]))  # 成交量
-            amount = float(parts[6])  # 成交额
+            dt_str = parts[0]
+            price = float(parts[2])
+            vol = int(float(parts[5]))
+            amount = float(parts[6])
             total_vol += vol
             total_amount += amount
-            # 提取时间部分 "2130"
             time_part = dt_str.split(" ")[1].replace(":", "")[:4] if " " in dt_str else "0000"
             avg_price = total_amount / total_vol if total_vol > 0 else price
             points.append({"time": time_part, "price": round(price, 2), "avg": round(avg_price, 2), "vol": vol})
 
         if not points:
             return None
-
-        # 取最后一个交易日期
         last_date = trends[-1].split(",")[0].split(" ")[0] if trends else ""
-
         return {
             "points": points,
             "last_close": round(pre_close, 2) if pre_close else None,
             "data_date": last_date,
+            "is_today": True,
+        }
+    except Exception:
+        return None
+
+
+def _us_minute_tencent(symbol: str) -> Optional[dict[str, Any]]:
+    """腾讯分时接口（requests直连，美股us前缀）。"""
+    try:
+        url = f"https://web.ifzq.gtimg.cn/appstock/app/minute/query?code={symbol}"
+        r = requests.get(url, timeout=12)
+        d = r.json()
+        node = d.get("data", {}).get(symbol, {})
+        points_raw = node.get("data", {}).get("data", [])
+        if not points_raw:
+            return None
+
+        # 昨收
+        qt = node.get("qt", {})
+        qt_arr = qt.get(symbol, []) if isinstance(qt, dict) else []
+        last_close = None
+        if isinstance(qt_arr, list) and len(qt_arr) > 4:
+            try:
+                last_close = float(qt_arr[4])
+            except (ValueError, TypeError):
+                pass
+
+        # 数据日期
+        data_date = node.get("data", {}).get("date", "")
+
+        out = []
+        for p in points_raw[:500]:
+            try:
+                parts = p.split() if isinstance(p, str) else p
+                t = str(parts[0])
+                if not t.isdigit():
+                    continue
+                price = float(parts[1])
+                if price <= 0:
+                    continue
+                vol = float(parts[2]) if len(parts) > 2 and parts[2] else 0
+                out.append({"time": t, "price": price, "avg": None, "vol": vol if vol else None})
+            except (ValueError, IndexError, TypeError, AttributeError):
+                continue
+
+        if not out:
+            return None
+
+        # 计算分时均价
+        cum_vol = 0.0
+        for pt in out:
+            v = pt.get("vol") or 0
+            cum_vol += v
+            pt["avg"] = round(pt["price"], 2)  # 腾讯美股分时无成交额，均价用当前价近似
+
+        return {
+            "points": out,
+            "last_close": last_close,
+            "data_date": data_date,
+            "is_today": True,
+        }
+    except Exception:
+        return None
+
+
+def _us_minute_sina(symbol: str) -> Optional[dict[str, Any]]:
+    """新浪5分钟K线聚合为分时（最后兜底）。"""
+    sym = symbol.replace("us", "")
+    try:
+        url = f"https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol={sym}&scale=5&ma=no&datalen=48"
+        r = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        if not r.text.strip() or r.text.strip() == "null":
+            return None
+        data = _json.loads(r.text)
+        if not data:
+            return None
+
+        out = []
+        for item in data:
+            dt = item.get("day", "")
+            time_part = dt.split(" ")[1].replace(":", "")[:4] if " " in dt else "0000"
+            close = float(item.get("close", 0))
+            if close <= 0:
+                continue
+            vol = float(item.get("volume", 0))
+            out.append({"time": time_part, "price": close, "avg": close, "vol": vol if vol else None})
+
+        if not out:
+            return None
+
+        return {
+            "points": out,
+            "last_close": None,
+            "data_date": data[-1].get("day", "").split(" ")[0],
             "is_today": True,
         }
     except Exception:
