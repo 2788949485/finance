@@ -269,12 +269,41 @@ export default function KLineChart({ bars, minute, lastClose, symbol, mode, onMo
             const cy = crosshair.y
             const val = top - ((cy - mPAD.t) / priceH) * spanM
             const valColor = val >= base ? UP : DOWN
-            return (
+            // 根据X坐标找最近的时间点
+            const cx = crosshair.x
+            let nearestTime = ''
+            let minDist = Infinity
+            for (const m of minute) {
+              const mx = timeToX(m.time)
+              const dist = Math.abs(mx - cx)
+              if (dist < minDist) {
+                minDist = dist
+                nearestTime = m.time
+              }
+            }
+             return (
               <g pointerEvents="none">
                 <line x1={mPAD.l} y1={cy} x2={W - mPAD.r} y2={cy} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
-                <line x1={crosshair.x} y1={mPAD.t} x2={crosshair.x} y2={mPAD.t + priceH} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+                <line x1={cx} y1={mPAD.t} x2={cx} y2={MH - mPAD.b} stroke="#94a3b8" strokeWidth="0.8" strokeDasharray="4 3" />
+                {/* 左侧价格标签 */}
                 <rect x={mPAD.l - 54} y={cy - 8} width="50" height="16" rx="2" fill="#334155" />
                 <text x={mPAD.l - 29} y={cy + 3} textAnchor="middle" fontSize="10" fill={valColor} fontWeight="bold">{val.toFixed(2)}</text>
+                {/* 底部时间标签 */}
+                {nearestTime && (() => {
+                  const hh = nearestTime.slice(0, 2)
+                  const mm = nearestTime.slice(2, 4)
+                  const label = `${hh}:${mm}`
+                  const labelW = label.length * 5.5 + 8
+                  let lx = cx - labelW / 2
+                  if (lx < mPAD.l) lx = mPAD.l
+                  if (lx + labelW > W - mPAD.r) lx = W - mPAD.r - labelW
+                  return (
+                    <>
+                      <rect x={lx} y={MH - mPAD.b - 16} width={labelW} height="14" rx="2" fill="#334155" />
+                      <text x={lx + labelW / 2} y={MH - mPAD.b - 5} textAnchor="middle" fontSize="9.5" fill="#cbd5e1">{label}</text>
+                    </>
+                  )
+                })()}
               </g>
             )
           })()}
