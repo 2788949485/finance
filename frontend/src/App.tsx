@@ -3,6 +3,7 @@ import { api, getToken, setToken } from './api'
 import type { AuthResponse } from './types'
 import LoginPage from './LoginPage'
 import AlertBell from './AlertBell'
+import { ErrorBoundary } from './ErrorBoundary'
 import './App.css'
 
 // 懒加载页面组件 - 首屏只加载ChatPage，其他按需加载
@@ -93,6 +94,7 @@ function App() {
         </div>
       </header>
       <main>
+        <ErrorBoundary>
         <Suspense fallback={<div style={{padding:'40px',textAlign:'center',color:'var(--text-2)'}}>加载中...</div>}>
           <div style={{ display: tab === 'chat' ? 'block' : 'none' }}><ChatPage /></div>
           <div style={{ display: tab === 'quote' ? 'block' : 'none' }}><QuotePage /></div>
@@ -106,6 +108,7 @@ function App() {
           <div style={{ display: tab === 'profile' ? 'block' : 'none' }}><ProfilePage /></div>
           {isAdmin && <div style={{ display: tab === 'admin' ? 'block' : 'none' }}><AdminPage /></div>}
         </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
   )
