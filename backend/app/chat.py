@@ -446,9 +446,9 @@ def stream_chat(session_id: int, user_id: int, message: str):
       {"type":"error","message":"..."}
       {"type":"done","session_id":N}
     """
-    # 设置线程局部 user_id，供工具（如 search_my_research）使用
-    from .tools import _thread_local
-    _thread_local.user_id = user_id
+    # 注册 session→user_id 映射，供工具（如 search_my_research）跨线程使用
+    from .tools import _set_session_user
+    _set_session_user(session_id, user_id)
 
     _init_db()
     save_message(session_id, "user", message)
@@ -610,9 +610,9 @@ def chat(session_id: int, user_id: int, message: str) -> dict[str, Any]:
 
     返回 {reply, tool_calls, session_id}。
     """
-    # 设置线程局部 user_id
-    from .tools import _thread_local
-    _thread_local.user_id = user_id
+    # 注册 session→user_id 映射
+    from .tools import _set_session_user
+    _set_session_user(session_id, user_id)
 
     _init_db()
     save_message(session_id, "user", message)

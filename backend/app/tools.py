@@ -12,13 +12,24 @@ from langchain_core.tools import tool
 from . import data as datalayer
 from .pipeline import run_analysis
 
-# 线程局部存储：传递当前对话的 user_id 给工具使用
-import threading
-_thread_local = threading.local()
+# 全局 session→user_id 映射（进程级，跨线程可见）
+# LangGraph 工具执行可能在不同线程，threading.local 会丢失，改用全局 dict
+_session_user_map: dict[str, int] = {}
+# 当前活跃 session（由 stream_chat 设置，作为 fallback）
+_current_session_id: str | None = None
+
+def _set_session_user(session_id: str | int, user_id: int) -> None:
+    """注册 session→user_id 映射（chat.stream_chat 调用）。"""
+    global _current_session_id
+    key = str(session_id)
+    _session_user_map[key] = user_id
+    _current_session_id = key
 
 def _current_user_id() -> int | None:
-    """获取当前线程绑定的 user_id（由 chat.stream_chat 设置）。"""
-    return getattr(_thread_local, 'user_id', None)
+    """获取当前用户的 user_id。"""
+    if _current_session_id:
+        return _session_user_map.get(_current_session_id)
+    return None
 
 # 热门公司名 -> A 股代码映射（智能体可传公司名，工具自动转码）
 COMPANY_ALIASES: dict[str, str] = {
