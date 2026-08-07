@@ -94,6 +94,7 @@ def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[di
     """美股分钟级K线（yfinance，国内直连）。
 
     m_param: m5/m15/m30/m60
+    时间已转换为北京时间（yfinance返回美东时间，+12夏/+13冬）。
     """
     try:
         import yfinance as yf
@@ -106,9 +107,15 @@ def _fetch_us_minute_kline(ticker: str, m_param: str, count: int) -> Optional[di
         # yfinance返回MultiIndex列名，扁平化
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
+        # 美东时间 → 北京时间
+        from datetime import timezone, timedelta
+        bj = timezone(timedelta(hours=8))
+        if df.index.tz is None:
+            df.index = df.index.tz_localize("America/New_York")
+        df.index = df.index.tz_convert(bj)
         bars = []
         for idx, row in df.tail(count).iterrows():
-            dt_str = str(idx)[:16]
+            dt_str = idx.strftime("%Y-%m-%d %H:%M")
             try:
                 bars.append({
                     "date": dt_str,
