@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { api } from './api'
 import type { AnalysisResult } from './types'
 import Markdown from './Markdown'
+import { useModal } from './Modal'
 
 function AnalyzePane() {
+  const { toast } = useModal()
   const [ticker, setTicker] = useState('600519')
   const [topic, setTopic] = useState('')
   const [mode, setMode] = useState<'standard' | 'agentic'>('standard')
@@ -146,8 +148,8 @@ function AnalyzePane() {
                   try {
                     const res = await api.post<any>(`/api/reflection/settle/${ticker}`, { force: true })
                     loadReflections(ticker)
-                    alert(`已结算 ${res.settled ?? 0} 条pending决策`)
-                  } catch { alert('结算失败') }
+                    toast(`已结算 ${res.settled ?? 0} 条pending决策`, 'success')
+                  } catch { toast('结算失败', 'error') }
                 }}>
                 手动结算pending决策
               </button>

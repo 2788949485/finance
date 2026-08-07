@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from './api'
 import type { AnalysisResult, HistoryItem } from './types'
 import { ReportView } from './AnalyzePage'
+import { useModal } from './Modal'
 
 /* ---------------- 历史记录 ---------------- */
 
 function HistoryPane({ onPick }: { onPick: () => void }) {
+  const { confirm } = useModal()
   const [items, setItems] = useState<HistoryItem[]>([])
   const [error, setError] = useState('')
   const [detail, setDetail] = useState<AnalysisResult | null>(null)
@@ -63,7 +65,7 @@ function HistoryPane({ onPick }: { onPick: () => void }) {
                   </button>
                   <button onClick={onPick}>再分析</button>
                   <button className="ghost hist-del-btn" onClick={async () => {
-                    if (!confirm(`确定删除记录 #${it.id}？`)) return
+                    if (!await confirm(`确定删除记录 #${it.id}？`, { danger: true, confirmText: '删除' })) return
                     try { await api.deleteHistory(it.id); setItems(prev => prev.filter(x => x.id !== it.id)) } catch {}
                   }}>删除</button>
                 </td>

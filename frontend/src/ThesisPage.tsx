@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { useModal } from './Modal'
 
 // 投资论文追踪页面
 export default function ThesisPage() {
+  const { toast, confirm } = useModal()
   const [theses, setTheses] = useState<any[]>([])
   const [filter, setFilter] = useState<'active' | 'invalidated' | 'all'>('active')
   const [showForm, setShowForm] = useState(false)
@@ -10,6 +12,7 @@ export default function ThesisPage() {
   const [checks, setChecks] = useState<any[]>([])
   const [drift, setDrift] = useState<any>(null)
   const [checkingAll, setCheckingAll] = useState(false)
+  const [checkingIds, setCheckingIds] = useState<Set<number>>(new Set())
 
   const load = async () => {
     try {
@@ -28,22 +31,29 @@ export default function ThesisPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除这条投资论文？')) return
-    try { await api.deleteThesis(id); load() } catch { /* ignore */ }
+    const ok = await confirm('确定删除这条投资论文？', { danger: true, confirmText: '删除' })
+    if (!ok) return
+    try { await api.deleteThesis(id); toast('已删除', 'success'); load() } catch { toast('删除失败', 'error') }
   }
 
   const handleCheck = async (id: number) => {
+    setCheckingIds(prev => new Set(prev).add(id))
     try {
       const r = await api.checkThesis(id)
       if (r.status === 'invalidated') {
-        alert('警告: 论文已被证伪！\n' + (r.checks?.filter((c: any) => c.triggered).map((c: any) => c.condition).join('; ') || ''))
+        const triggered = r.checks?.filter((c: any) => c.triggered).map((c: any) => c.condition).join('; ')
+        toast(`论文已被证伪: ${triggered || ''}`, 'error')
       } else if (r.status === 'warning') {
-        alert('注意: 部分证伪条件触发，请关注')
+        toast('部分证伪条件触发，请关注', 'warning')
+      } else {
+        toast('检查通过，论文有效', 'success')
       }
       load()
       if (expandedId === id) loadChecks(id)
     } catch (e: any) {
-      alert('检查失败: ' + (e.message || ''))
+      toast('检查失败: ' + (e.message || ''), 'error')
+    } finally {
+      setCheckingIds(prev => { const n = new Set(prev); n.delete(id); return n })
     }
   }
 
@@ -54,11 +64,12 @@ export default function ThesisPage() {
       const invalidated = results.filter((r: any) => r.status === 'invalidated')
       const warnings = results.filter((r: any) => r.status === 'warning')
       let msg = `检查完成: ${results.length}条论文`
-      if (invalidated.length) msg += `\n${invalidated.length}条已被证伪`
-      if (warnings.length) msg += `\n${warnings.length}条有警告`
-      alert(msg)
+      if (invalidated.length) msg += `，${invalidated.length}条已被证伪`
+      if (warnings.length) msg += `，${warnings.length}条有警告`
+      if (!invalidated.length && !warnings.length) msg += '，全部正常'
+      toast(msg, invalidated.length ? 'error' : warnings.length ? 'warning' : 'success')
       load()
-    } catch { /* ignore */ }
+    } catch { toast('批量检查失败', 'error') }
     finally { setCheckingAll(false) }
   }
 
@@ -67,7 +78,7 @@ export default function ThesisPage() {
       const d = await api.getThesisDrift(ticker)
       setDrift(d)
     } catch (e: any) {
-      alert(e.message || '需要至少2次分析记录才能做漂移检测')
+      toast(e.message || '需要至少2次分析记录才能做漂移检测', 'warning')
     }
   }
 
@@ -142,74 +153,79 @@ export default function ThesisPage() {
         </div>
       ) : (
         <div className="thesis-list">
-          {theses.map(t => (
-            <div key={t.id} className={`thesis-card ${t.status}`}>
-              <div className="thesis-header" onClick={() => toggleExpand(t.id)}>
-                <div className="thesis-info">
-                  <span className="thesis-stock">{t.name || t.ticker} <span className="thesis-code">{t.ticker}</span></span>
-                  {t.horizon && <span className="thesis-horizon">{t.horizon}</span>}
-                  <span className={`thesis-status ${t.status}`}>
-                    {t.status === 'active' ? '追踪中' : '已证伪'}
-                  </span>
+          {theses.map(t => {
+            const isChecking = checkingIds.has(t.id)
+            return (
+              <div key={t.id} className={`thesis-card ${t.status}`}>
+                <div className="thesis-header" onClick={() => toggleExpand(t.id)}>
+                  <div className="thesis-info">
+                    <span className="thesis-stock">{t.name || t.ticker} <span className="thesis-code">{t.ticker}</span></span>
+                    {t.horizon && <span className="thesis-horizon">{t.horizon}</span>}
+                    <span className={`thesis-status ${t.status}`}>
+                      {t.status === 'active' ? '追踪中' : '已证伪'}
+                    </span>
+                  </div>
+                  <div className="thesis-actions">
+                    {t.status === 'active' && (
+                      <>
+                        <button className="ghost-btn" disabled={isChecking} onClick={(e) => { e.stopPropagation(); handleCheck(t.id) }}>
+                          {isChecking ? '检查中' : '检查'}
+                        </button>
+                        <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); handleDrift(t.ticker) }}>漂移</button>
+                      </>
+                    )}
+                    <button className="ghost-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(t.id) }}>删除</button>
+                  </div>
                 </div>
-                <div className="thesis-actions">
-                  {t.status === 'active' && (
-                    <>
-                      <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); handleCheck(t.id) }}>检查</button>
-                      <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); handleDrift(t.ticker) }}>漂移</button>
-                    </>
+
+                <div className="thesis-body">
+                  <div className="thesis-score">
+                    评分: <span className={t.score >= 0 ? 'up' : 'down'}>{t.score > 0 ? '+' : ''}{t.score}</span>
+                  </div>
+                  <div className="thesis-text">{t.thesis_text}</div>
+                  {t.key_assumptions?.length > 0 && (
+                    <div className="thesis-section">
+                      <span className="label">关键假设:</span>
+                      <ul>{t.key_assumptions.map((a: string, i: number) => <li key={i}>{a}</li>)}</ul>
+                    </div>
                   )}
-                  <button className="ghost-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(t.id) }}>删除</button>
-                </div>
-              </div>
-
-              <div className="thesis-body">
-                <div className="thesis-score">
-                  评分: <span className={t.score >= 0 ? 'up' : 'down'}>{t.score > 0 ? '+' : ''}{t.score}</span>
-                </div>
-                <div className="thesis-text">{t.thesis_text}</div>
-                {t.key_assumptions?.length > 0 && (
-                  <div className="thesis-section">
-                    <span className="label">关键假设:</span>
-                    <ul>{t.key_assumptions.map((a: string, i: number) => <li key={i}>{a}</li>)}</ul>
-                  </div>
-                )}
-                {t.invalidation_conditions?.length > 0 && (
-                  <div className="thesis-section">
-                    <span className="label">证伪条件:</span>
-                    <ul>{t.invalidation_conditions.map((c: string, i: number) => <li key={i} className="invalidation">{c}</li>)}</ul>
-                  </div>
-                )}
-                {t.invalidation_reason && (
-                  <div className="thesis-invalidated-reason">
-                    证伪原因: {t.invalidation_reason}
-                  </div>
-                )}
-              </div>
-
-              {expandedId === t.id && (
-                <div className="thesis-checks">
-                  <h4>检查历史</h4>
-                  {checks.length === 0 ? (
-                    <p className="hint">暂无检查记录</p>
-                  ) : (
-                    checks.map((c: any, i: number) => (
-                      <div key={i} className="check-item">
-                        <span className="check-time">{c.checked_at}</span>
-                        <span className={`check-status ${c.status}`}>
-                          {c.status === 'valid' ? '正常' : c.status === 'warning' ? '警告' : '证伪'}
-                        </span>
-                        {c.price_at_check && <span className="check-price">价格 {c.price_at_check}</span>}
-                        {c.checks_detail?.map((d: any, j: number) => (
-                          d.triggered && <span key={j} className="check-triggered">{d.condition}</span>
-                        ))}
-                      </div>
-                    ))
+                  {t.invalidation_conditions?.length > 0 && (
+                    <div className="thesis-section">
+                      <span className="label">证伪条件:</span>
+                      <ul>{t.invalidation_conditions.map((c: string, i: number) => <li key={i} className="invalidation">{c}</li>)}</ul>
+                    </div>
+                  )}
+                  {t.invalidation_reason && (
+                    <div className="thesis-invalidated-reason">
+                      证伪原因: {t.invalidation_reason}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
+
+                {expandedId === t.id && (
+                  <div className="thesis-checks">
+                    <h4>检查历史</h4>
+                    {checks.length === 0 ? (
+                      <p className="hint">暂无检查记录</p>
+                    ) : (
+                      checks.map((c: any, i: number) => (
+                        <div key={i} className="check-item">
+                          <span className="check-time">{c.checked_at}</span>
+                          <span className={`check-status ${c.status}`}>
+                            {c.status === 'valid' ? '正常' : c.status === 'warning' ? '警告' : '证伪'}
+                          </span>
+                          {c.price_at_check && <span className="check-price">价格 {c.price_at_check}</span>}
+                          {c.checks_detail?.map((d: any, j: number) => (
+                            d.triggered && <span key={j} className="check-triggered">{d.condition}</span>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -217,6 +233,7 @@ export default function ThesisPage() {
 }
 
 function ThesisForm({ onDone }: { onDone: () => void }) {
+  const { toast } = useModal()
   const [ticker, setTicker] = useState('')
   const [name, setName] = useState('')
   const [thesisText, setThesisText] = useState('')
@@ -240,6 +257,7 @@ function ThesisForm({ onDone }: { onDone: () => void }) {
         score: parseFloat(score) || 0,
         horizon,
       })
+      toast('论文保存成功', 'success')
       setTicker(''); setName(''); setThesisText(''); setAssumptionsText(''); setInvalidationText('')
       onDone()
     } catch (e: any) { setError(e.message || '创建失败') }

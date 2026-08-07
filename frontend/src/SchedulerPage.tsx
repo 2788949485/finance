@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { useModal } from './Modal'
 
 // 定时/自动化分析页面
 export default function SchedulerPage() {
+  const { toast, confirm } = useModal()
   const [tasks, setTasks] = useState<any[]>([])
   const [tradingDay, setTradingDay] = useState<boolean>(true)
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [results, setResults] = useState<any[]>([])
+  const [runningIds, setRunningIds] = useState<Set<number>>(new Set())
 
   const load = async () => {
     try {
@@ -27,24 +30,40 @@ export default function SchedulerPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('确定删除这个定时任务？')) return
-    try { await api.deleteScheduledTask(id); load() } catch { /* ignore */ }
+    const ok = await confirm('确定删除这个定时任务？', { danger: true, confirmText: '删除' })
+    if (!ok) return
+    try { await api.deleteScheduledTask(id); toast('已删除', 'success'); load() } catch { toast('删除失败', 'error') }
   }
 
   const handleToggle = async (task: any) => {
     try {
       await api.updateScheduledTask(task.id, { enabled: !task.enabled })
+      toast(task.enabled ? '已暂停' : '已启用', 'success')
       load()
-    } catch { /* ignore */ }
+    } catch { toast('操作失败', 'error') }
   }
 
   const handleRunNow = async (id: number) => {
+    setRunningIds(prev => new Set(prev).add(id))
+    toast('正在执行分析，请稍候...', 'info')
     try {
-      await api.runScheduledTaskNow(id)
-      alert('已触发，分析完成后结果会出现在历史记录中')
+      const result = await api.runScheduledTaskNow(id)
+      if (result.skipped) {
+        toast(`已跳过: ${result.reason}`, 'warning')
+      } else if (result.symbols) {
+        const detail = Object.entries(result.symbols).map(([k, v]: [string, any]) =>
+          v.error ? `${k}失败` : `${v.name || k} ${v.verdict || ''} ${v.action || ''}`
+        ).join('; ')
+        toast(`分析完成: ${detail}`, 'success')
+      } else {
+        toast('分析完成', 'success')
+      }
       load()
+      if (expandedId === id) loadResults(id)
     } catch (e: any) {
-      alert('触发失败: ' + (e.message || ''))
+      toast('执行失败: ' + (e.message || ''), 'error')
+    } finally {
+      setRunningIds(prev => { const n = new Set(prev); n.delete(id); return n })
     }
   }
 
@@ -80,58 +99,72 @@ export default function SchedulerPage() {
         </div>
       ) : (
         <div className="task-list">
-          {tasks.map(t => (
-            <div key={t.id} className={`task-card ${t.enabled ? '' : 'disabled'}`}>
-              <div className="task-header" onClick={() => toggleExpand(t.id)}>
-                <div className="task-info">
-                  <span className="task-name">{t.name}</span>
-                  <span className="task-meta">
-                    {String(t.cron_hour).padStart(2, '0')}:{String(t.cron_minute).padStart(2, '0')} |
-                    {t.symbols.length}只 | {t.mode === 'agentic' ? 'Agent模式' : '标准模式'}
-                  </span>
+          {tasks.map(t => {
+            const isRunning = runningIds.has(t.id)
+            return (
+              <div key={t.id} className={`task-card ${t.enabled ? '' : 'disabled'}`}>
+                <div className="task-header" onClick={() => !isRunning && toggleExpand(t.id)}>
+                  <div className="task-info">
+                    <span className="task-name">
+                      {t.name}
+                      {isRunning && <span className="task-running-tag">分析中...</span>}
+                    </span>
+                    <span className="task-meta">
+                      {String(t.cron_hour).padStart(2, '0')}:{String(t.cron_minute).padStart(2, '0')} |
+                      {t.symbols.length}只 | {t.mode === 'agentic' ? 'Agent模式' : '标准模式'}
+                    </span>
+                  </div>
+                  <div className="task-actions">
+                    <button className="ghost-btn" disabled={isRunning} onClick={(e) => { e.stopPropagation(); handleRunNow(t.id) }}>
+                      {isRunning ? '运行中' : '立即运行'}
+                    </button>
+                    <button className="ghost-btn" disabled={isRunning} onClick={(e) => { e.stopPropagation(); handleToggle(t) }}>
+                      {t.enabled ? '暂停' : '启用'}
+                    </button>
+                    <button className="ghost-btn danger" disabled={isRunning} onClick={(e) => { e.stopPropagation(); handleDelete(t.id) }}>删除</button>
+                  </div>
                 </div>
-                <div className="task-actions">
-                  <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); handleRunNow(t.id) }}>立即运行</button>
-                  <button className="ghost-btn" onClick={(e) => { e.stopPropagation(); handleToggle(t) }}>
-                    {t.enabled ? '暂停' : '启用'}
-                  </button>
-                  <button className="ghost-btn danger" onClick={(e) => { e.stopPropagation(); handleDelete(t.id) }}>删除</button>
+                <div className="task-symbols">
+                  {t.symbols.map((s: string) => (
+                    <span key={s} className="symbol-tag">{s}</span>
+                  ))}
                 </div>
+                {t.last_run_at && (
+                  <div className="task-last-run">
+                    <span className="label">上次运行: {t.last_run_at}</span>
+                    {t.last_result_summary && <span className="summary">{t.last_result_summary}</span>}
+                  </div>
+                )}
+                {isRunning && (
+                  <div className="task-running-status">
+                    <div className="task-spinner" />
+                    <span>正在分析 {t.symbols.join(', ')}，请稍候...</span>
+                  </div>
+                )}
+                {expandedId === t.id && !isRunning && (
+                  <div className="task-results">
+                    <h4>历史结果</h4>
+                    {results.length === 0 ? (
+                      <p className="hint">暂无执行记录</p>
+                    ) : (
+                      results.map((r: any, i: number) => (
+                        <div key={i} className="result-item">
+                          <span className="result-time">{r.run_at}</span>
+                          {r.results?.skipped ? (
+                            <span className="result-skipped">跳过: {r.results.reason}</span>
+                          ) : (
+                            <div className="result-detail">
+                              {r.results?.summary && <span className="result-summary">{r.results.summary}</span>}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="task-symbols">
-                {t.symbols.map((s: string) => (
-                  <span key={s} className="symbol-tag">{s}</span>
-                ))}
-              </div>
-              {t.last_run_at && (
-                <div className="task-last-run">
-                  <span className="label">上次运行: {t.last_run_at}</span>
-                  {t.last_result_summary && <span className="summary">{t.last_result_summary}</span>}
-                </div>
-              )}
-              {expandedId === t.id && (
-                <div className="task-results">
-                  <h4>历史结果</h4>
-                  {results.length === 0 ? (
-                    <p className="hint">暂无执行记录</p>
-                  ) : (
-                    results.map((r: any, i: number) => (
-                      <div key={i} className="result-item">
-                        <span className="result-time">{r.run_at}</span>
-                        {r.results?.skipped ? (
-                          <span className="result-skipped">跳过: {r.results.reason}</span>
-                        ) : (
-                          <div className="result-detail">
-                            {r.results?.summary && <span className="result-summary">{r.results.summary}</span>}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -139,6 +172,7 @@ export default function SchedulerPage() {
 }
 
 function TaskForm({ onDone }: { onDone: () => void }) {
+  const { toast } = useModal()
   const [name, setName] = useState('')
   const [symbolsText, setSymbolsText] = useState('')
   const [mode, setMode] = useState('standard')
@@ -159,6 +193,7 @@ function TaskForm({ onDone }: { onDone: () => void }) {
         cron_hour: parseInt(hour),
         cron_minute: parseInt(minute),
       })
+      toast('任务创建成功', 'success')
       setName(''); setSymbolsText('')
       onDone()
     } catch (e: any) { setError(e.message || '创建失败') }
